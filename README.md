@@ -41,7 +41,7 @@ Optional: `.github/agent-pipeline.yml` (per-agent model + limits).
 A one-shot installer that provisions all of that is tracked in
 [abi83/prepify#153](https://github.com/abi83/prepify/issues/153) /
 [#154](https://github.com/abi83/prepify/issues/154). A fuller README —
-pipeline flow, label state table — is tracked separately.
+pipeline flow, label state table — is [abi83/prepify#163](https://github.com/abi83/prepify/issues/163).
 
 ## Layout
 
