@@ -22,14 +22,17 @@ Rules:
   the ticket even asks for), that's the kind of blocking ambiguity covered
   in the clarification rule below — ask the owner instead of guessing.
 
-If the repo has an `.github/ISSUE_TEMPLATE/` file matching the chosen type,
-read it and use its exact section structure — same headings, same order.
-Otherwise use this structure:
+Then read the template for that type and use its exact section structure —
+same headings, same order. Look in this order and use the first that
+exists:
 
-- **spike** — Context, Question, Options considered, Recommendation
-- **bug** — What happens, Expected, Steps to reproduce, Notes
-- **coding-task** — Value, Scope, Acceptance Criteria
-- **epic** — Value, Themes / sub-areas (no Acceptance Criteria)
+1. the consuming repo's `.github/ISSUE_TEMPLATE/<type>.md` (so a
+   refiner-written issue matches what humans see in the New Issue picker)
+2. `.interns/templates/issue/<type>.md` — the built-in default, always
+   present
+
+Ignore the YAML frontmatter and HTML comments; they're authoring guidance,
+not body content.
 
 ## Step 2: fill it in
 
