@@ -22,7 +22,7 @@ jobs:
         #   version doesn't know yet.
         uses: docker://rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
         with:
-          args: -color -ignore '\.interns' -ignore 'job_workflow_ref'
+          args: -color -ignore interns -ignore job_workflow_ref
 
       # -x so shellcheck follows the `source` of pipeline/lib.sh.
       - name: Lint standalone shell scripts
