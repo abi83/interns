@@ -1,0 +1,513 @@
+name: Coding agents (reusable)
+
+# Reusable core of the coder/reviewer pipeline. Triggered only via
+# code-pipeline.yml, which owns the `issues` / `pull_request` /
+# `workflow_dispatch` triggers and passes its dispatch inputs through.
+on:
+  workflow_call:
+    inputs:
+      issue_number:
+        description: Issue number (coder phase, workflow_dispatch only)
+        required: false
+        type: string
+      pr_number:
+        description: PR number (reviewer phase, workflow_dispatch only)
+        required: false
+        type: string
+      fix_round:
+        description: Treat a coder dispatch as a reviewer fix round
+        required: false
+        type: boolean
+        default: false
+      phase:
+        description: coder | reviewer (workflow_dispatch only)
+        required: false
+        type: string
+      debug:
+        description: Show full Claude output in logs
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        description: OAuth token for anthropics/claude-code-action
+        required: true
+      REVIEWER_APP_PRIVATE_KEY:
+        description: Private key for the reviewer GitHub App (paired with vars.REVIEWER_APP_ID); reviewer job only
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+
+env:
+  # Bash perms are literal-prefix matched, so each gh-safe script is listed in every path form the agent might type (#104).
+  ALLOWED_COMMENT_ISSUE: "Bash(./.interns/.github/scripts/gh-safe/comment-issue.sh:*),Bash(.interns/.github/scripts/gh-safe/comment-issue.sh:*),Bash(${{ github.workspace }}/.interns/.github/scripts/gh-safe/comment-issue.sh:*)"
+  ALLOWED_COMMENT_PR: "Bash(./.interns/.github/scripts/gh-safe/comment-pr.sh:*),Bash(.interns/.github/scripts/gh-safe/comment-pr.sh:*),Bash(${{ github.workspace }}/.interns/.github/scripts/gh-safe/comment-pr.sh:*)"
+  ALLOWED_OPEN_PR: "Bash(./.interns/.github/scripts/gh-safe/open-pr.sh:*),Bash(.interns/.github/scripts/gh-safe/open-pr.sh:*),Bash(${{ github.workspace }}/.interns/.github/scripts/gh-safe/open-pr.sh:*)"
+  ALLOWED_SUBMIT_REVIEW: "Bash(./.interns/.github/scripts/gh-safe/submit-pr-review.sh:*),Bash(.interns/.github/scripts/gh-safe/submit-pr-review.sh:*),Bash(${{ github.workspace }}/.interns/.github/scripts/gh-safe/submit-pr-review.sh:*)"
+  ALLOWED_PUSH_BRANCH: "Bash(./.interns/.github/scripts/gh-safe/push-branch.sh:*),Bash(.interns/.github/scripts/gh-safe/push-branch.sh:*),Bash(${{ github.workspace }}/.interns/.github/scripts/gh-safe/push-branch.sh:*)"
+  # In-sandbox git only. git push is deliberately absent — reaching the shared remote goes through push-branch.sh.
+  ALLOWED_GIT_WRITE: "Bash(git checkout:*),Bash(git switch:*),Bash(git add:*),Bash(git commit:*),Bash(git rm:*)"
+  ALLOWED_GIT_READ: "Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git status:*)"
+  ALLOWED_BUILD_TEST: "Bash(npm install:*),Bash(npm ci:*),Bash(npm test:*),Bash(npm run build:*)"
+  ALLOWED_CI_READ: "Bash(gh pr checks:*),Bash(gh run view:*)"
+  ALLOWED_ISSUE_READ: "Bash(gh issue view:*)"
+
+jobs:
+  coder:
+    if: >
+      (github.event_name == 'issues' && github.event.label.name == 'status:ready') ||
+      (github.event_name == 'workflow_dispatch' && inputs.phase == 'coder')
+    runs-on: ubuntu-latest
+    concurrency:
+      group: coder-issue-${{ github.event.issue.number || inputs.issue_number }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Resolve pipeline ref
+        id: pipeline_ref
+        shell: bash
+        env:
+          JOB_WORKFLOW_REF: ${{ github.job_workflow_ref }}
+        run: echo "ref=${JOB_WORKFLOW_REF##*@}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout pipeline assets
+        uses: actions/checkout@v5
+        with:
+          repository: abi83/interns
+          ref: ${{ steps.pipeline_ref.outputs.ref }}
+          path: .interns
+
+      # vars.WIKI_REPO — repo-level Actions variable pointing at a wiki repo, or unset.
+      - name: Checkout wiki
+        if: vars.WIKI_REPO != ''
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ vars.WIKI_REPO }}
+          path: wiki
+
+      - name: Resolve issue
+        id: issue
+        uses: ./.interns/.github/actions/resolve-issue
+        with:
+          issue_number: ${{ github.event.issue.number || inputs.issue_number }}
+
+      - name: Guard against duplicate or stale trigger
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NUM="${{ steps.issue.outputs.number }}"
+          FIX_ROUND="${{ inputs.fix_round }}"
+          LABELS=$(gh issue view "$NUM" --repo ${{ github.repository }} --json labels --jq '[.labels[].name] | join(",")')
+          echo "labels=$LABELS" >> "$GITHUB_OUTPUT"
+          echo "fix_round=$FIX_ROUND" >> "$GITHUB_OUTPUT"
+          # A fix round is an explicit dispatch from the reviewer against an issue
+          # that is *already* status:in-progress — the stale-trigger guard below
+          # would wrongly skip it, so let it through.
+          if [[ "$FIX_ROUND" != "true" ]] && \
+             [[ "$LABELS" == *"status:in-progress"* || "$LABELS" == *"status:needs-attention"* ]]; then
+            echo "Issue #$NUM is already past status:ready ($LABELS) — stale or duplicate trigger, skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$LABELS" != *"type:coding-task"* && "$LABELS" != *"type:bug"* ]]; then
+            # Deterministic type gate: only type:coding-task and type:bug are
+            # implementable. status:ready can also land on an epic (via its
+            # estimate-phase bypass) or a spike, neither of which the coder
+            # should ever attempt — see #112.
+            echo "Issue #$NUM is not type:coding-task or type:bug ($LABELS) — not implementable, escalating."
+            gh issue edit "$NUM" --repo ${{ github.repository }} \
+              --add-label "status:needs-attention" --remove-label "status:ready"
+            gh issue comment "$NUM" --repo ${{ github.repository }} --body "This issue reached \`status:ready\` without a \`type:coding-task\` or \`type:bug\` label, so the coder agent won't attempt it — only those two types are implementable code deliverables. If this should be implemented, add the correct type label and re-apply \`status:ready\`."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Determine fix round
+        id: mode
+        if: steps.guard.outputs.skip != 'true'
+        run: |
+          # The reviewer dispatches a fix round explicitly with
+          # `-f fix_round=true`; an initial `status:ready` label event never
+          # sets it. No label-derived inference — issue state no longer
+          # distinguishes the two (the issue stays status:in-progress for
+          # the whole run).
+          if [[ "${{ steps.guard.outputs.fix_round }}" == "true" ]]; then
+            echo "fix_round=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "fix_round=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set in-progress
+        if: steps.guard.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Also clears status:needs-attention so a human re-dispatch after a
+          # failed run (initial or fix round) leaves no contradictory labels.
+          gh issue edit "${{ steps.issue.outputs.number }}" --repo ${{ github.repository }} \
+            --add-label "status:in-progress" \
+            --remove-label "status:ready" --remove-label "status:needs-attention" || true
+
+      - name: Resolve agent config
+        id: cfg
+        if: steps.guard.outputs.skip != 'true'
+        uses: ./.interns/.github/actions/resolve-agent-config
+        with:
+          agent: coder
+          pipeline_model: ${{ vars.PIPELINE_MODEL }}
+          pipeline_max_turns: ${{ vars.PIPELINE_MAX_TURNS }}
+          pipeline_timeout_minutes: ${{ vars.PIPELINE_TIMEOUT_MINUTES }}
+          pipeline_max_output_tokens: ${{ vars.PIPELINE_MAX_OUTPUT_TOKENS }}
+          pipeline_cost_warn_usd: ${{ vars.PIPELINE_COST_WARN_USD }}
+
+      - name: Resolve existing PR (fix round)
+        id: pr
+        if: steps.guard.outputs.skip != 'true' && steps.mode.outputs.fix_round == 'true'
+        uses: ./.interns/.github/actions/find-pr-for-issue
+        with:
+          issue_number: ${{ steps.issue.outputs.number }}
+
+      - name: Mark PR pr:coding (fix round)
+        if: steps.guard.outputs.skip != 'true' && steps.mode.outputs.fix_round == 'true' && steps.pr.outputs.pr_number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr edit "${{ steps.pr.outputs.pr_number }}" --repo ${{ github.repository }} \
+            --add-label "pr:coding" --remove-label "pr:in-review" || true
+
+      - name: Gather reviewer feedback (fix round)
+        id: feedback
+        if: steps.guard.outputs.skip != 'true' && steps.mode.outputs.fix_round == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          .interns/.github/scripts/pipeline/gather-fix-feedback.sh
+          "${{ steps.pr.outputs.pr_number }}"
+          "${{ steps.pr.outputs.head_ref }}"
+          "${{ steps.issue.outputs.number }}"
+
+      - name: Run Claude coder (initial implementation)
+        id: claude_initial
+        if: steps.guard.outputs.skip != 'true' && steps.mode.outputs.fix_round != 'true'
+        timeout-minutes: ${{ fromJSON(steps.cfg.outputs.timeout_minutes) }}
+        uses: anthropics/claude-code-action@v1
+        env:
+          CLAUDE_CODE_MAX_OUTPUT_TOKENS: ${{ steps.cfg.outputs.max_output_tokens }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          show_full_output: ${{ inputs.debug }}
+          allowed_bots: "claude[bot]"
+          prompt: |
+            REPO: ${{ github.repository }}
+            ISSUE NUMBER: ${{ steps.issue.outputs.number }}
+            TITLE: ${{ steps.issue.outputs.title }}
+            OWNER: @${{ github.repository_owner }}
+            BODY:
+            ${{ steps.issue.outputs.body }}
+
+            ${{ steps.issue.outputs.comments }}
+
+            Read .interns/.github/prompts/code.md for the exact implementation and
+            PR-opening rules and apply them to the issue above.
+          claude_args: |
+            --model ${{ steps.cfg.outputs.model }}
+            --max-turns ${{ steps.cfg.outputs.max_turns }}
+            --allowedTools "Read,Grep,Glob,Write,Edit,${{ env.ALLOWED_GIT_WRITE }},${{ env.ALLOWED_PUSH_BRANCH }},${{ env.ALLOWED_BUILD_TEST }},${{ env.ALLOWED_OPEN_PR }},${{ env.ALLOWED_COMMENT_ISSUE }}"
+
+      - name: Run Claude coder (fix round)
+        id: claude_fix
+        if: steps.guard.outputs.skip != 'true' && steps.mode.outputs.fix_round == 'true'
+        timeout-minutes: ${{ fromJSON(steps.cfg.outputs.timeout_minutes) }}
+        uses: anthropics/claude-code-action@v1
+        env:
+          PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
+          CLAUDE_CODE_MAX_OUTPUT_TOKENS: ${{ steps.cfg.outputs.max_output_tokens }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          show_full_output: ${{ inputs.debug }}
+          # The fix round is dispatched by the reviewer job via `gh workflow run`
+          # with the default token, so the triggering actor is github-actions[bot],
+          # not a human label event — claude-code-action refuses it unless the bot
+          # is allowlisted here. The initial-implementation step doesn't need this:
+          # it's triggered by a real `status:ready` label event on the issue.
+          allowed_bots: "claude[bot],github-actions[bot]"
+          prompt: |
+            REPO: ${{ github.repository }}
+            ISSUE NUMBER: ${{ steps.issue.outputs.number }}
+            TITLE: ${{ steps.issue.outputs.title }}
+            PR NUMBER: ${{ steps.pr.outputs.pr_number }}
+            BRANCH: ${{ steps.pr.outputs.head_ref }} (already checked out)
+
+            REVIEWER FEEDBACK:
+            ${{ steps.feedback.outputs.text }}
+
+            Read .interns/.github/prompts/code-fix.md for the exact rules and
+            apply them to the feedback above.
+          claude_args: |
+            --model ${{ steps.cfg.outputs.model }}
+            --max-turns ${{ steps.cfg.outputs.max_turns }}
+            --allowedTools "Read,Grep,Glob,Write,Edit,${{ env.ALLOWED_GIT_WRITE }},${{ env.ALLOWED_PUSH_BRANCH }},${{ env.ALLOWED_BUILD_TEST }},${{ env.ALLOWED_COMMENT_PR }}"
+
+      - name: Report run cost
+        if: steps.guard.outputs.skip != 'true' && always() && (steps.claude_initial.outputs.execution_file != '' || steps.claude_fix.outputs.execution_file != '')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          .interns/.github/scripts/pipeline/report-run.sh Coder
+          "${{ steps.claude_initial.outputs.execution_file }}${{ steps.claude_fix.outputs.execution_file }}"
+          "${{ steps.issue.outputs.number }}"
+
+      - name: Check PR now exists
+        id: verify_pr
+        if: steps.guard.outputs.skip != 'true' && success()
+        uses: ./.interns/.github/actions/find-pr-for-issue
+        with:
+          issue_number: ${{ steps.issue.outputs.number }}
+
+      - name: Hand off to reviewer
+        if: steps.guard.outputs.skip != 'true' && success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          .interns/.github/scripts/pipeline/handoff-to-review.sh
+          "${{ steps.issue.outputs.number }}" "${{ steps.verify_pr.outputs.pr_number }}"
+
+      - name: Write run summary
+        if: steps.guard.outputs.skip != 'true' && always() && (steps.claude_initial.outcome != 'skipped' || steps.claude_fix.outcome != 'skipped')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          .interns/.github/scripts/pipeline/run-summary.sh Coder
+          "${{ steps.claude_initial.outputs.execution_file }}${{ steps.claude_fix.outputs.execution_file }}"
+          --issue "${{ steps.issue.outputs.number }}"
+          --pr "${{ steps.verify_pr.outputs.pr_number || steps.pr.outputs.pr_number }}"
+          --round ${{ steps.mode.outputs.fix_round == 'true' && 'fix' || 'initial' }}
+          --cost-warn "${{ steps.cfg.outputs.cost_warn_usd }}"
+
+      - name: Flag failure
+        if: steps.guard.outputs.skip != 'true' && failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "${{ steps.mode.outputs.fix_round }}" == "true" ]]; then
+            .interns/.github/scripts/pipeline/flag-failure.sh --noun implementation \
+              --issue "${{ steps.issue.outputs.number }}" \
+              --pr "${{ steps.pr.outputs.pr_number }}" --fix-round
+          else
+            .interns/.github/scripts/pipeline/flag-failure.sh --noun implementation \
+              --issue "${{ steps.issue.outputs.number }}"
+          fi
+
+  reviewer:
+    # Skip PRs the reviewer can't meaningfully handle instead of failing on them
+    # (see #132 defect 8):
+    #  - fork PRs have no access to secrets, so CLAUDE_CODE_OAUTH_TOKEN /
+    #    REVIEWER_APP_PRIVATE_KEY are empty and the run just errors out;
+    #  - bot PRs other than the coder's claude[bot] (Dependabot, etc.) aren't in
+    #    allowed_bots and produce an "Automated review failed" comment.
+    # A skipped job posts nothing. workflow_dispatch stays an unconditional
+    # manual override.
+    if: >
+      (github.event_name == 'pull_request' &&
+        github.event.pull_request.head.repo.fork == false &&
+        (github.event.pull_request.user.type != 'Bot' ||
+         github.event.pull_request.user.login == 'claude[bot]')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.phase == 'reviewer')
+    runs-on: ubuntu-latest
+    # GITHUB_TOKEN-authored label edits don't fire new workflow runs (GitHub's
+    # anti-recursion rule for the default token), so a label alone would never
+    # re-trigger the coder job for a fix round. actions: write lets this job
+    # explicitly dispatch it instead (see "Apply verdict" below) — an
+    # intentional workflow_dispatch call, which is exempt from that restriction.
+    # Overriding permissions at job level means every permission this job needs
+    # must be listed here, not just the new one.
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      actions: write
+      id-token: write
+    concurrency:
+      group: reviewer-pr-${{ github.event.pull_request.number || inputs.pr_number }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Resolve pipeline ref
+        id: pipeline_ref
+        shell: bash
+        env:
+          JOB_WORKFLOW_REF: ${{ github.job_workflow_ref }}
+        run: echo "ref=${JOB_WORKFLOW_REF##*@}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout pipeline assets
+        uses: actions/checkout@v5
+        with:
+          repository: abi83/interns
+          ref: ${{ steps.pipeline_ref.outputs.ref }}
+          path: .interns
+
+      # vars.WIKI_REPO — repo-level Actions variable pointing at a wiki repo, or unset.
+      - name: Checkout wiki
+        if: vars.WIKI_REPO != ''
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ vars.WIKI_REPO }}
+          path: wiki
+
+      - name: Resolve linked issue
+        id: linked
+        uses: ./.interns/.github/actions/resolve-linked-issue
+        with:
+          pr_number: ${{ github.event.pull_request.number || inputs.pr_number }}
+
+      - name: Resolve agent config
+        id: cfg
+        uses: ./.interns/.github/actions/resolve-agent-config
+        with:
+          agent: reviewer
+          pipeline_model: ${{ vars.PIPELINE_MODEL }}
+          pipeline_max_turns: ${{ vars.PIPELINE_MAX_TURNS }}
+          pipeline_timeout_minutes: ${{ vars.PIPELINE_TIMEOUT_MINUTES }}
+          pipeline_max_output_tokens: ${{ vars.PIPELINE_MAX_OUTPUT_TOKENS }}
+          pipeline_cost_warn_usd: ${{ vars.PIPELINE_COST_WARN_USD }}
+
+      - name: Wait for test + build checks
+        id: checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .interns/.github/scripts/pipeline/wait-for-checks.sh "${{ github.event.pull_request.number }}"
+
+      - name: Route red checks to a human
+        if: steps.checks.outputs.ok == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          .interns/.github/scripts/pipeline/route-red-checks.sh
+          "${{ github.event.pull_request.number }}"
+          "${{ steps.linked.outputs.issue_number }}"
+          "${{ steps.checks.outputs.reason }}"
+
+      # The reviewer runs under its own GitHub App identity, distinct from the
+      # coder's claude[bot], so it can actually submit an APPROVE review —
+      # GitHub forbids approving a PR authored by the same identity (#119).
+      - name: Generate reviewer app token
+        id: reviewer_token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.REVIEWER_APP_ID }}
+          private-key: ${{ secrets.REVIEWER_APP_PRIVATE_KEY }}
+
+      # One source of truth for the reviewer's bot login, derived from the app
+      # token (which is derived from vars.REVIEWER_APP_ID). Every step that
+      # matches reviews by author reads this output — renaming the app only
+      # touches the variable, never a hardcoded slug (see #132 defect 3).
+      - name: Resolve reviewer identity
+        id: ident
+        run: echo "bot=${{ steps.reviewer_token.outputs.app-slug }}[bot]" >> "$GITHUB_OUTPUT"
+
+      # Dedup only. The round cap lives in "Apply verdict":
+      # the reviewer always runs and submits a verdict (so a second review can
+      # still land on APPROVE), and the escalate-vs-dispatch-coder decision is
+      # made from that verdict — see #132 defect 6.
+      - name: Dedup check
+        id: check
+        if: steps.checks.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEWER_BOT: ${{ steps.ident.outputs.bot }}
+        run: |
+          PR="${{ github.event.pull_request.number || inputs.pr_number }}"
+          HEAD_SHA=$(gh pr view "$PR" --repo ${{ github.repository }} --json headRefOid --jq .headRefOid)
+          LAST_SHA=$(gh api "repos/${{ github.repository }}/pulls/$PR/reviews" \
+            --jq '[.[] | select(.user.login==env.REVIEWER_BOT)] | last | .commit_id // empty')
+
+          if [[ -n "$LAST_SHA" && "$LAST_SHA" == "$HEAD_SHA" ]]; then
+            echo "Head commit $HEAD_SHA already reviewed — duplicate event, skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run Claude reviewer
+        id: claude
+        if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true'
+        timeout-minutes: ${{ fromJSON(steps.cfg.outputs.timeout_minutes) }}
+        uses: anthropics/claude-code-action@v1
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+          CLAUDE_CODE_MAX_OUTPUT_TOKENS: ${{ steps.cfg.outputs.max_output_tokens }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ steps.reviewer_token.outputs.token }}
+          show_full_output: ${{ inputs.debug }}
+          allowed_bots: "claude[bot]"
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+            LINKED ISSUE: ${{ steps.linked.outputs.issue_number }}
+
+            Read .interns/.github/prompts/review.md for the exact review rubric
+            and the mechanic for submitting your verdict, and review this
+            PR's diff against the linked issue's Acceptance Criteria.
+          claude_args: |
+            --model ${{ steps.cfg.outputs.model }}
+            --max-turns ${{ steps.cfg.outputs.max_turns }}
+            --allowedTools "Read,Grep,Glob,Write,${{ env.ALLOWED_GIT_READ }},${{ env.ALLOWED_CI_READ }},${{ env.ALLOWED_ISSUE_READ }},${{ env.ALLOWED_SUBMIT_REVIEW }},${{ env.ALLOWED_COMMENT_PR }}"
+
+      - name: Report run cost
+        if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && always() && steps.claude.outputs.execution_file != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          .interns/.github/scripts/pipeline/report-run.sh Review
+          "${{ steps.claude.outputs.execution_file }}"
+          "${{ steps.linked.outputs.issue_number }}"
+          "${{ github.event.pull_request.number || inputs.pr_number }}"
+
+      - name: Apply reviewer verdict
+        if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEWER_BOT: ${{ steps.ident.outputs.bot }}
+        run: >
+          .interns/.github/scripts/pipeline/apply-verdict.sh
+          "${{ github.event.pull_request.number || inputs.pr_number }}"
+          "${{ steps.linked.outputs.issue_number }}"
+
+      - name: Write run summary
+        if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && always() && steps.claude.outcome != 'skipped'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEWER_BOT: ${{ steps.ident.outputs.bot }}
+        run: >
+          .interns/.github/scripts/pipeline/run-summary.sh Review
+          "${{ steps.claude.outputs.execution_file }}"
+          --pr "${{ github.event.pull_request.number || inputs.pr_number }}"
+          --issue "${{ steps.linked.outputs.issue_number }}"
+          --cost-warn "${{ steps.cfg.outputs.cost_warn_usd }}"
+
+      - name: Flag failure
+        # Also fires when Resolve agent config fails — that step runs before
+        # `checks`, so a bad config would otherwise leave checks.outputs.ok
+        # empty and skip the standard failure comment (#150's generic fallback).
+        if: >
+          failure() && (
+            steps.cfg.outcome == 'failure' ||
+            (steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true')
+          )
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          .interns/.github/scripts/pipeline/flag-failure.sh --noun review
+          --pr "${{ github.event.pull_request.number || inputs.pr_number }}"
+          --issue "${{ steps.linked.outputs.issue_number }}"

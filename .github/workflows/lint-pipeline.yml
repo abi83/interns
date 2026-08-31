@@ -1,0 +1,41 @@
+name: Lint pipeline
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Lint workflows and their inline run blocks
+        # docker://rhysd/actionlint:1.7.12, pinned by digest.
+        # -ignore '\.interns': the reusable workflows reference their own composite
+        #   actions under ./.interns/... — a path that only exists at runtime, once
+        #   the job self-checks-out this repo there (see code-pipeline.yml).
+        # -ignore 'job_workflow_ref': a valid context property this actionlint
+        #   version doesn't know yet.
+        uses: docker://rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
+        with:
+          args: -color -ignore '\.interns' -ignore 'job_workflow_ref'
+
+      # -x so shellcheck follows the `source` of pipeline/lib.sh.
+      - name: Lint standalone shell scripts
+        run: find .github/scripts -name '*.sh' -print0 | xargs -0 -r shellcheck -x
+
+      - name: Validate the agent-pipeline schema is well-formed
+        run: pipx run check-jsonschema --check-metaschema .github/agent-pipeline.schema.json
+
+  test-scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install bats
+        run: sudo apt-get update && sudo apt-get install -y bats
+      - name: Run pipeline script tests
+        run: bats .github/scripts/pipeline/tests

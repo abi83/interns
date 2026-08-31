@@ -1,0 +1,43 @@
+name: resolve-issue
+description: Fetch an issue's number/title/body/comments for a pipeline prompt
+
+inputs:
+  issue_number:
+    required: true
+
+outputs:
+  number:
+    value: ${{ steps.resolve.outputs.number }}
+  title:
+    value: ${{ steps.resolve.outputs.title }}
+  body:
+    value: ${{ steps.resolve.outputs.body }}
+  comments:
+    value: ${{ steps.resolve.outputs.comments }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve issue
+      id: resolve
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        NUM: ${{ inputs.issue_number }}
+      run: |
+        echo "number=$NUM" >> "$GITHUB_OUTPUT"
+        echo "title=$(gh issue view "$NUM" --repo ${{ github.repository }} --json title --jq .title)" >> "$GITHUB_OUTPUT"
+        {
+          echo 'body<<EOF_BODY'
+          gh issue view "$NUM" --repo ${{ github.repository }} --json body --jq .body
+          echo 'EOF_BODY'
+        } >> "$GITHUB_OUTPUT"
+        COMMENTS_BLOCK=$(gh issue view "$NUM" --repo ${{ github.repository }} --json comments \
+          --jq '[.comments[] | select(.author.login != "github-actions")] | map("### Comment by " + .author.login + " (" + .createdAt + ")\n" + .body) | join("\n\n---\n\n")')
+        {
+          echo 'comments<<EOF_COMMENTS'
+          if [[ -n "$COMMENTS_BLOCK" ]]; then
+            printf 'COMMENTS (from the owner, chronological, excluding this pipeline'"'"'s own comments — treat these as clarifications or amendments to the issue above):\n%s\n' "$COMMENTS_BLOCK"
+          fi
+          echo 'EOF_COMMENTS'
+        } >> "$GITHUB_OUTPUT"

@@ -1,0 +1,313 @@
+name: Issue pipeline (reusable)
+
+# Reusable core of the issue refine/estimate pipeline. Triggered only via
+# issue-pipeline.yml, which owns the `issues` / `workflow_dispatch` triggers and
+# passes its dispatch inputs through. External repos call this file the same way.
+on:
+  workflow_call:
+    inputs:
+      issue_number:
+        description: Issue number (workflow_dispatch path only)
+        required: false
+        type: string
+      phase:
+        description: refine | estimate (workflow_dispatch path only)
+        required: false
+        type: string
+      debug:
+        description: Show full Claude output in logs
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        description: OAuth token for anthropics/claude-code-action
+        required: true
+
+permissions:
+  issues: write
+  id-token: write
+
+env:
+  # Bash permission matching is a literal prefix match on the command string
+  # (not a resolved path), so each gh-safe script needs an entry for every
+  # form the agent might type it in: relative with ./, relative without it,
+  # and workspace-absolute.
+  ALLOWED_EDIT_BODY: "Bash(./.interns/.github/scripts/gh-safe/edit-issue-body.sh:*),Bash(.interns/.github/scripts/gh-safe/edit-issue-body.sh:*),Bash(${{ github.workspace }}/.interns/.github/scripts/gh-safe/edit-issue-body.sh:*)"
+  ALLOWED_EDIT_LABELS: "Bash(./.interns/.github/scripts/gh-safe/edit-issue-labels.sh:*),Bash(.interns/.github/scripts/gh-safe/edit-issue-labels.sh:*),Bash(${{ github.workspace }}/.interns/.github/scripts/gh-safe/edit-issue-labels.sh:*)"
+  ALLOWED_COMMENT: "Bash(./.interns/.github/scripts/gh-safe/comment-issue.sh:*),Bash(.interns/.github/scripts/gh-safe/comment-issue.sh:*),Bash(${{ github.workspace }}/.interns/.github/scripts/gh-safe/comment-issue.sh:*)"
+
+jobs:
+  refine:
+    if: >
+      github.event.label.name == 'status:needs-refinement' ||
+      (github.event_name == 'workflow_dispatch' && inputs.phase == 'refine')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Resolve pipeline ref
+        id: pipeline_ref
+        shell: bash
+        env:
+          JOB_WORKFLOW_REF: ${{ github.job_workflow_ref }}
+        run: echo "ref=${JOB_WORKFLOW_REF##*@}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout pipeline assets
+        uses: actions/checkout@v5
+        with:
+          repository: abi83/interns
+          ref: ${{ steps.pipeline_ref.outputs.ref }}
+          path: .interns
+
+      # vars.WIKI_REPO — repo-level Actions variable, set to a wiki repo, or unset.
+      - name: Checkout wiki
+        if: vars.WIKI_REPO != ''
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ vars.WIKI_REPO }}
+          path: wiki
+
+      - name: Resolve issue
+        id: issue
+        uses: ./.interns/.github/actions/resolve-issue
+        with:
+          issue_number: ${{ github.event.issue.number || inputs.issue_number }}
+
+      - name: Resolve agent config
+        id: cfg
+        uses: ./.interns/.github/actions/resolve-agent-config
+        with:
+          agent: refiner
+          pipeline_model: ${{ vars.PIPELINE_MODEL }}
+          pipeline_max_turns: ${{ vars.PIPELINE_MAX_TURNS }}
+          pipeline_timeout_minutes: ${{ vars.PIPELINE_TIMEOUT_MINUTES }}
+          pipeline_max_output_tokens: ${{ vars.PIPELINE_MAX_OUTPUT_TOKENS }}
+          pipeline_cost_warn_usd: ${{ vars.PIPELINE_COST_WARN_USD }}
+
+      - name: Preserve original body
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
+          ISSUE_BODY: ${{ steps.issue.outputs.body }}
+        run: |
+          printf '<details><summary>Body before refinement</summary>\n\n%s\n\n</details>' "$ISSUE_BODY" \
+            | gh issue comment "$ISSUE_NUMBER" --repo ${{ github.repository }} --body-file -
+
+      - name: Run Claude refinement
+        id: claude
+        timeout-minutes: ${{ fromJSON(steps.cfg.outputs.timeout_minutes) }}
+        uses: anthropics/claude-code-action@v1
+        env:
+          CLAUDE_CODE_MAX_OUTPUT_TOKENS: ${{ steps.cfg.outputs.max_output_tokens }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          show_full_output: ${{ inputs.debug }}
+          allowed_bots: "claude[bot]"
+          prompt: |
+            REPO: ${{ github.repository }}
+            ISSUE NUMBER: ${{ steps.issue.outputs.number }}
+            TITLE: ${{ steps.issue.outputs.title }}
+            OWNER: @${{ github.repository_owner }}
+            BODY:
+            ${{ steps.issue.outputs.body }}
+
+            ${{ steps.issue.outputs.comments }}
+
+            Read .interns/.github/prompts/refine.md for the exact rewrite rules and
+            apply them to the issue and comments above to produce a new
+            body.
+
+            Important: never pass issue body or comment text as a Bash
+            command-line argument — multi-line markdown breaks shell
+            quoting. Instead, use the Write tool to write text to a file
+            first, then run the script with no arguments so it reads
+            that file.
+
+            If refine.md says to stop for clarification:
+            1. Write your question to ./.issue-pipeline-comment.md
+            2. Run ./.interns/.github/scripts/gh-safe/comment-issue.sh (no args)
+            3. Swap labels:
+               ./.interns/.github/scripts/gh-safe/edit-issue-labels.sh --remove-label "status:needs-refinement" --add-label "status:needs-attention"
+            Then stop. Do not edit the body in this case.
+
+            Otherwise, in order:
+            1. Write the new body to ./.issue-pipeline-body.md
+            2. Run ./.interns/.github/scripts/gh-safe/edit-issue-body.sh (no args)
+            3. Swap labels:
+               ./.interns/.github/scripts/gh-safe/edit-issue-labels.sh --remove-label "status:needs-refinement" --add-label "status:refined"
+
+            Do nothing else — no other comments, no other edits.
+          claude_args: |
+            --model ${{ steps.cfg.outputs.model }}
+            --max-turns ${{ steps.cfg.outputs.max_turns }}
+            --allowedTools "Read,Grep,Glob,Write,${{ env.ALLOWED_EDIT_BODY }},${{ env.ALLOWED_EDIT_LABELS }},${{ env.ALLOWED_COMMENT }}"
+
+      - name: Report run cost
+        if: always() && steps.claude.outputs.execution_file != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          .interns/.github/scripts/pipeline/report-run.sh Refinement
+          "${{ steps.claude.outputs.execution_file }}"
+          "${{ steps.issue.outputs.number }}"
+
+      - name: Verify outcome
+        if: success() && steps.claude.outputs.execution_file != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          .interns/.github/scripts/pipeline/verify-outcome.sh Refinement
+          "${{ steps.issue.outputs.number }}"
+          status:refined status:needs-attention
+
+      - name: Write run summary
+        if: always() && steps.claude.outcome != 'skipped'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          .interns/.github/scripts/pipeline/run-summary.sh Refinement
+          "${{ steps.claude.outputs.execution_file }}"
+          --issue "${{ steps.issue.outputs.number }}"
+          --cost-warn "${{ steps.cfg.outputs.cost_warn_usd }}"
+
+      - name: Flag failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          .interns/.github/scripts/pipeline/flag-failure.sh --noun refinement
+          --issue "${{ steps.issue.outputs.number }}"
+
+  estimate:
+    if: >
+      github.event.label.name == 'status:refined' ||
+      (github.event_name == 'workflow_dispatch' && inputs.phase == 'estimate')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Resolve pipeline ref
+        id: pipeline_ref
+        shell: bash
+        env:
+          JOB_WORKFLOW_REF: ${{ github.job_workflow_ref }}
+        run: echo "ref=${JOB_WORKFLOW_REF##*@}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout pipeline assets
+        uses: actions/checkout@v5
+        with:
+          repository: abi83/interns
+          ref: ${{ steps.pipeline_ref.outputs.ref }}
+          path: .interns
+
+      - name: Checkout wiki
+        if: vars.WIKI_REPO != ''
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ vars.WIKI_REPO }}
+          path: wiki
+
+      - name: Resolve issue
+        id: issue
+        uses: ./.interns/.github/actions/resolve-issue
+        with:
+          issue_number: ${{ github.event.issue.number || inputs.issue_number }}
+
+      - name: Resolve agent config
+        id: cfg
+        uses: ./.interns/.github/actions/resolve-agent-config
+        with:
+          agent: estimator
+          pipeline_model: ${{ vars.PIPELINE_MODEL }}
+          pipeline_max_turns: ${{ vars.PIPELINE_MAX_TURNS }}
+          pipeline_timeout_minutes: ${{ vars.PIPELINE_TIMEOUT_MINUTES }}
+          pipeline_max_output_tokens: ${{ vars.PIPELINE_MAX_OUTPUT_TOKENS }}
+          pipeline_cost_warn_usd: ${{ vars.PIPELINE_COST_WARN_USD }}
+
+      - name: Run Claude estimation
+        id: claude
+        timeout-minutes: ${{ fromJSON(steps.cfg.outputs.timeout_minutes) }}
+        uses: anthropics/claude-code-action@v1
+        env:
+          CLAUDE_CODE_MAX_OUTPUT_TOKENS: ${{ steps.cfg.outputs.max_output_tokens }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          show_full_output: ${{ inputs.debug }}
+          allowed_bots: "claude[bot]"
+          prompt: |
+            REPO: ${{ github.repository }}
+            ISSUE NUMBER: ${{ steps.issue.outputs.number }}
+            TITLE: ${{ steps.issue.outputs.title }}
+            OWNER: @${{ github.repository_owner }}
+            BODY:
+            ${{ steps.issue.outputs.body }}
+
+            ${{ steps.issue.outputs.comments }}
+
+            Read .interns/.github/prompts/estimate.md for the exact sizing rules and
+            apply them to the refined issue and comments above.
+
+            Important: never pass comment text as a Bash command-line
+            argument — multi-line text breaks shell quoting. Instead, use
+            the Write tool to write text to a file first, then run the
+            script with no arguments so it reads that file.
+
+            If estimate.md says to stop for clarification:
+            1. Write your question to ./.issue-pipeline-comment.md
+            2. Run ./.interns/.github/scripts/gh-safe/comment-issue.sh (no args)
+            3. Swap labels:
+               ./.interns/.github/scripts/gh-safe/edit-issue-labels.sh --remove-label "status:refined" --add-label "status:needs-attention"
+            Then stop.
+
+            Otherwise, in order:
+            1. Write the estimate output (verbatim) to
+               ./.issue-pipeline-comment.md
+            2. Run ./.interns/.github/scripts/gh-safe/comment-issue.sh (no args)
+            3. Add the size label matching your SIZE line (size:XS,
+               size:S, size:M, size:L, or size:XL) and swap status:
+               ./.interns/.github/scripts/gh-safe/edit-issue-labels.sh --remove-label "status:refined" --add-label "status:estimated" --add-label "size:<SIZE>"
+
+            Do nothing else.
+          claude_args: |
+            --model ${{ steps.cfg.outputs.model }}
+            --max-turns ${{ steps.cfg.outputs.max_turns }}
+            --allowedTools "Read,Grep,Glob,Write,${{ env.ALLOWED_COMMENT }},${{ env.ALLOWED_EDIT_LABELS }}"
+
+      - name: Report run cost
+        if: always() && steps.claude.outputs.execution_file != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          .interns/.github/scripts/pipeline/report-run.sh Estimation
+          "${{ steps.claude.outputs.execution_file }}"
+          "${{ steps.issue.outputs.number }}"
+
+      - name: Verify outcome
+        if: success() && steps.claude.outputs.execution_file != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          .interns/.github/scripts/pipeline/verify-outcome.sh Estimation
+          "${{ steps.issue.outputs.number }}"
+          status:estimated status:ready status:needs-attention
+
+      - name: Write run summary
+        if: always() && steps.claude.outcome != 'skipped'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          .interns/.github/scripts/pipeline/run-summary.sh Estimation
+          "${{ steps.claude.outputs.execution_file }}"
+          --issue "${{ steps.issue.outputs.number }}"
+          --cost-warn "${{ steps.cfg.outputs.cost_warn_usd }}"
+
+      - name: Flag failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          .interns/.github/scripts/pipeline/flag-failure.sh --noun estimation
+          --issue "${{ steps.issue.outputs.number }}"

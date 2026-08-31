@@ -1,0 +1,27 @@
+name: resolve-linked-issue
+description: Resolve the issue number a PR closes, via GitHub's own closingIssuesReferences
+
+inputs:
+  pr_number:
+    required: true
+
+outputs:
+  issue_number:
+    value: ${{ steps.resolve.outputs.issue_number }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve linked issue
+      id: resolve
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        PR: ${{ inputs.pr_number }}
+      run: |
+        NUM=$(gh pr view "$PR" --repo ${{ github.repository }} --json closingIssuesReferences --jq '.closingIssuesReferences[0].number // empty')
+        # A PR with no linked issue is expected, not an error — any human-
+        # opened PR without a "Closes #N" still gets reviewed (see wiki's
+        # Contributing.md), it just has no issue to tag. Leave the output
+        # empty and let callers decide what to skip.
+        echo "issue_number=$NUM" >> "$GITHUB_OUTPUT"

@@ -1,0 +1,39 @@
+name: find-pr-for-issue
+description: Find the open PR that closes a given issue, via GitHub's own closingIssuesReferences
+
+inputs:
+  issue_number:
+    required: true
+
+outputs:
+  pr_number:
+    description: Empty if no open PR currently closes this issue
+    value: ${{ steps.find.outputs.pr_number }}
+  head_ref:
+    value: ${{ steps.find.outputs.head_ref }}
+
+runs:
+  using: composite
+  steps:
+    - name: Find PR
+      id: find
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        NUM: ${{ inputs.issue_number }}
+      run: |
+        if ! [[ "$NUM" =~ ^[0-9]+$ ]]; then
+          echo "Error: issue_number must be numeric, got: $NUM" >&2
+          exit 1
+        fi
+
+        PR_JSON=$(gh pr list --repo ${{ github.repository }} --state open --json number,headRefName,closingIssuesReferences \
+          --jq '[.[] | select(.closingIssuesReferences[]?.number == '"$NUM"')][0]')
+
+        if [[ -z "$PR_JSON" || "$PR_JSON" == "null" ]]; then
+          echo "pr_number=" >> "$GITHUB_OUTPUT"
+          echo "head_ref=" >> "$GITHUB_OUTPUT"
+        else
+          echo "pr_number=$(echo "$PR_JSON" | jq -r .number)" >> "$GITHUB_OUTPUT"
+          echo "head_ref=$(echo "$PR_JSON" | jq -r .headRefName)" >> "$GITHUB_OUTPUT"
+        fi
