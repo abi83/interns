@@ -49,6 +49,6 @@ runs:
         PIPELINE_TIMEOUT_MINUTES: ${{ inputs.pipeline_timeout_minutes }}
         PIPELINE_MAX_OUTPUT_TOKENS: ${{ inputs.pipeline_max_output_tokens }}
         PIPELINE_COST_WARN_USD: ${{ inputs.pipeline_cost_warn_usd }}
-      # $GITHUB_ACTION_PATH is this action's dir; composite `run:` steps
+      # github.action_path is this action's dir; composite `run:` steps
       # otherwise default their cwd to the caller's workspace root.
-      run: "$GITHUB_ACTION_PATH/../../scripts/pipeline/agent-config.sh" ${{ inputs.agent }}
+      run: ${{ github.action_path }}/../../scripts/pipeline/agent-config.sh ${{ inputs.agent }}
