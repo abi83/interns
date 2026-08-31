@@ -70,7 +70,7 @@ summary() { cat "$GITHUB_STEP_SUMMARY"; }
   export STUB_RC_COUNT=0
   export STUB_HEAD_SHA="headsha"
   export STUB_LAST_SHA="headsha"
-  export REVIEWER_BOT="prepify-reviewer[bot]"
+  export REVIEWER_BOT="reviewer-app[bot]"
   run "$PIPELINE_DIR/run-summary.sh" Review "$EXEC" --pr 99 --issue 42
   [ "$status" -eq 0 ]
   summary | grep -qF '**PR:** [#99](https://github.com/owner/repo/pull/99) — feat: widget'
@@ -93,9 +93,9 @@ summary() { cat "$GITHUB_STEP_SUMMARY"; }
 
 @test "review: a PR's first-ever review requesting changes is 'initial', not 're-review'" {
   echo '[{"type":"result","result":"Requesting changes."}]' >"$EXEC"
-  export REVIEWER_BOT="prepify-reviewer[bot]"
+  export REVIEWER_BOT="reviewer-app[bot]"
   export STUB_HEAD_SHA="head1"
-  export STUB_REVIEWS='[{"user":{"login":"prepify-reviewer[bot]"},"state":"CHANGES_REQUESTED","commit_id":"head1"}]'
+  export STUB_REVIEWS='[{"user":{"login":"reviewer-app[bot]"},"state":"CHANGES_REQUESTED","commit_id":"head1"}]'
   run "$PIPELINE_DIR/run-summary.sh" Review "$EXEC" --pr 99
   [ "$status" -eq 0 ]
   summary | grep -qF '**Round:** initial review'
@@ -104,9 +104,9 @@ summary() { cat "$GITHUB_STEP_SUMMARY"; }
 
 @test "review: a genuine re-review counts only prior-commit changes-requested" {
   echo '[{"type":"result","result":"Still not there."}]' >"$EXEC"
-  export REVIEWER_BOT="prepify-reviewer[bot]"
+  export REVIEWER_BOT="reviewer-app[bot]"
   export STUB_HEAD_SHA="head2"
-  export STUB_REVIEWS='[{"user":{"login":"prepify-reviewer[bot]"},"state":"CHANGES_REQUESTED","commit_id":"head1"},{"user":{"login":"prepify-reviewer[bot]"},"state":"CHANGES_REQUESTED","commit_id":"head2"}]'
+  export STUB_REVIEWS='[{"user":{"login":"reviewer-app[bot]"},"state":"CHANGES_REQUESTED","commit_id":"head1"},{"user":{"login":"reviewer-app[bot]"},"state":"CHANGES_REQUESTED","commit_id":"head2"}]'
   run "$PIPELINE_DIR/run-summary.sh" Review "$EXEC" --pr 99
   [ "$status" -eq 0 ]
   summary | grep -qF '**Round:** re-review (after 1 changes-requested)'

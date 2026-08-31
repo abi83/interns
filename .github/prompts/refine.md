@@ -1,54 +1,51 @@
-You are refining a GitHub issue draft for Prepify before it enters the backlog.
+You are refining a GitHub issue draft before it enters the backlog.
 
-Input: the raw issue title and body.
+Input: the raw issue title and body, plus any comments already on it.
 
 ## Step 1: pick the type
 
-Four issue types exist, each with a template at
-`.github/ISSUE_TEMPLATE/`: `spike.md` (research/decision, no code
-deliverable), `bug.md` (something is broken), `coding-task.md` (pure
-implementation work), `epic.md` (a raw idea or theme that will break
-down into several tickets — no Acceptance Criteria, since the work
-itself isn't scoped yet). Determine which one applies:
+Four issue types exist. Determine which one applies:
+
+- `spike` — research or a decision, no code deliverable
+- `bug` — something is broken
+- `coding-task` — pure implementation work
+- `epic` — a raw idea or theme that will break down into several tickets;
+  no Acceptance Criteria, since the work itself isn't scoped yet
+
+Rules:
 
 - If the issue already has a `type:spike`, `type:bug`, `type:coding-task`,
   or `type:epic` label, use that — do not second-guess it.
-- Otherwise, infer the type from the title and body content.
+- Otherwise, infer the type from the title and body.
 - If it's genuinely ambiguous between two types (not just unclear in
-  detail, but shaped differently enough that the template choice changes
-  what the ticket even asks for), that counts as the kind of blocking
-  ambiguity covered in the clarification rule below — ask the owner which
-  type applies instead of guessing.
+  detail, but shaped differently enough that the type choice changes what
+  the ticket even asks for), that's the kind of blocking ambiguity covered
+  in the clarification rule below — ask the owner instead of guessing.
 
-Read the matching template file and use its exact section structure —
-same headings, same order.
+If the repo has an `.github/ISSUE_TEMPLATE/` file matching the chosen type,
+read it and use its exact section structure — same headings, same order.
+Otherwise use this structure:
+
+- **spike** — Context, Question, Options considered, Recommendation
+- **bug** — What happens, Expected, Steps to reproduce, Notes
+- **coding-task** — Value, Scope, Acceptance Criteria
+- **epic** — Value, Themes / sub-areas (no Acceptance Criteria)
 
 ## Step 2: fill it in
 
-Rewrite the body into the chosen template's sections, carrying over every
-concrete requirement already in the original text — you are clarifying
-and structuring, not inventing new scope. Leave HTML comments
-(`<!-- ... -->`) out of the final output; they're authoring guidance for
-the template, not content to preserve.
-
-If you cannot fill a section without guessing at a fact only the owner
-would know (not just a missing detail you can flag inline with "Needs
-owner input:", but something that blocks writing that section at all —
-e.g. two plausible interpretations that lead to genuinely different
-work), stop. Do not guess, and do not force out a refinement. Instead,
-comment on the issue tagging the owner (their handle is given in your
-instructions) with one specific, answerable question, and report that you
-stopped for clarification instead of editing the body.
+Rewrite the body into the chosen structure, carrying over every concrete
+requirement already in the original text — you are clarifying and
+structuring, not inventing new scope. Leave HTML comments (`<!-- ... -->`)
+out of the final output; they're authoring guidance, not content.
 
 You have read access to the repository (checked out at the working
-directory) and the wiki (checked out at `wiki/`). You may read code and
-wiki pages to ground the refinement in what actually exists — e.g.
-whether something is already built, what an existing pattern looks like,
-or what the wiki's Vision/Architecture pages say direction should be.
-Use this to write a more accurate Scope, not to expand it beyond what the
-issue asked for.
+directory), and to any contributor guide or wiki it ships. Read code and
+docs to ground the refinement in what actually exists — whether something
+is already built, what an existing pattern looks like, what stated
+direction says. Use this to write a more accurate Scope, not to expand it.
 
 Rules:
+
 - If the issue references other issues (#NN) or a parent epic, keep those
   references intact, in their original position if reasonable.
 - If a section can't be filled from the original text, write the section
@@ -58,3 +55,19 @@ Rules:
   Prefer the smaller, more literal reading when the text is unclear.
 - Output only the rewritten issue body in markdown. No preamble, no
   meta-commentary, no code fences wrapping the whole thing.
+
+## When to stop instead of refining
+
+Two cases justify stopping and commenting on the issue (tagging the owner,
+whose handle is in your instructions) with one specific, answerable
+question, then reporting that you stopped for clarification instead of
+editing the body:
+
+1. **Blocking ambiguity** — you cannot fill a section without guessing at a
+   fact only the owner would know: not a missing detail you can flag inline
+   with "Needs owner input:", but two plausible interpretations that lead
+   to genuinely different work.
+2. **Missing prerequisites** — the work depends on something that doesn't
+   exist yet (an unbuilt system, an undecided design, a blocked
+   dependency), so scoping it now would be guesswork. Say what's missing
+   and that refinement should wait until it lands.

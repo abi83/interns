@@ -1,14 +1,10 @@
 #!/usr/bin/env bash
 #
-# Posts a comment on a PR, reading the comment body from a fixed file
-# (written beforehand with the Write tool) so model-authored text never
-# passes through a Bash argument. Unlike comment-issue.sh, the PR number
-# isn't derivable from the triggering event here (the coder's fix-round
-# run is triggered by an issue label event, not a PR event), so it's
-# supplied explicitly by the workflow.
+# Comments on a PR, reading the body from a fixed file so model-authored
+# text never passes through a Bash argument. $PR_NUMBER is explicit: the
+# fix-round run is triggered by an issue label event, not a PR event.
 #
-# Usage: write the comment text to $COMMENT_FILE, set $PR_NUMBER, then
-# run with no arguments.
+# Usage: write the text to $COMMENT_FILE, set $PR_NUMBER, run with no args.
 
 set -euo pipefail
 

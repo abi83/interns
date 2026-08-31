@@ -1,16 +1,13 @@
 #!/usr/bin/env bash
 #
-# Opens a PR from the current branch against the repo's default branch,
-# reading title/body from fixed files (written beforehand with the Write
-# tool) so model-authored text never passes through a Bash argument.
+# Opens a PR from the current branch, reading title/body from fixed files
+# so model-authored text never passes through a Bash argument.
 #
-# Deterministically appends "Closes #<issue>" to the body — this is what
-# lets later workflow steps resolve the linked issue from the PR via
-# GitHub's own closingIssuesReferences, without trusting the model to
-# reproduce that exact line every time.
+# Appends "Closes #<issue>" deterministically, so later workflow steps can
+# resolve the linked issue via GitHub's closingIssuesReferences rather than
+# trusting the model to reproduce that line.
 #
-# Usage: write the PR title to $TITLE_FILE and body to $BODY_FILE, push
-# the current branch, then run with no arguments.
+# Usage: write $TITLE_FILE and $BODY_FILE, push the branch, run with no args.
 
 set -euo pipefail
 
