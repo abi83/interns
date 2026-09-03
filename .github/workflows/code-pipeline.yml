@@ -35,6 +35,9 @@ on:
       REVIEWER_APP_PRIVATE_KEY:
         description: Private key for the reviewer GitHub App (paired with vars.REVIEWER_APP_ID); reviewer job only
         required: true
+      CODER_APP_PRIVATE_KEY:
+        description: Private key for the coder GitHub App (paired with vars.CODER_APP_ID); coder job only
+        required: true
 
 permissions:
   contents: write
@@ -74,10 +77,26 @@ jobs:
     concurrency:
       group: coder-issue-${{ github.event.issue.number || inputs.issue_number }}
     steps:
+      # The coder pushes branches and opens PRs under its own GitHub App
+      # identity (interns-coder: pull_requests/issues write, contents write), so
+      # authorship, audit trail, and branch-protection rules can treat it
+      # separately from the reviewer's identity and from github-actions[bot].
+      # The installer's safety check requires vars.CODER_APP_ID +
+      # secrets.CODER_APP_PRIVATE_KEY, so this is unconditional like the
+      # reviewer's equivalent.
+      - name: Generate coder app token
+        id: coder_token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.CODER_APP_ID }}
+          private-key: ${{ secrets.CODER_APP_PRIVATE_KEY }}
+
       - name: Checkout
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          # Persisted so the agent's push-branch.sh reaches origin as the coder App.
+          token: ${{ steps.coder_token.outputs.token }}
 
       - name: Resolve pipeline ref
         id: pipeline_ref
@@ -211,6 +230,7 @@ jobs:
           CLAUDE_CODE_MAX_OUTPUT_TOKENS: ${{ steps.cfg.outputs.max_output_tokens }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ steps.coder_token.outputs.token }}
           show_full_output: ${{ inputs.debug }}
           allowed_bots: "claude[bot]"
           prompt: |
@@ -240,6 +260,7 @@ jobs:
           CLAUDE_CODE_MAX_OUTPUT_TOKENS: ${{ steps.cfg.outputs.max_output_tokens }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ steps.coder_token.outputs.token }}
           show_full_output: ${{ inputs.debug }}
           # The fix round is dispatched by the reviewer job via `gh workflow run`
           # with the default token, so the triggering actor is github-actions[bot],

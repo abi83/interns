@@ -8,7 +8,8 @@
 #      baseline (require a PR, 1 approval, no force pushes/deletions) when
 #      absent -- unless `allow_agent_push_to_default_branch: true` in the
 #      config opts out.
-#   2. The pipeline's secrets exist. Their values can't be set from here, so a
+#   2. The pipeline's secrets and App-id variables exist (reviewer *and* coder
+#      GitHub App identities). Their values can't be set from here, so a
 #      definitively missing one is a hard failure with instructions.
 #   3. GitHub Pages is enabled (the dashboard's deploy target). Switched on
 #      with the "GitHub Actions" build type when absent.
@@ -27,13 +28,15 @@
 #        GITHUB_REPOSITORY   owner/name
 #        AGENT_PIPELINE_CONFIG  config path (default .github/agent-pipeline.yml)
 #        REQUIRED_SECRETS      space-separated override of the secret list
+#        REQUIRED_VARS         space-separated override of the Actions-var list
 #        PIPELINE_BOT_LOGINS   space-separated extra bot logins to reject from
 #                              a branch-protection push allowlist
 
 set -euo pipefail
 
 CONFIG="${AGENT_PIPELINE_CONFIG:-.github/agent-pipeline.yml}"
-REQUIRED_SECRETS="${REQUIRED_SECRETS:-CLAUDE_CODE_OAUTH_TOKEN REVIEWER_APP_PRIVATE_KEY}"
+REQUIRED_SECRETS="${REQUIRED_SECRETS:-CLAUDE_CODE_OAUTH_TOKEN REVIEWER_APP_PRIVATE_KEY CODER_APP_PRIVATE_KEY}"
+REQUIRED_VARS="${REQUIRED_VARS:-REVIEWER_APP_ID CODER_APP_ID}"
 # github-actions[bot] and claude[bot] both push branches during a run; neither
 # (nor the reviewer App) may be granted a path to the default branch.
 BOT_LOGINS="github-actions[bot] claude[bot] ${PIPELINE_BOT_LOGINS:-}"
@@ -146,6 +149,25 @@ check_secrets() {
   fi
 }
 
+check_vars() {
+  local present name missing=()
+  # Mirrors check_secrets: the default GITHUB_TOKEN can't read Actions
+  # variables either, so a failed list is "can't verify", not "all missing".
+  if ! present=$(api "repos/$GITHUB_REPOSITORY/actions/variables" \
+      --paginate --jq '.variables[].name' 2>/dev/null); then
+    say "WARNING: can't list repo variables (token lacks the scope) -- verify manually: $REQUIRED_VARS"
+    return
+  fi
+  for name in $REQUIRED_VARS; do
+    grep -qxF "$name" <<<"$present" || missing+=("$name")
+  done
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    fail "missing repo variable(s): ${missing[*]} -- add them under Settings > Secrets and variables > Actions"
+  else
+    say "required variables present: $REQUIRED_VARS"
+  fi
+}
+
 check_pages() {
   api_status "repos/$GITHUB_REPOSITORY/pages"
   case "$api_state" in
@@ -162,6 +184,7 @@ check_pages() {
 
 check_branch_protection
 check_secrets
+check_vars
 check_pages
 
 if [[ ${#failures[@]} -gt 0 ]]; then

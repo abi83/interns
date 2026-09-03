@@ -34,8 +34,9 @@ jobs:
 ```
 
 Needs, in the consumer repo: `CLAUDE_CODE_OAUTH_TOKEN` +
-`REVIEWER_APP_PRIVATE_KEY` secrets, a `REVIEWER_APP_ID` var, the
-`status:*` / `type:*` / `size:*` / `priority:*` / `pr:*` labels, and
+`REVIEWER_APP_PRIVATE_KEY` + `CODER_APP_PRIVATE_KEY` secrets, `REVIEWER_APP_ID`
+and `CODER_APP_ID` vars (the reviewer and coder run as separate GitHub Apps),
+the `status:*` / `type:*` / `size:*` / `priority:*` / `pr:*` labels, and
 default-branch protection.
 Optional: `.github/agent-pipeline.yml` (per-agent model + limits).
 
@@ -55,11 +56,13 @@ fails: the default branch must be protected so the agent identities can't
 push to it (it applies a baseline — require a PR, one approval, no force
 pushes — when protection is absent, unless
 `allow_agent_push_to_default_branch: true` in the config opts out); the
-`CLAUDE_CODE_OAUTH_TOKEN` and `REVIEWER_APP_PRIVATE_KEY` secrets must exist;
-and Pages is enabled (switched on with the GitHub Actions build type when
-off). Managing branch protection and Pages needs a token with `administration`
-scope; reading secrets needs more than `GITHUB_TOKEN` carries, so that check
-downgrades to a warning when it can't list them.
+`CLAUDE_CODE_OAUTH_TOKEN`, `REVIEWER_APP_PRIVATE_KEY` and
+`CODER_APP_PRIVATE_KEY` secrets and the `REVIEWER_APP_ID` / `CODER_APP_ID`
+variables must exist; and Pages is enabled (switched on with the GitHub Actions
+build type when off). Managing branch protection and Pages needs a token with
+`administration` scope; reading secrets and variables needs more than
+`GITHUB_TOKEN` carries, so those checks downgrade to a warning when they can't
+list them.
 
 A fuller README — pipeline flow, label state table — is
 [#10](https://github.com/abi83/interns/issues/10).
