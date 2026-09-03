@@ -26,6 +26,9 @@ case "$args" in
   *"/actions/secrets"*)
     [[ "${STUB_SECRETS_LIST_FAIL:-0}" == 1 ]] && blocked
     printf '%s\n' ${STUB_SECRETS:-}; exit 0 ;;
+  *"/actions/variables"*)
+    [[ "${STUB_VARS_LIST_FAIL:-0}" == 1 ]] && blocked
+    printf '%s\n' ${STUB_VARS:-}; exit 0 ;;
   *"/pages"*)
     [[ "${STUB_PAGES_BLOCKED:-0}" == 1 ]] && blocked
     [[ "${STUB_PAGES_ON:-0}" == 1 ]] && exit 0
@@ -44,7 +47,8 @@ EOF
 
   # Happy-path defaults; individual tests override.
   export STUB_PROTECTION='{"required_pull_request_reviews":{"required_approving_review_count":1},"restrictions":null}'
-  export STUB_SECRETS="CLAUDE_CODE_OAUTH_TOKEN REVIEWER_APP_PRIVATE_KEY"
+  export STUB_SECRETS="CLAUDE_CODE_OAUTH_TOKEN REVIEWER_APP_PRIVATE_KEY CODER_APP_PRIVATE_KEY"
+  export STUB_VARS="REVIEWER_APP_ID CODER_APP_ID"
   export STUB_PAGES_ON=1
 }
 
@@ -117,7 +121,7 @@ calls() { cat "$STUB_LOG"; }
   export STUB_SECRETS="CLAUDE_CODE_OAUTH_TOKEN"
   run "$SCRIPT"
   [ "$status" -ne 0 ]
-  [[ "$output" == *"missing repo secret(s): REVIEWER_APP_PRIVATE_KEY"* ]]
+  [[ "$output" == *"missing repo secret(s): REVIEWER_APP_PRIVATE_KEY CODER_APP_PRIVATE_KEY"* ]]
 }
 
 @test "warns but does not fail when secrets can't be listed" {
@@ -125,6 +129,20 @@ calls() { cat "$STUB_LOG"; }
   run "$SCRIPT"
   [ "$status" -eq 0 ]
   [[ "$output" == *"WARNING: can't list repo secrets"* ]]
+}
+
+@test "fails and names a missing Actions variable" {
+  export STUB_VARS="REVIEWER_APP_ID"
+  run "$SCRIPT"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"missing repo variable(s): CODER_APP_ID"* ]]
+}
+
+@test "warns but does not fail when variables can't be listed" {
+  export STUB_VARS_LIST_FAIL=1
+  run "$SCRIPT"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"WARNING: can't list repo variables"* ]]
 }
 
 @test "enables Pages when it is off" {

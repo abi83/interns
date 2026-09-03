@@ -14,8 +14,9 @@ missing and re-syncs label drift.
 
 ### Before merging
 
-- Add the `CLAUDE_CODE_OAUTH_TOKEN` and `REVIEWER_APP_PRIVATE_KEY` secrets and
-  the `REVIEWER_APP_ID` variable.
+- Add the `CLAUDE_CODE_OAUTH_TOKEN`, `REVIEWER_APP_PRIVATE_KEY` and
+  `CODER_APP_PRIVATE_KEY` secrets and the `REVIEWER_APP_ID` and `CODER_APP_ID`
+  variables (two GitHub Apps — one reviewer, one coder).
 - Turn on default-branch protection.
 
 See the interns README for the full prerequisite list.
