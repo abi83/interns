@@ -118,23 +118,18 @@ exist for humans sorting the backlog.
 
 ## Setup
 
-From the terminal inside a local clone of your repo, with the [GitHub CLI](https://cli.github.com/)
-authenticated (`gh auth login`) run:
+From a local clone of your repo, with the [GitHub CLI](https://cli.github.com/)
+authenticated (`gh auth login`):
 
 ```bash
 curl -LsSf https://raw.githubusercontent.com/abi83/interns/v0.1.0/install.sh | sh
 ```
 
-The bootstrap installs [`uv`](https://docs.astral.sh/uv/) if missing; with `uv`
-already present:
-
-```bash
-uvx --from git+https://github.com/abi83/interns.git@v0.1.0#subdirectory=installer interns-install
-```
-
-`gh` needs a token that can write repo secrets — classic scope `repo`, or a
-fine-grained PAT with **Secrets: write** and **Variables: write** on the target
-repo. Flags and details: [`installer/README.md`](installer/README.md).
+That's the whole install. The script installs [`uv`](https://docs.astral.sh/uv/)
+if it's missing, then runs the `interns-install` CLI. `gh` needs a token that
+can write repo secrets — classic scope `repo`, or a fine-grained PAT with
+**Secrets: write** and **Variables: write** on the target repo. Running the CLI
+directly and every flag: [`installer/README.md`](installer/README.md).
 
 ### What the installer does
 
@@ -169,19 +164,33 @@ the links.
 | Variable | `CODER_APP_ID` | `interns-coder` App ID |
 | Variable | `REVIEWER_APP_ID` | `interns-reviewer` App ID |
 
+The `install.yml` safety check fails the install if a required secret or
+variable is missing (it can't set the values); if its token can't list them it
+warns and leaves verification to you.
+
 **Labels** — synced from the manifest ([`.github/labels.json`](.github/labels.json)).
 
-**Default-branch protection** — the agents run with the consumer repo's own
-credentials, so the default branch must be protected against every bot identity
-(`github-actions[bot]`, `claude[bot]`, both Apps). The safety check requires a
-required PR review and no bot on the push allowlist, creates that baseline when
-absent, and **refuses to finish** if it can't verify one. Reading and setting
-branch protection needs more than `GITHUB_TOKEN` carries — pass a repo-admin
-token as `install.yml`'s `admin_token` secret, or set protection by hand;
-without it the check downgrades to a warning, but a *definitively* unprotected
-branch or missing secret is still a hard failure. Opt out with
-`allow_agent_push_to_default_branch: true` in `.github/agent-pipeline.yml` only
-if protection already blocks the bots some other way.
+**Default-branch protection.** The agents push branches with the consumer
+repo's own credentials, so no bot identity (`github-actions[bot]`,
+`claude[bot]`, the two Apps) may be allowed to push to the default branch —
+every change goes through a human-merged PR. `install.yml` runs a safety
+check for this that **fails the install** unless it is satisfied.
+
+The check needs a repo-admin token to read or write branch protection, which
+`GITHUB_TOKEN` isn't. Give it one by adding a repo secret named `admin_token`
+(a PAT or fine-grained token with admin on the repo) *before* running the
+installer. What happens then, by starting state:
+
+| Default branch | With `admin_token` | Without it |
+|---|---|---|
+| already requires a PR review, no bot on the push allowlist | passes | passes |
+| unprotected | installer applies the baseline — require a PR + 1 approval, no force-push, no deletion | **install fails** — set protection yourself, then re-run |
+| protected, but the check can't read it | reads and verifies it | warning only, install continues — verifying it is on you |
+
+To manage protection yourself instead, set it by hand (require a PR review,
+keep every bot off the push allowlist) and skip the check with
+`allow_agent_push_to_default_branch: true` in `.github/agent-pipeline.yml` —
+only appropriate when the bots are already blocked some other way.
 
 **A caller-stub PR** — adds two thin caller workflows that own the triggers and
 delegate to the reusable cores, plus a starter `.github/agent-pipeline.yml`. It
@@ -239,8 +248,8 @@ the coder's `claude[bot]` (Dependabot, etc.).
 
 | Failure | Fix |
 |---|---|
-| `missing repo secret(s)` / `variable(s)` | add them (§2) — the installer can't set their values |
-| `can't read branch protection … needs repo-admin scope` | pass an admin token as `install.yml`'s `admin_token` secret, or set protection by hand (§3) |
+| `missing repo secret(s)` / `variable(s)` | add them (see Setup) — the installer can't set their values |
+| `can't read branch protection … needs repo-admin scope` | add an `admin_token` repo secret with repo-admin scope, or set branch protection by hand |
 | `branch '…' push allowlist grants '…[bot]'` | remove that bot from the default branch's push restrictions |
 | `GitHub Pages could not be enabled` | turn it on under Settings → Pages (build type: GitHub Actions) |
 
