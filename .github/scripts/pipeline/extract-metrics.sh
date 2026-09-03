@@ -1,27 +1,13 @@
 #!/usr/bin/env bash
 #
-# Parse one claude-code-action execution file into a single versioned
-# pipeline-metrics record (one JSON object, printed as one line) on stdout.
-# Shared by all four agent jobs; the final `metrics` job gathers the emitted
-# lines and appends them to metrics.jsonl on the orphan `metrics` branch (see
-# append-metrics.sh). One record per (run, job) — see #12.
+# Parse one claude-code-action execution file into a single pipeline-metrics
+# record (one JSON object) on stdout, for append-metrics.sh to persist.
 #
-# Schema: .github/pipeline-metrics.schema.json. Bump SCHEMA_VERSION below and
-# that file together on any breaking shape change — the metrics dashboard
-# (abi83/prepify#3) keys off schema_version to stay comparable across repos.
+# Usage: extract-metrics.sh <execution-file> --job <job> [--issue N] [--pr N]
 #
-# Usage:
-#   extract-metrics.sh <execution-file> --job <job> [--issue N] [--pr N]
-#
-#     <job>            refiner | estimator | coder | reviewer
-#     --issue / --pr   pipeline state; omitted, empty or non-numeric -> null
-#
-# Env (from the Actions runtime):
-#   GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_RUN_ATTEMPT
-#
-# Exits non-zero and prints nothing to stdout when the execution file is
-# missing or carries no `result` event — a killed run can still leave a
-# truncated file, and the caller guards on execution_file != '' only.
+# Bump SCHEMA_VERSION and .github/pipeline-metrics.schema.json together on any
+# breaking shape change. Exits non-zero, printing nothing, when the file is
+# missing or has no result event (a killed run can leave a truncated file).
 
 set -euo pipefail
 

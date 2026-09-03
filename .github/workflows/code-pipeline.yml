@@ -555,12 +555,8 @@ jobs:
           --issue "${{ steps.linked.outputs.issue_number }}"
 
   metrics:
-    # One append per workflow run (#12): gather every pipeline-metrics record
-    # this run's agent jobs uploaded and commit them to metrics.jsonl on the
-    # orphan `metrics` branch in a single push. The concurrency group serialises
-    # that push across concurrent runs; append-metrics.sh also fetch-rebases on
-    # a race. Runs even when the agent job was skipped or failed — a no-record
-    # run is a clean no-op.
+    # One commit per workflow run: append the records the agent jobs uploaded to
+    # the metrics branch. The concurrency group serialises appends across runs.
     needs: [coder, reviewer]
     if: always()
     runs-on: ubuntu-latest

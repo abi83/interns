@@ -1,18 +1,11 @@
 #!/usr/bin/env bash
 #
-# Append one or more pipeline-metrics records (see extract-metrics.sh) to
-# metrics.jsonl on the orphan `metrics` branch, as a single commit per workflow
-# run (#12). The caller serialises appends across runs with
-# `concurrency: { group: metrics-append }`; this script additionally survives a
-# concurrent human push to the branch with a fetch + re-apply + push retry loop.
-# Distinct JSONL lines never actually conflict, so "rebase" here is just:
-# discard our local commit, re-fetch the branch tip, re-append, re-push.
-#
-# The branch is created (orphan, one empty metrics.jsonl) on first use, so a
-# fresh consumer repo needs no manual seeding.
+# Append pipeline-metrics records (extract-metrics.sh) to metrics.jsonl on the
+# orphan `metrics` branch, one commit per call. The caller serialises appends
+# with a concurrency group; on a losing push race this retries by re-fetching
+# the branch tip and re-appending. The branch is created on first use.
 #
 # Usage: append-metrics.sh <record-file>...
-#   Each <record-file> holds exactly one JSON object (the record).
 #
 # Env: GH_TOKEN (contents:write), GITHUB_REPOSITORY, GITHUB_SERVER_URL,
 #      GITHUB_RUN_ID.
@@ -29,8 +22,7 @@ die() { echo "append-metrics: $*" >&2; exit 1; }
 : "${GH_TOKEN:?append-metrics: GH_TOKEN unset}"
 : "${GITHUB_REPOSITORY:?append-metrics: GITHUB_REPOSITORY unset}"
 
-# Validate and normalise every incoming record before touching the remote —
-# one bad file aborts the whole append, nothing half-written is pushed.
+# Validate every record before touching the remote.
 records=$(mktemp)
 work=$(mktemp -d)
 trap 'rm -f "$records"; rm -rf "$work"' EXIT

@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "pipeline-metrics record",
-  "description": "One machine-readable record per (run, job) of the agent pipeline, emitted by extract-metrics.sh and appended to metrics.jsonl on the orphan `metrics` branch. See interns#12.",
+  "description": "One record per (run, job) of the agent pipeline, emitted by extract-metrics.sh and appended to metrics.jsonl on the orphan `metrics` branch.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -12,7 +12,7 @@
   "properties": {
     "schema_version": {
       "const": 1,
-      "description": "Bump on any breaking shape change; the dashboard keys off it."
+      "description": "Bump on any breaking shape change."
     },
     "timestamp": {
       "type": "string",
