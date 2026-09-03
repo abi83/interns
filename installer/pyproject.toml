@@ -1,0 +1,18 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "interns-install"
+version = "0.1.0"
+description = "Interactive local front end for provisioning a repo for the interns pipeline"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+dependencies = []
+
+[project.scripts]
+interns-install = "interns_install.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/interns_install"]
