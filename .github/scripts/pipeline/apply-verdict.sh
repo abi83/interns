@@ -6,8 +6,8 @@
 # status:needs-attention when a human is needed, closed on merge. There is no
 # "approved" issue state — an approved PR is found via its native review state,
 # and the pr:* label only marks which agent is currently working (none, once
-# the reviewer is done). The fix-round decision is read from the verdict, not a
-# label (#133).
+# the reviewer is done) or pr:needs-attention when the loop has given up. The
+# fix-round decision is read from the verdict, not a label (#133).
 #
 # max_fix_rounds: how many automatic coder fix rounds a PR gets before the loop
 # escalates to a human. Counts CHANGES_REQUESTED reviews (this run's verdict
@@ -44,7 +44,7 @@ case "$last_state" in
     rc_count=$(gh api "repos/$repo/pulls/$pr/reviews" \
       --jq '[.[] | select(.user.login==env.REVIEWER_BOT and .state=="CHANGES_REQUESTED")] | length')
     if [[ "$rc_count" -gt "$max_fix_rounds" ]]; then
-      set_pr_pipeline_label "$pr"
+      escalate_pr "$pr"
       [[ -n "$issue" ]] && set_issue_status "$issue" status:needs-attention
       gh pr comment "$pr" --repo "$repo" --body \
         "Second review still requests changes — the automatic fix round didn't converge. Escalating to a human. See the run: $(run_url)"
@@ -61,7 +61,7 @@ case "$last_state" in
     fi
     ;;
   *)
-    set_pr_pipeline_label "$pr"
+    escalate_pr "$pr"
     [[ -n "$issue" ]] && set_issue_status "$issue" status:needs-attention
     gh pr comment "$pr" --repo "$repo" --body \
       "Review run completed without submitting a recognized verdict — likely stopped partway through. See the run: $(run_url)"

@@ -5,10 +5,10 @@ setup() {
 }
 
 @test "APPROVED clears the pr label and tells the issue" {
-  export STUB_LAST_STATE=APPROVED STUB_PR_LABELS="pr:in-review"
+  export STUB_LAST_STATE=APPROVED STUB_PR_LABELS="pr:needs-attention"
   run "$PIPELINE_DIR/apply-verdict.sh" 12 34
   [ "$status" -eq 0 ]
-  grep -q 'gh pr edit 12 --repo owner/repo --remove-label pr:in-review' "$STUB_LOG"
+  grep -q 'gh pr edit 12 --repo owner/repo --remove-label pr:needs-attention' "$STUB_LOG"
   grep -q 'gh issue comment 34 .* Reviewer approved \[PR #12\](https://github.com/owner/repo/pull/12) — awaiting owner merge' "$STUB_LOG"
 }
 
@@ -20,9 +20,10 @@ setup() {
 }
 
 @test "second CHANGES_REQUESTED escalates and does not dispatch" {
-  export STUB_LAST_STATE=CHANGES_REQUESTED STUB_RC_COUNT=2
+  export STUB_LAST_STATE=CHANGES_REQUESTED STUB_RC_COUNT=2 STUB_PR_LABELS="pr:in-review"
   run "$PIPELINE_DIR/apply-verdict.sh" 12 34
   grep -q "didn't converge. Escalating to a human" "$STUB_LOG"
+  grep -q 'gh pr edit 12 --repo owner/repo --remove-label pr:in-review --add-label pr:needs-attention' "$STUB_LOG"
   ! grep -q 'gh workflow run' "$STUB_LOG"
 }
 
@@ -34,7 +35,8 @@ setup() {
 }
 
 @test "an unrecognized verdict flags for a human" {
-  export STUB_LAST_STATE=""
+  export STUB_LAST_STATE="" STUB_PR_LABELS="pr:in-review"
   run "$PIPELINE_DIR/apply-verdict.sh" 12 34
   grep -q "without submitting a recognized verdict" "$STUB_LOG"
+  grep -q 'gh pr edit 12 --repo owner/repo --remove-label pr:in-review --add-label pr:needs-attention' "$STUB_LOG"
 }

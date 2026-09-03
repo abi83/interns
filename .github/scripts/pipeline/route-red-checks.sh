@@ -14,7 +14,7 @@ pr="$1"
 issue="${2:-}"
 reason="$3"
 
-set_pr_pipeline_label "$pr"
+escalate_pr "$pr"
 gh pr comment "$pr" --repo "$GITHUB_REPOSITORY" --body \
   "Required checks are not green ($reason) — the reviewer won't run. The coder writes and runs tests before pushing, so this is being sent straight to a human rather than retried. Run: $(run_url)"
 if [[ -n "$issue" ]]; then

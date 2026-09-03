@@ -44,11 +44,14 @@ set_issue_status() {
   return 0
 }
 
-# The PR label marking which agent is on it now.
-_PR_PIPELINE_LABELS=(pr:coding pr:in-review)
+# PR pipeline labels: which agent is on it now (pr:coding / pr:in-review), or
+# pr:needs-attention once the automation has escalated it to a human. Mutually
+# exclusive — set_pr_pipeline_label keeps only the target, so a coder/reviewer
+# pickup or an APPROVE (clear) drops a stale pr:needs-attention.
+_PR_PIPELINE_LABELS=(pr:coding pr:in-review pr:needs-attention)
 
-# Set the PR's pipeline label, or clear both when called with no label (the
-# reviewer is done and no agent is active). Only touches labels that change.
+# Set the PR's pipeline label, or clear all of them when called with no label
+# (the reviewer is done and no agent is active). Only touches labels that change.
 set_pr_pipeline_label() {
   local pr="$1" target="${2:-}" current label
   local base=(pr edit "$pr" --repo "$GITHUB_REPOSITORY")
@@ -65,4 +68,11 @@ set_pr_pipeline_label() {
     gh "${args[@]}" || true
   fi
   return 0
+}
+
+# Mark a PR as stuck: the pipeline has escalated it to a human and no agent is
+# working it. "list the PRs a human still needs to act on" is then just
+# `gh pr list --label pr:needs-attention`. Cleared by the next pickup or APPROVE.
+escalate_pr() {
+  set_pr_pipeline_label "$1" pr:needs-attention
 }
