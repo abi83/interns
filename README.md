@@ -28,21 +28,27 @@ anything the automation can't finish is parked on `status:needs-attention` /
 
 ```mermaid
 flowchart TD
-    new([issue opened]) --> nr[status:needs-refinement]
-    nr -->|refiner| refined[status:refined]
-    nr -.->|needs a decision| na[status:needs-attention]
-    refined -->|estimator| est[status:estimated + size:*]
+    new([issue opened]) --> nr["ISSUE: status:needs-refinement"]
+    nr -->|refiner| refined["ISSUE: status:refined"]
+    nr -.->|needs a decision| na["ISSUE: status:needs-attention"]
+    refined -->|estimator| est["ISSUE: status:estimated + size:*"]
     refined -.->|epic| ready
     refined -.->|needs a decision| na
-    est -->|owner approves| ready[status:ready]
-    est -.->|owner rejects, re-triggers| refined
-    ready -->|coder| inprog[status:in-progress]
-    inprog -->|PR opened| review[PR: pr:in-review]
-    review -->|reviewer: APPROVE| merge([owner merges → issue closed])
-    review -->|reviewer: REQUEST_CHANGES| fix[PR: pr:coding fix round]
-    fix -->|coder| review
-    review -.->|red checks / 2nd rejection / review cap| prna[PR: pr:needs-attention]
-    inprog -.->|no PR / coder declined| na
+    est -->|owner approves| ready["ISSUE: status:ready"]
+    ready -->|coder| inprog["ISSUE: status:in-progress"]
+    inprog -.->|no PR opened / coder declined| na
+
+    inprog -->|coder opens PR| loop
+
+    subgraph loop [coder–reviewer loop]
+        inreview["PR: pr:in-review"] -->|reviewer: REQUEST_CHANGES| coding["PR: pr:coding"]
+        coding -->|coder pushes a fix| inreview
+    end
+
+    loop -->|reviewer: APPROVE| approved["PR approved"]
+    approved -->|owner merges| closed(["ISSUE: closed"])
+    loop -.->|red checks / 2nd review still requests changes / 5-review ceiling| prna["PR: pr:needs-attention"]
+    loop -.->|coder declines the fix round| na
 ```
 
 ## Label state machine
@@ -53,16 +59,31 @@ not in the manifest are left alone.
 
 ### `status:*` — issue lifecycle (mutually exclusive)
 
-| Label | Meaning | Set by | Moves to |
-|---|---|---|---|
-| `status:needs-refinement` | awaiting the refiner | human, on issue creation | `status:refined`, or `status:needs-attention` if the refiner needs a decision |
-| `status:refined` | refined, awaiting estimation | refiner | `status:estimated` (+ `size:*`); `status:ready` directly for a `type:epic`; `status:needs-attention` if unsizeable |
-| `status:estimated` | estimated, awaiting owner approval | estimator | `status:ready` (owner approves); if the owner disagrees they edit the issue and re-trigger refinement/estimation |
-| `status:ready` | approved for the coder | **human** (this is the approval gate) | `status:in-progress` when the coder starts; `status:needs-attention` if the issue isn't a `type:coding-task` / `type:bug` |
-| `status:in-progress` | a coder run is working the issue (held for the whole run, fix rounds included) | coder | issue closed on merge, or `status:needs-attention` |
-| `status:needs-attention` | pipeline stalled — a human needs to look | any agent | cleared when a human re-dispatches (the coder drops it on pickup) |
+| Label | Meaning | Set by                                                                      | Moves to |
+|---|---|-----------------------------------------------------------------------------|---|
+| `status:needs-refinement` | awaiting the refiner | **human**, triggers the refinement-estimation pipeline                      | `status:refined`, or `status:needs-attention` if the refiner needs a decision |
+| `status:refined` | refined, awaiting estimation | refiner                                                                     | `status:estimated` (+ `size:*`); `status:ready` directly for a `type:epic`; `status:needs-attention` if unsizeable |
+| `status:estimated` | estimated, awaiting owner approval | estimator                                                                   | `status:ready` (owner approves); if the owner disagrees they edit the issue and re-trigger refinement/estimation |
+| `status:ready` | approved for the coder | **human**, triggers the coder-reviewer pipeline | `status:in-progress` when the coder starts; `status:needs-attention` if the issue isn't a `type:coding-task` / `type:bug` |
+| `status:in-progress` | a coder run is working the issue (held for the whole run, fix rounds included) | coder                                                                       | issue closed on merge, or `status:needs-attention` |
+| `status:needs-attention` | pipeline stalled — a human needs to look | any agent                                                                   | cleared when a human re-dispatches (the coder drops it on pickup) |
 
 ### `pr:*` — PR pipeline (mutually exclusive)
+
+Once the coder opens a PR the work enters the **coder–reviewer loop**: the
+reviewer holds `pr:in-review`, and on `REQUEST_CHANGES` it hands back to the
+coder as `pr:coding`; the coder pushes a fix and hands back as `pr:in-review`.
+Two limits bound the loop:
+
+- **One automatic fix round.** The coder gets a single fix attempt. If the
+  reviewer's *second* review still requests changes, the PR goes to
+  `pr:needs-attention` — the automatic loop didn't converge.
+- **Five reviewer runs per PR, hard.** A backstop for after escalation: a human
+  can keep pushing commits and each one still spawns a reviewer run. At 5 total
+  reviews on the PR, automatic review stops entirely and stays manual.
+
+Red `test` / `build` checks also send the PR straight to `pr:needs-attention`,
+with no fix round.
 
 | Label | Meaning | Set by | Moves to |
 |---|---|---|---|
