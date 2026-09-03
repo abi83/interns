@@ -153,6 +153,26 @@ jobs:
           "${{ steps.claude.outputs.execution_file }}"
           "${{ steps.issue.outputs.number }}"
 
+      - name: Extract run metrics
+        id: metrics
+        continue-on-error: true
+        if: always() && steps.claude.outputs.execution_file != ''
+        run: >
+          .interns/.github/scripts/pipeline/extract-metrics.sh
+          "${{ steps.claude.outputs.execution_file }}"
+          --job refiner
+          --issue "${{ steps.issue.outputs.number }}"
+          > "${{ runner.temp }}/metrics-refiner.json"
+
+      - name: Upload run metrics
+        if: steps.metrics.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-metrics-refiner
+          path: ${{ runner.temp }}/metrics-refiner.json
+          if-no-files-found: ignore
+          retention-days: 2
+
       - name: Verify outcome
         if: success() && steps.claude.outputs.execution_file != ''
         env:
@@ -285,6 +305,26 @@ jobs:
           "${{ steps.claude.outputs.execution_file }}"
           "${{ steps.issue.outputs.number }}"
 
+      - name: Extract run metrics
+        id: metrics
+        continue-on-error: true
+        if: always() && steps.claude.outputs.execution_file != ''
+        run: >
+          .interns/.github/scripts/pipeline/extract-metrics.sh
+          "${{ steps.claude.outputs.execution_file }}"
+          --job estimator
+          --issue "${{ steps.issue.outputs.number }}"
+          > "${{ runner.temp }}/metrics-estimator.json"
+
+      - name: Upload run metrics
+        if: steps.metrics.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-metrics-estimator
+          path: ${{ runner.temp }}/metrics-estimator.json
+          if-no-files-found: ignore
+          retention-days: 2
+
       - name: Verify outcome
         if: success() && steps.claude.outputs.execution_file != ''
         env:
@@ -311,3 +351,48 @@ jobs:
         run: >
           .interns/.github/scripts/pipeline/flag-failure.sh --noun estimation
           --issue "${{ steps.issue.outputs.number }}"
+
+  metrics:
+    # One commit per workflow run: append the records the agent jobs uploaded to
+    # the metrics branch. The concurrency group serialises appends across runs.
+    needs: [refine, estimate]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: metrics-append
+    steps:
+      - name: Resolve pipeline ref
+        id: pipeline_ref
+        shell: bash
+        env:
+          JOB_WORKFLOW_REF: ${{ github.job_workflow_ref }}
+        run: echo "ref=${JOB_WORKFLOW_REF##*@}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout pipeline assets
+        uses: actions/checkout@v5
+        with:
+          repository: abi83/interns
+          ref: ${{ steps.pipeline_ref.outputs.ref }}
+          path: .interns
+
+      - name: Download run metrics records
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: pipeline-metrics-*
+          path: metrics-records
+          merge-multiple: true
+
+      - name: Append to the metrics branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          files=(metrics-records/*.json)
+          if [[ ${#files[@]} -eq 0 ]]; then
+            echo "No metrics records produced by this run — nothing to append."
+            exit 0
+          fi
+          .interns/.github/scripts/pipeline/append-metrics.sh "${files[@]}"

@@ -43,6 +43,23 @@ A one-shot installer that provisions all of that is tracked in
 [#154](https://github.com/abi83/prepify/issues/154). A fuller README —
 pipeline flow, label state table — is [abi83/prepify#163](https://github.com/abi83/prepify/issues/163).
 
+## Pipeline metrics
+
+Every agent run appends one machine-readable record per `(run, job)` to
+`metrics.jsonl` on an orphan `metrics` branch in the consumer repo — tokens
+(per model, sub-agents included), tool-call counts, `num_turns`, durations,
+cost, and the agent's process result. A final `metrics` job on each workflow
+run gathers the records its agent jobs uploaded and commits them in a single
+push (serialised by a `metrics-append` concurrency group, fetch-rebased on a
+race).
+
+The branch is created automatically on the first run — no manual seeding. The
+record shape is versioned by `schema_version` and specified in
+[`.github/pipeline-metrics.schema.json`](.github/pipeline-metrics.schema.json);
+bump it and the `SCHEMA_VERSION` constant in `extract-metrics.sh` together on
+any breaking change. Read the log from any client with a single unauthenticated
+fetch of `raw.githubusercontent.com/<owner>/<repo>/metrics/metrics.jsonl`.
+
 ## Layout
 
 | | |
