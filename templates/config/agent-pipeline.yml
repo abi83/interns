@@ -9,6 +9,8 @@ defaults:
   cost_warn_usd: 2.0
 
 agents:
+  # The refiner defaults to claude-sonnet-5 (it investigates the codebase
+  # before rewriting) — set `model:` here to override per phase.
   refiner:
     max_turns: 25
   estimator:

@@ -24,6 +24,10 @@ config="${AGENT_PIPELINE_CONFIG:-.github/agent-pipeline.yml}"
 known_agents=" refiner estimator coder reviewer "
 known_keys=" model max_turns timeout_minutes max_output_tokens cost_warn_usd "
 
+# The refiner runs a codebase investigation pass before rewriting the issue
+# body, so the whole pipeline defaults to claude-sonnet-5 rather than a
+# cheaper model. A consumer can still drop it per phase via
+# agents.refiner.model in the config file or the PIPELINE_MODEL Actions var.
 builtin_default() {
   case "$1" in
     model)             echo "claude-sonnet-5" ;;

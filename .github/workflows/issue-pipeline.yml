@@ -133,12 +133,17 @@ jobs:
             Then stop. Do not edit the body in this case.
 
             Otherwise, in order:
-            1. Write the new body to ./.issue-pipeline-body.md
+            1. Investigate the draft against the repo and wiki (refine.md
+               Step 2), then write the new body to ./.issue-pipeline-body.md
             2. Run ./.interns/.github/scripts/gh-safe/edit-issue-body.sh (no args)
-            3. Swap labels:
+            3. Write the blockers/dependencies analysis (refine.md Step 4)
+               to ./.issue-pipeline-comment.md and run
+               ./.interns/.github/scripts/gh-safe/comment-issue.sh (no args)
+            4. Swap labels:
                ./.interns/.github/scripts/gh-safe/edit-issue-labels.sh --remove-label "status:needs-refinement" --add-label "status:refined"
 
-            Do nothing else — no other comments, no other edits.
+            Post exactly the one analysis comment described in refine.md —
+            no other comments, no edits beyond the body and labels.
           claude_args: |
             --model ${{ steps.cfg.outputs.model }}
             --max-turns ${{ steps.cfg.outputs.max_turns }}
