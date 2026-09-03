@@ -118,16 +118,35 @@ exist for humans sorting the backlog.
 
 ## Setup
 
-### 1. Register the two GitHub Apps
+From the terminal inside a local clone of your repo, with the [GitHub CLI](https://cli.github.com/)
+authenticated (`gh auth login`) run:
 
-The pipeline runs the coder and the reviewer as **separate** GitHub App
-identities so the reviewer can actually `APPROVE` a PR the coder authored
-(GitHub forbids approving your own PR) and so branch protection can treat each
-independently.
+```bash
+curl -LsSf https://raw.githubusercontent.com/abi83/interns/v0.1.0/install.sh | sh
+```
 
-`interns-install` (below) mints both via the App Manifest flow. To create them
-by hand instead, make two apps — `interns-coder` and `interns-reviewer` — with
-the same permission set:
+The bootstrap installs [`uv`](https://docs.astral.sh/uv/) if missing; with `uv`
+already present:
+
+```bash
+uvx --from git+https://github.com/abi83/interns.git@v0.1.0#subdirectory=installer interns-install
+```
+
+`gh` needs a token that can write repo secrets — classic scope `repo`, or a
+fine-grained PAT with **Secrets: write** and **Variables: write** on the target
+repo. Flags and details: [`installer/README.md`](installer/README.md).
+
+### What the installer does
+
+`interns-install` is a local, interactive CLI for the two things a headless
+Actions run can't do — mint GitHub Apps (a browser click) and write repo
+secrets (`secrets: write` isn't grantable to `GITHUB_TOKEN`). It then hands off
+to `.github/workflows/install.yml`, which is idempotent — re-run it any time to
+fix drift.
+
+**Two GitHub Apps** — `interns-coder` and `interns-reviewer`, minted via the
+App Manifest flow, one "Create GitHub App" click each. Separate identities, so
+the reviewer can review the coder's PRs. Same permission set, no webhook:
 
 | Permission | Access | Why |
 |---|---|---|
@@ -137,12 +156,10 @@ the same permission set:
 | Checks | Read | reviewer reads check results |
 | Metadata | Read | mandatory baseline |
 
-No webhook, no subscribed events. **Install both apps on the consumer repo**
-after creating them.
+Installing each App on the repo is still a manual click — the installer prints
+the links.
 
-### 2. Secrets and variables
-
-On the consumer repo (Settings → Secrets and variables → Actions):
+**Secrets and variables** on the consumer repo:
 
 | Kind | Name | Value |
 |---|---|---|
@@ -152,9 +169,36 @@ On the consumer repo (Settings → Secrets and variables → Actions):
 | Variable | `CODER_APP_ID` | `interns-coder` App ID |
 | Variable | `REVIEWER_APP_ID` | `interns-reviewer` App ID |
 
-Optional variables (per-repo overrides of the pipeline defaults; the
+**Labels** — synced from the manifest ([`.github/labels.json`](.github/labels.json)).
+
+**Default-branch protection** — the agents run with the consumer repo's own
+credentials, so the default branch must be protected against every bot identity
+(`github-actions[bot]`, `claude[bot]`, both Apps). The safety check requires a
+required PR review and no bot on the push allowlist, creates that baseline when
+absent, and **refuses to finish** if it can't verify one. Reading and setting
+branch protection needs more than `GITHUB_TOKEN` carries — pass a repo-admin
+token as `install.yml`'s `admin_token` secret, or set protection by hand;
+without it the check downgrades to a warning, but a *definitively* unprotected
+branch or missing secret is still a hard failure. Opt out with
+`allow_agent_push_to_default_branch: true` in `.github/agent-pipeline.yml` only
+if protection already blocks the bots some other way.
+
+**A caller-stub PR** — adds two thin caller workflows that own the triggers and
+delegate to the reusable cores, plus a starter `.github/agent-pipeline.yml`. It
+adds only missing files, never overwriting a hand-edited one. Merge it to
+finish. The stubs are pinned to `@v0.1.0` — keep the pin, the cores check out
+their own matching assets from that ref. Full stubs, including the `on:`
+triggers, are in [`templates/workflows/`](templates/workflows).
+
+Pass `--issue-templates` (or `install_issue_templates: true` to `install.yml`)
+to also add the default issue templates
+([`templates/issue/`](templates/issue)).
+
+### Optional pipeline variables
+
+Per-repo overrides of the pipeline defaults; the
 [`.github/agent-pipeline.yml`](templates/config/agent-pipeline.yml) config file
-wins over these):
+wins over these:
 
 | Variable | Default | Effect |
 |---|---|---|
@@ -169,100 +213,12 @@ The consumer repo also needs `test` and `build` status checks on its PRs (from
 its own `deploy.yml` or equivalent) — the reviewer waits on them and won't run
 until both are green.
 
-### 3. Default-branch protection
+### Doing it by hand
 
-The agents run with the consumer repo's own credentials, so the default branch
-must be protected against every bot identity — `github-actions[bot]`,
-`claude[bot]`, and both apps. The installer's safety check requires, and
-creates when absent (baseline: require a PR, one approval, no force pushes, no
-deletions):
-
-- a required pull-request review;
-- **no** bot identity on the push allowlist.
-
-Opt out with `allow_agent_push_to_default_branch: true` in
-`.github/agent-pipeline.yml` only if protection already blocks the bots some
-other way.
-
-### 4. Run the installer
-
-The supported 0.1.0 path is `interns-install` — a local, interactive CLI that
-does the two things a headless Actions run can't: mint the apps (an interactive
-browser click) and write the repo secrets/variables (`secrets: write` isn't
-grantable to `GITHUB_TOKEN`). It then hands off to `install.yml`.
-
-```bash
-curl -LsSf https://raw.githubusercontent.com/abi83/interns/v0.1.0/install.sh | sh
-```
-
-The bootstrap installs [`uv`](https://docs.astral.sh/uv/) if missing; with `uv`
-already present:
-
-```bash
-uvx --from git+https://github.com/abi83/interns.git@v0.1.0#subdirectory=installer interns-install
-```
-
-Needs the [GitHub CLI](https://cli.github.com/) authenticated (`gh auth login`)
-with a token that can write repo secrets — classic scope `repo`, or a
-fine-grained PAT with **Secrets: write** and **Variables: write** on the target
-repo. Flags and details: [`installer/README.md`](installer/README.md).
-
-`.github/workflows/install.yml` does the rest, and is idempotent:
-
-- syncs the label manifest (re-running fixes label drift);
-- runs the safety checks (§3, plus verifies the secrets/vars exist and enables
-  GitHub Pages) and **refuses to finish if one fails**;
-- opens a PR with the thin caller stubs and a starter `.github/agent-pipeline.yml`,
-  adding only files that are missing — it never overwrites a hand-edited one.
-
-Managing branch protection and reading secrets needs more than `GITHUB_TOKEN`
-carries. Pass a repo-admin token as the `admin_token` secret when calling
-`install.yml`, or set branch protection by hand; without it those checks
-downgrade to a warning but a *definitively* unprotected branch or missing
-secret is still a hard failure.
-
-The fully manual path — create the apps, add the secrets, sync labels, commit
-the stubs yourself — stays supported as the fallback.
-
-### 5. Commit the caller stubs
-
-The installer PR adds two thin callers that own the triggers and delegate to
-the reusable cores, pinned to an exact tag. Merge that PR, or commit them
-yourself:
-
-```yaml
-# .github/workflows/issue-pipeline.yml
-jobs:
-  pipeline:
-    uses: abi83/interns/.github/workflows/issue-pipeline.yml@v0.1.0
-    secrets: inherit
-    with:
-      issue_number: ${{ inputs.issue_number }}
-      phase: ${{ inputs.phase }}
-```
-
-```yaml
-# .github/workflows/code-pipeline.yml
-jobs:
-  pipeline:
-    uses: abi83/interns/.github/workflows/code-pipeline.yml@v0.1.0
-    secrets: inherit
-    with:
-      issue_number: ${{ inputs.issue_number }}
-      pr_number: ${{ inputs.pr_number }}
-      fix_round: ${{ inputs.fix_round || false }}
-      phase: ${{ inputs.phase }}
-```
-
-Keep the `@v0.1.0` pin — the reusable cores check out their own matching assets
-from that ref at runtime. Full stubs, including the `on:` triggers, are in
-[`templates/workflows/`](templates/workflows).
-
-Optionally add `.github/agent-pipeline.yml`
-([template](templates/config/agent-pipeline.yml)) for per-agent limits, and the
-default issue templates ([`templates/issue/`](templates/issue)) — pass
-`--issue-templates` to the installer, or `install_issue_templates: true` to
-`install.yml`.
+The fully manual path stays supported: create the two Apps with the permissions
+above and install them on the repo, add the secrets and variables, sync labels
+from the manifest, set branch protection, and commit the caller stubs from
+[`templates/workflows/`](templates/workflows) yourself.
 
 ## Troubleshooting
 
