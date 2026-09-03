@@ -59,14 +59,14 @@ not in the manifest are left alone.
 
 ### `status:*` — issue lifecycle (mutually exclusive)
 
-| Label | Meaning | Set by                                                                      | Moves to |
-|---|---|-----------------------------------------------------------------------------|---|
-| `status:needs-refinement` | awaiting the refiner | **human**, triggers the refinement-estimation pipeline                      | `status:refined`, or `status:needs-attention` if the refiner needs a decision |
-| `status:refined` | refined, awaiting estimation | refiner                                                                     | `status:estimated` (+ `size:*`); `status:ready` directly for a `type:epic`; `status:needs-attention` if unsizeable |
-| `status:estimated` | estimated, awaiting owner approval | estimator                                                                   | `status:ready` (owner approves); if the owner disagrees they edit the issue and re-trigger refinement/estimation |
-| `status:ready` | approved for the coder | **human**, triggers the coder-reviewer pipeline | `status:in-progress` when the coder starts; `status:needs-attention` if the issue isn't a `type:coding-task` / `type:bug` |
-| `status:in-progress` | a coder run is working the issue (held for the whole run, fix rounds included) | coder                                                                       | issue closed on merge, or `status:needs-attention` |
-| `status:needs-attention` | pipeline stalled — a human needs to look | any agent                                                                   | cleared when a human re-dispatches (the coder drops it on pickup) |
+| Label | Meaning                                                | Set by                                                                      | Moves to                                                                                                                                                                       |
+|---|--------------------------------------------------------|-----------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `status:needs-refinement` | awaiting the refiner                                   | **human**, triggers the refinement-estimation pipeline                      | `status:refined`, or `status:needs-attention` if the refiner needs a decision                                                                                                  |
+| `status:refined` | refined, awaiting estimation                           | refiner                                                                     | `status:estimated` (+ `size:*`); `status:ready` directly for a `type:epic`; `status:needs-attention` if unsizeable                                                             |
+| `status:estimated` | estimated — waiting on the owner to approve or comment | estimator                                                                   | `status:ready` set by human to thrigger the coder, or an human **comment** for triggering conversational follow-up TBD in ([#11](https://github.com/abi83/interns/issues/11)). |
+| `status:ready` | approved for the coder                                 | **human**, triggers the coder-reviewer pipeline | `status:in-progress` when the coder starts; `status:needs-attention` if the issue isn't a `type:coding-task` / `type:bug`                                                      |
+| `status:in-progress` | a coder-reviewer loop is in progress                   | coder                                                                       | issue closed on merge, or `status:needs-attention`                                                                                                                             |
+| `status:needs-attention` | pipeline stalled — a human needs to look               | any agent                                                                   | cleared when a human re-dispatches (the coder drops it on pickup)                                                                                                              |
 
 ### `pr:*` — PR pipeline (mutually exclusive)
 
