@@ -1,0 +1,19 @@
+# interns pipeline config — per-agent execution limits.
+# Precedence: this file > org/repo Actions vars > the interns defaults.
+# Schema: abi83/interns/.github/agent-pipeline.schema.json
+# Everything here is optional; delete a key to fall back to the default.
+
+defaults:
+  max_turns: 40
+  timeout_minutes: 20
+  cost_warn_usd: 2.0
+
+agents:
+  refiner:
+    max_turns: 25
+  estimator:
+    max_turns: 20
+  coder:
+    timeout_minutes: 30
+  reviewer:
+    max_turns: 30

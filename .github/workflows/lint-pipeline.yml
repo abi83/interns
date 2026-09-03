@@ -33,6 +33,12 @@ jobs:
           pipx run check-jsonschema --check-metaschema
           .github/agent-pipeline.schema.json
           .github/pipeline-metrics.schema.json
+          .github/labels.schema.json
+
+      - name: Validate the label manifest against its schema
+        run: >
+          pipx run check-jsonschema --schemafile
+          .github/labels.schema.json .github/labels.json
 
   test-scripts:
     runs-on: ubuntu-latest
@@ -42,3 +48,6 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y bats
       - name: Run pipeline script tests
         run: bats .github/scripts/pipeline/tests
+
+      - name: Run installer script tests
+        run: bats .github/scripts/install/tests

@@ -1,0 +1,118 @@
+name: Install interns
+
+# Provisions a consumer repo for the interns pipeline:
+#   1. syncs the versioned label manifest (unconditional)
+#   2. opens a PR with the thin caller stubs + a starter agent-pipeline.yml
+#   3. optionally drops in the default issue templates
+#
+# Callable two ways:
+#   - workflow_call, pinned to a tag, from a consumer repo's own wrapper
+#   - workflow_dispatch, from this repo, to (re-)sync abi83/interns' own labels
+#
+# Idempotent: re-running syncs label drift and skips stub files already present.
+
+on:
+  workflow_dispatch:
+    inputs:
+      open_pr:
+        description: Open the caller-stubs PR (vs. label sync only)
+        type: boolean
+        default: true
+      install_issue_templates:
+        description: Add default issue templates if the repo has none
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      ref:
+        description: interns ref to copy the manifest and templates from
+        required: false
+        type: string
+        default: v0.1.0
+      open_pr:
+        required: false
+        type: boolean
+        default: true
+      install_issue_templates:
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      INTERNS_REF: ${{ inputs.ref || github.sha }}
+    steps:
+      - name: Check out the consumer repo
+        uses: actions/checkout@v5
+
+      - name: Check out interns (manifest + templates)
+        # github.token must be able to read abi83/interns — true for a
+        # workflow_dispatch run in this repo, and for consumers in the same
+        # org with Actions repo-access configured. A cross-org consumer
+        # passes a PAT or App token here instead.
+        uses: actions/checkout@v5
+        with:
+          repository: abi83/interns
+          ref: ${{ env.INTERNS_REF }}
+          path: .interns
+
+      - name: Sync the label manifest
+        run: .interns/.github/scripts/install/sync-labels.sh .interns/.github/labels.json
+
+      - name: Stage caller stubs and starter config
+        if: ${{ inputs.open_pr }}
+        id: stage
+        run: |
+          set -euo pipefail
+          changed=0
+          copy_if_absent() {
+            local src="$1" dest="$2"
+            if [[ -e "$dest" ]]; then
+              echo "skip (exists): $dest"
+              return
+            fi
+            mkdir -p "$(dirname "$dest")"
+            cp "$src" "$dest"
+            echo "add: $dest"
+            changed=1
+          }
+
+          copy_if_absent .interns/templates/workflows/issue-pipeline.yml .github/workflows/issue-pipeline.yml
+          copy_if_absent .interns/templates/workflows/code-pipeline.yml .github/workflows/code-pipeline.yml
+          copy_if_absent .interns/templates/config/agent-pipeline.yml .github/agent-pipeline.yml
+
+          if [[ "${{ inputs.install_issue_templates }}" == "true" && ! -d .github/ISSUE_TEMPLATE ]]; then
+            mkdir -p .github/ISSUE_TEMPLATE
+            cp .interns/templates/issue/*.md .interns/templates/issue/config.yml .github/ISSUE_TEMPLATE/
+            echo "add: .github/ISSUE_TEMPLATE/ (from interns defaults)"
+            changed=1
+          fi
+
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+
+      - name: Open the PR
+        if: ${{ inputs.open_pr && steps.stage.outputs.changed == '1' }}
+        run: |
+          set -euo pipefail
+          branch="interns/install-$(date +%Y%m%d%H%M%S)"
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add .github/
+          git commit -m "chore: install interns pipeline caller stubs"
+          git push -u origin "$branch"
+          gh pr create --head "$branch" \
+            --title "Install the interns pipeline" \
+            --body-file .interns/.github/scripts/install/pr-body.md
+
+      - name: Nothing to open
+        if: ${{ inputs.open_pr && steps.stage.outputs.changed != '1' }}
+        run: echo "All caller stubs already present — labels synced, no PR needed."
