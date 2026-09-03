@@ -1,11 +1,10 @@
 {
   "$schema": "./labels.schema.json",
-  "version": 1,
+  "version": 2,
   "labels": [
     { "name": "status:needs-refinement", "color": "1d76db", "description": "Issue pipeline: awaiting the refiner agent" },
     { "name": "status:refined", "color": "1d76db", "description": "Issue pipeline: refined, awaiting estimation" },
     { "name": "status:estimated", "color": "1d76db", "description": "Issue pipeline: estimated, awaiting owner approval" },
-    { "name": "status:estimated-wrong", "color": "d93f0b", "description": "Issue pipeline: estimate rejected by the owner" },
     { "name": "status:ready", "color": "0e8a16", "description": "Approved for the coder agent to implement" },
     { "name": "status:in-progress", "color": "fbca04", "description": "A coder agent run is working this issue" },
     { "name": "status:needs-attention", "color": "b60205", "description": "Pipeline stalled — a human needs to look" },

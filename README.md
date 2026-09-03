@@ -35,8 +35,7 @@ flowchart TD
     refined -.->|epic| ready
     refined -.->|needs a decision| na
     est -->|owner approves| ready[status:ready]
-    est -->|owner rejects| wrong[status:estimated-wrong]
-    wrong -.->|owner re-triggers| refined
+    est -.->|owner rejects, re-triggers| refined
     ready -->|coder| inprog[status:in-progress]
     inprog -->|PR opened| review[PR: pr:in-review]
     review -->|reviewer: APPROVE| merge([owner merges → issue closed])
@@ -58,8 +57,7 @@ not in the manifest are left alone.
 |---|---|---|---|
 | `status:needs-refinement` | awaiting the refiner | human, on issue creation | `status:refined`, or `status:needs-attention` if the refiner needs a decision |
 | `status:refined` | refined, awaiting estimation | refiner | `status:estimated` (+ `size:*`); `status:ready` directly for a `type:epic`; `status:needs-attention` if unsizeable |
-| `status:estimated` | estimated, awaiting owner approval | estimator | `status:ready` (owner approves) or `status:estimated-wrong` (owner rejects) |
-| `status:estimated-wrong` | estimate rejected by the owner | human | owner edits the issue and re-triggers refinement/estimation |
+| `status:estimated` | estimated, awaiting owner approval | estimator | `status:ready` (owner approves); if the owner disagrees they edit the issue and re-trigger refinement/estimation |
 | `status:ready` | approved for the coder | **human** (this is the approval gate) | `status:in-progress` when the coder starts; `status:needs-attention` if the issue isn't a `type:coding-task` / `type:bug` |
 | `status:in-progress` | a coder run is working the issue (held for the whole run, fix rounds included) | coder | issue closed on merge, or `status:needs-attention` |
 | `status:needs-attention` | pipeline stalled — a human needs to look | any agent | cleared when a human re-dispatches (the coder drops it on pickup) |
