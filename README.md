@@ -50,9 +50,18 @@ and only adds stub files that are missing, never overwriting a hand-edited
 one. Label sync is additive — labels absent from the manifest are left
 alone.
 
-Prerequisite/safety checks (branch protection, secrets, Pages) are tracked
-in [#5](https://github.com/abi83/interns/issues/5). A fuller README —
-pipeline flow, label state table — is
+Before opening the PR it runs safety checks and refuses to finish if one
+fails: the default branch must be protected so the agent identities can't
+push to it (it applies a baseline — require a PR, one approval, no force
+pushes — when protection is absent, unless
+`allow_agent_push_to_default_branch: true` in the config opts out); the
+`CLAUDE_CODE_OAUTH_TOKEN` and `REVIEWER_APP_PRIVATE_KEY` secrets must exist;
+and Pages is enabled (switched on with the GitHub Actions build type when
+off). Managing branch protection and Pages needs a token with `administration`
+scope; reading secrets needs more than `GITHUB_TOKEN` carries, so that check
+downgrades to a warning when it can't list them.
+
+A fuller README — pipeline flow, label state table — is
 [#10](https://github.com/abi83/interns/issues/10).
 
 ## Pipeline metrics
@@ -80,7 +89,7 @@ fetch of `raw.githubusercontent.com/<owner>/<repo>/metrics/metrics.jsonl`.
 | `.github/actions/*` | composite actions the cores use |
 | `.github/scripts/pipeline/*` | pipeline steps (+ `bats` tests) |
 | `.github/scripts/gh-safe/*` | the narrow `gh` surface the agents may call |
-| `.github/scripts/install/*` | installer steps (label sync, + `bats` tests) |
+| `.github/scripts/install/*` | installer steps (label sync, safety checks, + `bats` tests) |
 | `.github/labels.json` | versioned label manifest (+ `.schema.json`) |
 | `.github/prompts/*` | agent prompts, layered over the consumer's `CLAUDE.md` |
 | `templates/issue/*` | default issue templates |

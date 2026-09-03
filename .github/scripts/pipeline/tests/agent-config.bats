@@ -69,6 +69,13 @@ out() { grep "^$1=" "$GITHUB_OUTPUT" | cut -d= -f2-; }
   [[ "$output" == *"unknown top-level key 'junk'"* ]]
 }
 
+@test "tolerates the installer's allow_agent_push_to_default_branch knob" {
+  echo "allow_agent_push_to_default_branch: true" >>"$CONFIG"
+  run "$PIPELINE_DIR/agent-config.sh" coder
+  [ "$status" -eq 0 ]
+  [ "$(out max_turns)" = "60" ]
+}
+
 @test "rejects an unknown agent block" {
   printf '  tester: { max_turns: 5 }\n' >>"$CONFIG"
   run "$PIPELINE_DIR/agent-config.sh" coder

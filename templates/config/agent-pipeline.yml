@@ -3,6 +3,11 @@
 # Schema: abi83/interns/.github/agent-pipeline.schema.json
 # Everything here is optional; delete a key to fall back to the default.
 
+# Safety: keep the agents off the default branch. Set true only if the repo's
+# branch protection already blocks the bot identities some other way — the
+# installer's safety check then skips creating the baseline protection.
+# allow_agent_push_to_default_branch: false
+
 defaults:
   max_turns: 40
   timeout_minutes: 20
