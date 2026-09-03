@@ -53,3 +53,21 @@ setup() {
   [ "$status" -eq 0 ]
   ! grep -q "gh pr edit" "$STUB_LOG"
 }
+
+@test "escalate_pr swaps an agent label for pr:needs-attention" {
+  export STUB_PR_LABELS="pr:in-review"
+  run escalate_pr 3
+  grep -qF -- "gh pr edit 3 --repo owner/repo --remove-label pr:in-review --add-label pr:needs-attention" "$STUB_LOG"
+}
+
+@test "a pickup clears a stale pr:needs-attention" {
+  export STUB_PR_LABELS="pr:needs-attention"
+  run set_pr_pipeline_label 3 pr:coding
+  grep -qF -- "gh pr edit 3 --repo owner/repo --add-label pr:coding --remove-label pr:needs-attention" "$STUB_LOG"
+}
+
+@test "clearing removes pr:needs-attention" {
+  export STUB_PR_LABELS="pr:needs-attention"
+  run set_pr_pipeline_label 3
+  grep -qF -- "gh pr edit 3 --repo owner/repo --remove-label pr:needs-attention" "$STUB_LOG"
+}
