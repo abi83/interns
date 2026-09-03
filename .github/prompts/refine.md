@@ -2,6 +2,10 @@ You are refining a GitHub issue draft before it enters the backlog.
 
 Input: the raw issue title and body, plus any comments already on it.
 
+Refinement is two things, in this order: **investigate** the draft against
+the codebase, then **rewrite** the body from what you found. A refined
+issue is not just a reshaped draft — it is a draft checked against reality.
+
 ## Step 1: pick the type
 
 Four issue types exist. Determine which one applies:
@@ -34,18 +38,41 @@ exists:
 Ignore the YAML frontmatter and HTML comments; they're authoring guidance,
 not body content.
 
-## Step 2: fill it in
-
-Rewrite the body into the chosen structure, carrying over every concrete
-requirement already in the original text — you are clarifying and
-structuring, not inventing new scope. Leave HTML comments (`<!-- ... -->`)
-out of the final output; they're authoring guidance, not content.
+## Step 2: investigate
 
 You have read access to the repository (checked out at the working
-directory), and to any contributor guide or wiki it ships. Read code and
-docs to ground the refinement in what actually exists — whether something
-is already built, what an existing pattern looks like, what stated
-direction says. Use this to write a more accurate Scope, not to expand it.
+directory) and to any contributor guide or wiki it ships. Before writing
+anything, work out what the draft is actually asking for against what
+already exists:
+
+- **What already exists** — is any part of this built already, or
+  half-built? What is the current behaviour the ticket wants to change?
+- **What pattern it would reuse** — find the closest existing thing (a
+  module, a workflow job, a script, a doc section) and note how a change
+  like this one is normally shaped here.
+- **What it touches** — which files, jobs, configs, or wiki pages the work
+  would have to change or depend on.
+- **What stated direction says** — a parent epic, the README, the wiki, a
+  design issue it's part of.
+
+Keep a note of the specific files and wiki pages you open — Step 4 has to
+cite them.
+
+Use this to write a more accurate and *narrower* Scope. Investigation
+sharpens the ticket; it does not license adding scope the draft didn't ask
+for.
+
+## Step 3: rewrite the body
+
+Rewrite the body into the chosen structure, carrying over every concrete
+requirement already in the original text. Ground each section in what Step
+2 found — name the real files, jobs, and patterns rather than describing
+the work abstractly.
+
+The rewritten description must be **concise and specific** — tighter than
+the draft you were given, not longer. Cut restatement, hedging, and
+background the owner already knows. A refined Scope is a short list of
+concrete changes, each pointing at where it lands.
 
 Rules:
 
@@ -56,8 +83,36 @@ Rules:
   question. Do not guess at business intent.
 - Do not resolve ambiguity by picking the more ambitious interpretation.
   Prefer the smaller, more literal reading when the text is unclear.
+- Leave HTML comments (`<!-- ... -->`) out of the final output.
 - Output only the rewritten issue body in markdown. No preamble, no
   meta-commentary, no code fences wrapping the whole thing.
+
+## Step 4: post the analysis comment
+
+After the body is edited, post exactly one comment on the issue recording
+what the investigation turned up about **blockers and dependencies** —
+things that decide whether this ticket can be picked up now or has to wait:
+
+- other open issues it depends on or that must land first;
+- prerequisites that aren't built yet;
+- ordering constraints against other in-flight work;
+- external or console work the ticket implicitly needs (a secret, a
+  dashboard change, a provider setting).
+
+Rules for the comment:
+
+- Ground every point in what you actually checked. Cite the specific files
+  and wiki pages — "no rate-limit helper under `.github/scripts/pipeline/`",
+  not "there may not be a helper".
+- If the investigation found no blockers, say that in one line — still
+  naming what you checked to be sure.
+- **No risk assessment.** Blast radius, review cost, and effort are the
+  estimator's job, not yours. Stick to what blocks the work, not how hard
+  or dangerous it is.
+- Follow the consumer repo's `CLAUDE.md` prose rules: state facts rather
+  than claiming authority, use a table for any comparison, make each point
+  once.
+- Keep it short. This is a triage note, not a report.
 
 ## When to stop instead of refining
 
@@ -74,3 +129,6 @@ editing the body:
    exist yet (an unbuilt system, an undecided design, a blocked
    dependency), so scoping it now would be guesswork. Say what's missing
    and that refinement should wait until it lands.
+
+In the stop case, post only the clarification comment — no separate
+analysis comment, and don't touch the body.

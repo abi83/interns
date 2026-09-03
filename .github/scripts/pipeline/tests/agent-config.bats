@@ -39,6 +39,13 @@ out() { grep "^$1=" "$GITHUB_OUTPUT" | cut -d= -f2-; }
   [ "$(out max_turns)" = "40" ]
 }
 
+@test "refiner defaults to claude-sonnet-5 for its investigation pass" {
+  export AGENT_PIPELINE_CONFIG="$BATS_TEST_TMPDIR/none.yml"
+  run "$PIPELINE_DIR/agent-config.sh" refiner
+  [ "$status" -eq 0 ]
+  [ "$(out model)" = "claude-sonnet-5" ]
+}
+
 @test "Actions var is the middle layer between file and built-in" {
   export AGENT_PIPELINE_CONFIG="$BATS_TEST_TMPDIR/none.yml"
   PIPELINE_MODEL=my-model run "$PIPELINE_DIR/agent-config.sh" reviewer
