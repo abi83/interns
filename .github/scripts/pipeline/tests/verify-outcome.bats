@@ -18,7 +18,7 @@ setup() {
 }
 
 @test "three expected labels use an Oxford comma" {
-  export STUB_ISSUE_LABELS="status:estimated-wrong"
+  export STUB_ISSUE_LABELS="status:refined"
   run "$PIPELINE_DIR/verify-outcome.sh" Estimation 3 status:estimated status:ready status:needs-attention
   grep -q '`status:estimated`, `status:ready`, or `status:needs-attention`' "$STUB_LOG"
 }
