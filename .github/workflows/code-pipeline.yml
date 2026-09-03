@@ -59,6 +59,11 @@ env:
   # which includes paths (e.g. .github/workflows/**) that claude-code-action
   # relocates out of the working tree, so `git diff` alone can't see them (#13).
   ALLOWED_PR_READ: "Bash(gh pr diff:*),Bash(gh pr view:*)"
+  # Hard ceiling on event-triggered reviewer runs per PR, independent of the
+  # coder<->reviewer fix-loop cap in apply-verdict.sh. Past this many reviews by
+  # the reviewer bot, further pushes skip the Claude reviewer and go to a human.
+  # workflow_dispatch bypasses it. Part of #16.
+  MAX_AUTOMATIC_REVIEWS_PER_PR: 5
 
 jobs:
   coder:
@@ -478,9 +483,21 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # Hard ceiling on automatic reviews per PR (#16). Event-triggered only —
+      # workflow_dispatch is an explicit human override and never runs this.
+      - name: Enforce automatic review cap
+        id: cap
+        if: github.event_name == 'pull_request' && steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEWER_BOT: ${{ steps.ident.outputs.bot }}
+        run: >
+          .interns/.github/scripts/pipeline/check-review-cap.sh
+          "${{ github.event.pull_request.number }}"
+
       - name: Run Claude reviewer
         id: claude
-        if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true'
+        if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.cap.outputs.capped != 'true'
         timeout-minutes: ${{ fromJSON(steps.cfg.outputs.timeout_minutes) }}
         uses: anthropics/claude-code-action@v1
         env:
@@ -505,7 +522,7 @@ jobs:
             --allowedTools "Read,Grep,Glob,Write,${{ env.ALLOWED_GIT_READ }},${{ env.ALLOWED_PR_READ }},${{ env.ALLOWED_CI_READ }},${{ env.ALLOWED_ISSUE_READ }},${{ env.ALLOWED_SUBMIT_REVIEW }},${{ env.ALLOWED_COMMENT_PR }}"
 
       - name: Report run cost
-        if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && always() && steps.claude.outputs.execution_file != ''
+        if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.cap.outputs.capped != 'true' && always() && steps.claude.outputs.execution_file != ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
@@ -517,7 +534,7 @@ jobs:
       - name: Extract run metrics
         id: metrics
         continue-on-error: true
-        if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && always() && steps.claude.outputs.execution_file != ''
+        if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.cap.outputs.capped != 'true' && always() && steps.claude.outputs.execution_file != ''
         run: >
           .interns/.github/scripts/pipeline/extract-metrics.sh
           "${{ steps.claude.outputs.execution_file }}"
@@ -527,7 +544,7 @@ jobs:
           > "${{ runner.temp }}/metrics-reviewer.json"
 
       - name: Upload run metrics
-        if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.metrics.outcome == 'success'
+        if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.cap.outputs.capped != 'true' && steps.metrics.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: pipeline-metrics-reviewer
@@ -536,7 +553,7 @@ jobs:
           retention-days: 2
 
       - name: Apply reviewer verdict
-        if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && success()
+        if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.cap.outputs.capped != 'true' && success()
         env:
           GH_TOKEN: ${{ github.token }}
           REVIEWER_BOT: ${{ steps.ident.outputs.bot }}
@@ -546,7 +563,7 @@ jobs:
           "${{ steps.linked.outputs.issue_number }}"
 
       - name: Write run summary
-        if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && always() && steps.claude.outcome != 'skipped'
+        if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.cap.outputs.capped != 'true' && always() && steps.claude.outcome != 'skipped'
         env:
           GH_TOKEN: ${{ github.token }}
           REVIEWER_BOT: ${{ steps.ident.outputs.bot }}
