@@ -42,6 +42,23 @@ Optional: `.github/agent-pipeline.yml` (per-agent model + limits).
 
 ### Installer
 
+For 0.1.0 the supported path is `interns-install` — a local, interactive CLI
+that does the two things a headless Actions run can't: mint the `interns-reviewer`
+and `interns-coder` GitHub Apps (an interactive browser click) and write the
+repo secrets/variables (`secrets: write` isn't grantable to `GITHUB_TOKEN`). It
+then hands off to `install.yml` for the rest.
+
+```sh
+curl -LsSf https://raw.githubusercontent.com/abi83/interns/v0.1.0/install.sh | sh
+```
+
+The bootstrap installs [`uv`](https://docs.astral.sh/uv/) if missing; with `uv`
+already present, run
+`uvx --from git+https://github.com/abi83/interns.git@v0.1.0#subdirectory=installer interns-install`.
+Needs the [GitHub CLI](https://cli.github.com/) authenticated with a token that
+can write repo secrets. Details and flags: [`installer/README.md`](installer/README.md).
+The fully manual path stays documented as the fallback.
+
 `.github/workflows/install.yml` provisions a consumer repo. It syncs the
 versioned label manifest ([`.github/labels.json`](.github/labels.json) —
 every `status:*` / `type:*` / `size:*` / `priority:*` / `pr:*` the state
@@ -97,6 +114,8 @@ fetch of `raw.githubusercontent.com/<owner>/<repo>/metrics/metrics.jsonl`.
 | `.github/prompts/*` | agent prompts, layered over the consumer's `CLAUDE.md` |
 | `templates/issue/*` | default issue templates |
 | `templates/workflows/*`, `templates/config/*` | caller stubs + starter config the installer commits |
+| `installer/` | `interns-install` — the local CLI for Apps + secrets (Python, stdlib only) |
+| `install.sh` | one-line bootstrap: ensures `uv`, runs `interns-install` |
 
 ## License
 

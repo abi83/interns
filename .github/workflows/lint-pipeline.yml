@@ -26,7 +26,9 @@ jobs:
 
       # -x so shellcheck follows the `source` of pipeline/lib.sh.
       - name: Lint standalone shell scripts
-        run: find .github/scripts -name '*.sh' -print0 | xargs -0 -r shellcheck -x
+        run: |
+          find .github/scripts -name '*.sh' -print0 | xargs -0 -r shellcheck -x
+          shellcheck install.sh
 
       - name: Validate the JSON schemas are well-formed
         run: >
@@ -51,3 +53,14 @@ jobs:
 
       - name: Run installer script tests
         run: bats .github/scripts/install/tests
+
+  test-installer-cli:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run interns-install tests
+        working-directory: installer
+        run: PYTHONPATH=src python -m unittest discover -s tests -v
