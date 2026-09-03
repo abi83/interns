@@ -28,8 +28,11 @@ jobs:
       - name: Lint standalone shell scripts
         run: find .github/scripts -name '*.sh' -print0 | xargs -0 -r shellcheck -x
 
-      - name: Validate the agent-pipeline schema is well-formed
-        run: pipx run check-jsonschema --check-metaschema .github/agent-pipeline.schema.json
+      - name: Validate the JSON schemas are well-formed
+        run: >
+          pipx run check-jsonschema --check-metaschema
+          .github/agent-pipeline.schema.json
+          .github/pipeline-metrics.schema.json
 
   test-scripts:
     runs-on: ubuntu-latest

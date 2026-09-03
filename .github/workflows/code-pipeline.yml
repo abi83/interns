@@ -271,6 +271,27 @@ jobs:
         with:
           issue_number: ${{ steps.issue.outputs.number }}
 
+      - name: Extract run metrics
+        id: metrics
+        continue-on-error: true
+        if: steps.guard.outputs.skip != 'true' && always() && (steps.claude_initial.outputs.execution_file != '' || steps.claude_fix.outputs.execution_file != '')
+        run: >
+          .interns/.github/scripts/pipeline/extract-metrics.sh
+          "${{ steps.claude_initial.outputs.execution_file }}${{ steps.claude_fix.outputs.execution_file }}"
+          --job coder
+          --issue "${{ steps.issue.outputs.number }}"
+          --pr "${{ steps.verify_pr.outputs.pr_number || steps.pr.outputs.pr_number }}"
+          > "${{ runner.temp }}/metrics-coder.json"
+
+      - name: Upload run metrics
+        if: steps.guard.outputs.skip != 'true' && steps.metrics.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-metrics-coder
+          path: ${{ runner.temp }}/metrics-coder.json
+          if-no-files-found: ignore
+          retention-days: 2
+
       - name: Hand off to reviewer
         if: steps.guard.outputs.skip != 'true' && success()
         env:
@@ -474,6 +495,27 @@ jobs:
           "${{ steps.linked.outputs.issue_number }}"
           "${{ github.event.pull_request.number || inputs.pr_number }}"
 
+      - name: Extract run metrics
+        id: metrics
+        continue-on-error: true
+        if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && always() && steps.claude.outputs.execution_file != ''
+        run: >
+          .interns/.github/scripts/pipeline/extract-metrics.sh
+          "${{ steps.claude.outputs.execution_file }}"
+          --job reviewer
+          --issue "${{ steps.linked.outputs.issue_number }}"
+          --pr "${{ github.event.pull_request.number || inputs.pr_number }}"
+          > "${{ runner.temp }}/metrics-reviewer.json"
+
+      - name: Upload run metrics
+        if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.metrics.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-metrics-reviewer
+          path: ${{ runner.temp }}/metrics-reviewer.json
+          if-no-files-found: ignore
+          retention-days: 2
+
       - name: Apply reviewer verdict
         if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && success()
         env:
@@ -511,3 +553,52 @@ jobs:
           .interns/.github/scripts/pipeline/flag-failure.sh --noun review
           --pr "${{ github.event.pull_request.number || inputs.pr_number }}"
           --issue "${{ steps.linked.outputs.issue_number }}"
+
+  metrics:
+    # One append per workflow run (#12): gather every pipeline-metrics record
+    # this run's agent jobs uploaded and commit them to metrics.jsonl on the
+    # orphan `metrics` branch in a single push. The concurrency group serialises
+    # that push across concurrent runs; append-metrics.sh also fetch-rebases on
+    # a race. Runs even when the agent job was skipped or failed — a no-record
+    # run is a clean no-op.
+    needs: [coder, reviewer]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: metrics-append
+    steps:
+      - name: Resolve pipeline ref
+        id: pipeline_ref
+        shell: bash
+        env:
+          JOB_WORKFLOW_REF: ${{ github.job_workflow_ref }}
+        run: echo "ref=${JOB_WORKFLOW_REF##*@}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout pipeline assets
+        uses: actions/checkout@v5
+        with:
+          repository: abi83/interns
+          ref: ${{ steps.pipeline_ref.outputs.ref }}
+          path: .interns
+
+      - name: Download run metrics records
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: pipeline-metrics-*
+          path: metrics-records
+          merge-multiple: true
+
+      - name: Append to the metrics branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          files=(metrics-records/*.json)
+          if [[ ${#files[@]} -eq 0 ]]; then
+            echo "No metrics records produced by this run — nothing to append."
+            exit 0
+          fi
+          .interns/.github/scripts/pipeline/append-metrics.sh "${files[@]}"
