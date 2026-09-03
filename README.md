@@ -101,11 +101,13 @@ signal. List the PRs waiting on a human with
 |---|---|---|
 | `type:coding-task` | yes | yes |
 | `type:bug` | yes | yes |
-| `type:spike` | yes | no — investigation only |
-| `type:epic` | no — skipped straight to `status:ready` | no — breaks down into sub-issues |
+| `type:spike` | yes | no — a human does the investigation |
+| `type:epic` | no — skipped straight to `status:ready` | no — a human breaks it into sub-issues |
 
-A `type:epic` or `type:spike` that reaches `status:ready` is bounced to
-`status:needs-attention` by the coder's type gate.
+There is no agent for spikes or epics — the pipeline only refines them (and
+estimates the spike). Once refined, the work is a human's: a spike that reaches
+`status:ready` (or an epic, via its estimate-phase bypass) is bounced straight
+to `status:needs-attention` by the coder's type gate.
 
 ### `size:*` and `priority:*`
 
