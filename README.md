@@ -39,11 +39,21 @@ Needs, in the consumer repo: `CLAUDE_CODE_OAUTH_TOKEN` +
 default-branch protection.
 Optional: `.github/agent-pipeline.yml` (per-agent model + limits).
 
-A one-shot installer that provisions all of that — a versioned label
-manifest plus prerequisite/safety checks — is tracked in
-[#4](https://github.com/abi83/interns/issues/4) /
-[#5](https://github.com/abi83/interns/issues/5). A fuller README —
-pipeline flow, label state table — is [#10](https://github.com/abi83/interns/issues/10).
+### Installer
+
+`.github/workflows/install.yml` provisions a consumer repo. It syncs the
+versioned label manifest ([`.github/labels.json`](.github/labels.json) —
+every `status:*` / `type:*` / `size:*` / `priority:*` / `pr:*` the state
+machine relies on) and opens a PR with the thin caller stubs plus a starter
+`.github/agent-pipeline.yml`. It's idempotent: re-running fixes label drift
+and only adds stub files that are missing, never overwriting a hand-edited
+one. Label sync is additive — labels absent from the manifest are left
+alone.
+
+Prerequisite/safety checks (branch protection, secrets, Pages) are tracked
+in [#5](https://github.com/abi83/interns/issues/5). A fuller README —
+pipeline flow, label state table — is
+[#10](https://github.com/abi83/interns/issues/10).
 
 ## Pipeline metrics
 
@@ -70,8 +80,11 @@ fetch of `raw.githubusercontent.com/<owner>/<repo>/metrics/metrics.jsonl`.
 | `.github/actions/*` | composite actions the cores use |
 | `.github/scripts/pipeline/*` | pipeline steps (+ `bats` tests) |
 | `.github/scripts/gh-safe/*` | the narrow `gh` surface the agents may call |
+| `.github/scripts/install/*` | installer steps (label sync, + `bats` tests) |
+| `.github/labels.json` | versioned label manifest (+ `.schema.json`) |
 | `.github/prompts/*` | agent prompts, layered over the consumer's `CLAUDE.md` |
 | `templates/issue/*` | default issue templates |
+| `templates/workflows/*`, `templates/config/*` | caller stubs + starter config the installer commits |
 
 ## License
 

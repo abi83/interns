@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "label manifest",
+  "description": "The versioned set of labels the agent pipeline's state machine relies on. Synced idempotently into a consumer repo by .github/scripts/install/sync-labels.sh (installer workflow). The sync is additive: labels absent from the manifest are left untouched.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "labels"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Bump on any change to the label set. Reported by the sync so a consumer can see which manifest version it last applied."
+    },
+    "labels": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "color"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^(status|type|size|priority|pr):[A-Za-z-]+$",
+            "description": "prefix:value — the prefix groups the label in the state machine."
+          },
+          "color": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{6}$",
+            "description": "6-hex-digit color, no leading '#'."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 100
+          }
+        }
+      }
+    }
+  }
+}

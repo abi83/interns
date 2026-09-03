@@ -1,0 +1,25 @@
+# Thin caller for the interns issue refine/estimate pipeline.
+# Owns the triggers; delegates all logic to the reusable core, pinned to a tag.
+name: Issue pipeline
+
+on:
+  issues:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Issue number
+        required: true
+        type: string
+      phase:
+        description: refine | estimate
+        required: true
+        type: string
+
+jobs:
+  pipeline:
+    uses: abi83/interns/.github/workflows/issue-pipeline.yml@v0.1.0
+    secrets: inherit
+    with:
+      issue_number: ${{ inputs.issue_number }}
+      phase: ${{ inputs.phase }}

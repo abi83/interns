@@ -1,0 +1,38 @@
+# Thin caller for the interns coder/reviewer pipeline.
+# Owns the triggers; delegates all logic to the reusable core, pinned to a tag.
+name: Coding agents
+
+on:
+  issues:
+    types: [labeled]
+  pull_request:
+    types: [opened, ready_for_review, synchronize]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Issue number (coder phase)
+        required: false
+        type: string
+      pr_number:
+        description: PR number (reviewer phase)
+        required: false
+        type: string
+      fix_round:
+        description: Treat a coder dispatch as a reviewer fix round
+        required: false
+        type: boolean
+        default: false
+      phase:
+        description: coder | reviewer
+        required: false
+        type: string
+
+jobs:
+  pipeline:
+    uses: abi83/interns/.github/workflows/code-pipeline.yml@v0.1.0
+    secrets: inherit
+    with:
+      issue_number: ${{ inputs.issue_number }}
+      pr_number: ${{ inputs.pr_number }}
+      fix_round: ${{ inputs.fix_round || false }}
+      phase: ${{ inputs.phase }}

@@ -1,0 +1,33 @@
+{
+  "$schema": "./labels.schema.json",
+  "version": 1,
+  "labels": [
+    { "name": "status:needs-refinement", "color": "1d76db", "description": "Issue pipeline: awaiting the refiner agent" },
+    { "name": "status:refined", "color": "1d76db", "description": "Issue pipeline: refined, awaiting estimation" },
+    { "name": "status:estimated", "color": "1d76db", "description": "Issue pipeline: estimated, awaiting owner approval" },
+    { "name": "status:estimated-wrong", "color": "d93f0b", "description": "Issue pipeline: estimate rejected by the owner" },
+    { "name": "status:ready", "color": "0e8a16", "description": "Approved for the coder agent to implement" },
+    { "name": "status:in-progress", "color": "fbca04", "description": "A coder agent run is working this issue" },
+    { "name": "status:needs-attention", "color": "b60205", "description": "Pipeline stalled — a human needs to look" },
+
+    { "name": "type:bug", "color": "5319e7", "description": "A defect in existing behaviour" },
+    { "name": "type:coding-task", "color": "5319e7", "description": "An implementable code deliverable" },
+    { "name": "type:epic", "color": "5319e7", "description": "A tracking issue with child sub-issues" },
+    { "name": "type:spike", "color": "5319e7", "description": "Time-boxed investigation, no shipped code required" },
+
+    { "name": "size:XS", "color": "c5def5", "description": "Estimate: extra small" },
+    { "name": "size:S", "color": "c5def5", "description": "Estimate: small" },
+    { "name": "size:M", "color": "c5def5", "description": "Estimate: medium" },
+    { "name": "size:L", "color": "c5def5", "description": "Estimate: large" },
+    { "name": "size:XL", "color": "c5def5", "description": "Estimate: extra large — consider splitting" },
+
+    { "name": "priority:low", "color": "d4c5f9", "description": "Priority: low" },
+    { "name": "priority:medium", "color": "d4c5f9", "description": "Priority: medium" },
+    { "name": "priority:high", "color": "d4c5f9", "description": "Priority: high" },
+    { "name": "priority:urgent", "color": "d4c5f9", "description": "Priority: urgent" },
+
+    { "name": "pr:coding", "color": "0e8a16", "description": "PR pipeline: a coder agent is on this PR" },
+    { "name": "pr:in-review", "color": "0e8a16", "description": "PR pipeline: a reviewer agent is on this PR" },
+    { "name": "pr:needs-attention", "color": "b60205", "description": "PR pipeline stalled — a human needs to look" }
+  ]
+}
