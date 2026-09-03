@@ -14,6 +14,10 @@ name: Install interns
 on:
   workflow_dispatch:
     inputs:
+      ref:
+        description: "interns ref for the manifest/templates (default: this run's ref)"
+        type: string
+        default: ""
       open_pr:
         description: Open the caller-stubs PR (vs. label sync only)
         type: boolean
@@ -25,10 +29,13 @@ on:
   workflow_call:
     inputs:
       ref:
-        description: interns ref to copy the manifest and templates from
+        description: >
+          interns ref to copy the manifest and templates from. Defaults to the
+          exact ref the caller pinned this workflow to, so the manifest always
+          matches the installer version. Override with a concrete tag if needed.
         required: false
         type: string
-        default: v0.1.0
+        default: ""
       open_pr:
         required: false
         type: boolean
@@ -48,8 +55,25 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
-      INTERNS_REF: ${{ inputs.ref || github.sha }}
     steps:
+      - name: Resolve the interns ref
+        id: ref
+        # Precedence: explicit input > the ref the caller pinned this reusable
+        # workflow to (github.job_workflow_ref, ".../install.yml@refs/tags/vX")
+        # > this run's own sha (the workflow_dispatch-on-this-repo case).
+        run: |
+          set -euo pipefail
+          if [[ -n "${{ inputs.ref }}" ]]; then
+            ref="${{ inputs.ref }}"
+          elif [[ -n "${{ github.job_workflow_ref }}" ]]; then
+            ref="${{ github.job_workflow_ref }}"
+            ref="refs/${ref##*@refs/}"
+          else
+            ref="${{ github.sha }}"
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "Using interns ref: $ref"
+
       - name: Check out the consumer repo
         uses: actions/checkout@v5
 
@@ -61,7 +85,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: abi83/interns
-          ref: ${{ env.INTERNS_REF }}
+          ref: ${{ steps.ref.outputs.ref }}
           path: .interns
 
       - name: Sync the label manifest
@@ -70,39 +94,17 @@ jobs:
       - name: Stage caller stubs and starter config
         if: ${{ inputs.open_pr }}
         id: stage
-        run: |
-          set -euo pipefail
-          changed=0
-          copy_if_absent() {
-            local src="$1" dest="$2"
-            if [[ -e "$dest" ]]; then
-              echo "skip (exists): $dest"
-              return
-            fi
-            mkdir -p "$(dirname "$dest")"
-            cp "$src" "$dest"
-            echo "add: $dest"
-            changed=1
-          }
-
-          copy_if_absent .interns/templates/workflows/issue-pipeline.yml .github/workflows/issue-pipeline.yml
-          copy_if_absent .interns/templates/workflows/code-pipeline.yml .github/workflows/code-pipeline.yml
-          copy_if_absent .interns/templates/config/agent-pipeline.yml .github/agent-pipeline.yml
-
-          if [[ "${{ inputs.install_issue_templates }}" == "true" && ! -d .github/ISSUE_TEMPLATE ]]; then
-            mkdir -p .github/ISSUE_TEMPLATE
-            cp .interns/templates/issue/*.md .interns/templates/issue/config.yml .github/ISSUE_TEMPLATE/
-            echo "add: .github/ISSUE_TEMPLATE/ (from interns defaults)"
-            changed=1
-          fi
-
-          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+        run: >
+          .interns/.github/scripts/install/stage-stubs.sh
+          .interns "${{ inputs.install_issue_templates }}"
 
       - name: Open the PR
         if: ${{ inputs.open_pr && steps.stage.outputs.changed == '1' }}
         run: |
           set -euo pipefail
           branch="interns/install-$(date +%Y%m%d%H%M%S)"
+          # Canonical github-actions[bot] identity — the numeric id is what maps
+          # the noreply address to the bot account (same line as append-metrics.sh).
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "$branch"
