@@ -8,7 +8,7 @@ over a checked-out repo, respects its `CLAUDE.md` / `AGENTS.md`, and runs
 entirely in the consumer repo's GitHub Actions — no hosted service.
 
 Status: early. Consumed by [`abi83/prepify`](https://github.com/abi83/prepify).
-Design and roadmap: [abi83/prepify#130](https://github.com/abi83/prepify/issues/130).
+Design and roadmap: [#3](https://github.com/abi83/interns/issues/3).
 
 ## Consuming it
 
@@ -35,13 +35,15 @@ jobs:
 
 Needs, in the consumer repo: `CLAUDE_CODE_OAUTH_TOKEN` +
 `REVIEWER_APP_PRIVATE_KEY` secrets, a `REVIEWER_APP_ID` var, the
-`status:*` / `type:*` / `size:*` labels, and default-branch protection.
+`status:*` / `type:*` / `size:*` / `priority:*` / `pr:*` labels, and
+default-branch protection.
 Optional: `.github/agent-pipeline.yml` (per-agent model + limits).
 
-A one-shot installer that provisions all of that is tracked in
-[abi83/prepify#153](https://github.com/abi83/prepify/issues/153) /
-[#154](https://github.com/abi83/prepify/issues/154). A fuller README —
-pipeline flow, label state table — is [abi83/prepify#163](https://github.com/abi83/prepify/issues/163).
+A one-shot installer that provisions all of that — a versioned label
+manifest plus prerequisite/safety checks — is tracked in
+[#4](https://github.com/abi83/interns/issues/4) /
+[#5](https://github.com/abi83/interns/issues/5). A fuller README —
+pipeline flow, label state table — is [#10](https://github.com/abi83/interns/issues/10).
 
 ## Layout
 
