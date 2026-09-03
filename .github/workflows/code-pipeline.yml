@@ -55,6 +55,10 @@ env:
   ALLOWED_BUILD_TEST: "Bash(npm install:*),Bash(npm ci:*),Bash(npm test:*),Bash(npm run build:*)"
   ALLOWED_CI_READ: "Bash(gh pr checks:*),Bash(gh run view:*)"
   ALLOWED_ISSUE_READ: "Bash(gh issue view:*)"
+  # The reviewer's sanctioned diff source. `gh pr diff` returns the API diff,
+  # which includes paths (e.g. .github/workflows/**) that claude-code-action
+  # relocates out of the working tree, so `git diff` alone can't see them (#13).
+  ALLOWED_PR_READ: "Bash(gh pr diff:*),Bash(gh pr view:*)"
 
 jobs:
   coder:
@@ -264,15 +268,30 @@ jobs:
           "${{ steps.claude_initial.outputs.execution_file }}${{ steps.claude_fix.outputs.execution_file }}"
           "${{ steps.issue.outputs.number }}"
 
+      # A fix round that can't do the work (protected path, out-of-scope or
+      # contradictory feedback, needs an owner decision) leaves a
+      # ./.coder-gave-up.md sentinel instead of pushing. Escalate straight to a
+      # human rather than handing the PR back to the reviewer for a wasted
+      # round (#9). Exit 0 is kept — the agent isn't failing, it's reporting it
+      # can't proceed — so this is distinct from `Flag failure`.
+      - name: Check for coder give-up (fix round)
+        id: giveup
+        if: steps.guard.outputs.skip != 'true' && steps.mode.outputs.fix_round == 'true' && success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          .interns/.github/scripts/pipeline/handle-giveup.sh
+          "${{ steps.issue.outputs.number }}" "${{ steps.pr.outputs.pr_number }}"
+
       - name: Check PR now exists
         id: verify_pr
-        if: steps.guard.outputs.skip != 'true' && success()
+        if: steps.guard.outputs.skip != 'true' && success() && steps.giveup.outputs.gave_up != 'true'
         uses: ./.interns/.github/actions/find-pr-for-issue
         with:
           issue_number: ${{ steps.issue.outputs.number }}
 
       - name: Hand off to reviewer
-        if: steps.guard.outputs.skip != 'true' && success()
+        if: steps.guard.outputs.skip != 'true' && success() && steps.giveup.outputs.gave_up != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
@@ -462,7 +481,7 @@ jobs:
           claude_args: |
             --model ${{ steps.cfg.outputs.model }}
             --max-turns ${{ steps.cfg.outputs.max_turns }}
-            --allowedTools "Read,Grep,Glob,Write,${{ env.ALLOWED_GIT_READ }},${{ env.ALLOWED_CI_READ }},${{ env.ALLOWED_ISSUE_READ }},${{ env.ALLOWED_SUBMIT_REVIEW }},${{ env.ALLOWED_COMMENT_PR }}"
+            --allowedTools "Read,Grep,Glob,Write,${{ env.ALLOWED_GIT_READ }},${{ env.ALLOWED_PR_READ }},${{ env.ALLOWED_CI_READ }},${{ env.ALLOWED_ISSUE_READ }},${{ env.ALLOWED_SUBMIT_REVIEW }},${{ env.ALLOWED_COMMENT_PR }}"
 
       - name: Report run cost
         if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && always() && steps.claude.outputs.execution_file != ''
