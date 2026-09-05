@@ -35,23 +35,23 @@ class ProtectionViolationTests(unittest.TestCase):
 
 class ConfigAllowsAgentPushTests(unittest.TestCase):
     def test_false_when_file_absent(self):
-        self.assertFalse(_config_allows_agent_push(Path("/nonexistent/agent-pipeline.yml")))
+        self.assertFalse(_config_allows_agent_push(Path("/nonexistent/interns.yml")))
 
     def test_true_when_set(self):
         with TemporaryDirectory() as tmp:
-            path = Path(tmp) / "agent-pipeline.yml"
+            path = Path(tmp) / "interns.yml"
             path.write_text("allow_agent_push_to_default_branch: true\n")
             self.assertTrue(_config_allows_agent_push(path))
 
     def test_false_when_unset_or_other_keys_present(self):
         with TemporaryDirectory() as tmp:
-            path = Path(tmp) / "agent-pipeline.yml"
+            path = Path(tmp) / "interns.yml"
             path.write_text("some_other_key: true\n")
             self.assertFalse(_config_allows_agent_push(path))
 
     def test_false_when_explicitly_false(self):
         with TemporaryDirectory() as tmp:
-            path = Path(tmp) / "agent-pipeline.yml"
+            path = Path(tmp) / "interns.yml"
             path.write_text("allow_agent_push_to_default_branch: false\n")
             self.assertFalse(_config_allows_agent_push(path))
 

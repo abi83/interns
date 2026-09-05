@@ -6,7 +6,7 @@ Opened by the **Install interns** workflow.
   runs unconditionally, not in this PR).
 - **Caller stubs** — `.github/workflows/{issue,code}-pipeline.yml` delegate to
   the reusable cores in `abi83/interns`, pinned to a release tag.
-- **Config** — `.github/agent-pipeline.yml` holds per-agent limits; every key is
+- **Config** — `.github/interns.yml` holds per-agent limits; every key is
   optional and falls back to the interns defaults.
 
 Existing files were left untouched — re-running the installer only adds what is

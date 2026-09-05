@@ -33,7 +33,7 @@ jobs:
       - name: Validate the JSON schemas are well-formed
         run: >
           pipx run check-jsonschema --check-metaschema
-          .github/agent-pipeline.schema.json
+          .github/interns.schema.json
           .github/pipeline-metrics.schema.json
           .github/labels.schema.json
 

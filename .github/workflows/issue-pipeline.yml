@@ -61,12 +61,17 @@ jobs:
           ref: ${{ steps.pipeline_ref.outputs.ref }}
           path: .interns
 
-      # vars.WIKI_REPO — repo-level Actions variable, set to a wiki repo, or unset.
+      - name: Resolve agent config
+        id: cfg
+        uses: ./.interns/.github/actions/resolve-agent-config
+        with:
+          agent: refiner
+
       - name: Checkout wiki
-        if: vars.WIKI_REPO != ''
+        if: steps.cfg.outputs.wiki_enabled == 'true'
         uses: actions/checkout@v5
         with:
-          repository: ${{ vars.WIKI_REPO }}
+          repository: ${{ steps.cfg.outputs.wiki_repo }}
           path: wiki
 
       - name: Resolve issue
@@ -74,17 +79,6 @@ jobs:
         uses: ./.interns/.github/actions/resolve-issue
         with:
           issue_number: ${{ github.event.issue.number || inputs.issue_number }}
-
-      - name: Resolve agent config
-        id: cfg
-        uses: ./.interns/.github/actions/resolve-agent-config
-        with:
-          agent: refiner
-          pipeline_model: ${{ vars.PIPELINE_MODEL }}
-          pipeline_max_turns: ${{ vars.PIPELINE_MAX_TURNS }}
-          pipeline_timeout_minutes: ${{ vars.PIPELINE_TIMEOUT_MINUTES }}
-          pipeline_max_output_tokens: ${{ vars.PIPELINE_MAX_OUTPUT_TOKENS }}
-          pipeline_cost_warn_usd: ${{ vars.PIPELINE_COST_WARN_USD }}
 
       - name: Preserve original body
         env:
@@ -228,11 +222,17 @@ jobs:
           ref: ${{ steps.pipeline_ref.outputs.ref }}
           path: .interns
 
+      - name: Resolve agent config
+        id: cfg
+        uses: ./.interns/.github/actions/resolve-agent-config
+        with:
+          agent: estimator
+
       - name: Checkout wiki
-        if: vars.WIKI_REPO != ''
+        if: steps.cfg.outputs.wiki_enabled == 'true'
         uses: actions/checkout@v5
         with:
-          repository: ${{ vars.WIKI_REPO }}
+          repository: ${{ steps.cfg.outputs.wiki_repo }}
           path: wiki
 
       - name: Resolve issue
@@ -240,17 +240,6 @@ jobs:
         uses: ./.interns/.github/actions/resolve-issue
         with:
           issue_number: ${{ github.event.issue.number || inputs.issue_number }}
-
-      - name: Resolve agent config
-        id: cfg
-        uses: ./.interns/.github/actions/resolve-agent-config
-        with:
-          agent: estimator
-          pipeline_model: ${{ vars.PIPELINE_MODEL }}
-          pipeline_max_turns: ${{ vars.PIPELINE_MAX_TURNS }}
-          pipeline_timeout_minutes: ${{ vars.PIPELINE_TIMEOUT_MINUTES }}
-          pipeline_max_output_tokens: ${{ vars.PIPELINE_MAX_OUTPUT_TOKENS }}
-          pipeline_cost_warn_usd: ${{ vars.PIPELINE_COST_WARN_USD }}
 
       - name: Run Claude estimation
         id: claude

@@ -1,8 +1,8 @@
 setup() {
   load helpers
   setup_stubs
-  CONFIG="$BATS_TEST_TMPDIR/agent-pipeline.yml"
-  export AGENT_PIPELINE_CONFIG="$CONFIG"
+  CONFIG="$BATS_TEST_TMPDIR/interns.yml"
+  export INTERNS_CONFIG="$CONFIG"
   cat >"$CONFIG" <<'EOF'
 defaults:
   model: claude-sonnet-5
@@ -32,7 +32,7 @@ out() { grep "^$1=" "$GITHUB_OUTPUT" | cut -d= -f2-; }
 }
 
 @test "missing config file falls back to built-in defaults" {
-  export AGENT_PIPELINE_CONFIG="$BATS_TEST_TMPDIR/none.yml"
+  export INTERNS_CONFIG="$BATS_TEST_TMPDIR/none.yml"
   run "$PIPELINE_DIR/agent-config.sh" reviewer
   [ "$status" -eq 0 ]
   [ "$(out model)" = "claude-sonnet-5" ]
@@ -40,21 +40,39 @@ out() { grep "^$1=" "$GITHUB_OUTPUT" | cut -d= -f2-; }
 }
 
 @test "refiner defaults to claude-sonnet-5 for its investigation pass" {
-  export AGENT_PIPELINE_CONFIG="$BATS_TEST_TMPDIR/none.yml"
+  export INTERNS_CONFIG="$BATS_TEST_TMPDIR/none.yml"
   run "$PIPELINE_DIR/agent-config.sh" refiner
   [ "$status" -eq 0 ]
   [ "$(out model)" = "claude-sonnet-5" ]
 }
 
-@test "Actions var is the middle layer between file and built-in" {
-  export AGENT_PIPELINE_CONFIG="$BATS_TEST_TMPDIR/none.yml"
-  PIPELINE_MODEL=my-model run "$PIPELINE_DIR/agent-config.sh" reviewer
-  [ "$(out model)" = "my-model" ]
+@test "wiki is disabled by default" {
+  run "$PIPELINE_DIR/agent-config.sh" coder
+  [ "$status" -eq 0 ]
+  [ "$(out wiki_enabled)" = "false" ]
+  [ "$(out wiki_repo)" = "" ]
 }
 
-@test "file value beats the Actions var" {
-  PIPELINE_MODEL=my-model run "$PIPELINE_DIR/agent-config.sh" refiner
-  [ "$(out model)" = "claude-haiku-4-5-20251001" ]
+@test "wiki.enabled surfaces wiki.url" {
+  printf 'wiki: { enabled: true, url: acme/widgets.wiki }\n' >>"$CONFIG"
+  run "$PIPELINE_DIR/agent-config.sh" coder
+  [ "$status" -eq 0 ]
+  [ "$(out wiki_enabled)" = "true" ]
+  [ "$(out wiki_repo)" = "acme/widgets.wiki" ]
+}
+
+@test "rejects wiki.enabled without a url" {
+  printf 'wiki: { enabled: true }\n' >>"$CONFIG"
+  run "$PIPELINE_DIR/agent-config.sh" coder
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"wiki.enabled is true but wiki.url is unset"* ]]
+}
+
+@test "rejects an unknown wiki key" {
+  printf 'wiki: { enabled: false, comment: nope }\n' >>"$CONFIG"
+  run "$PIPELINE_DIR/agent-config.sh" coder
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"unknown key 'wiki.comment'"* ]]
 }
 
 @test "rejects an unknown agent argument" {

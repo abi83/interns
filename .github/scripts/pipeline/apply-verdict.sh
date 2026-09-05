@@ -11,7 +11,7 @@
 #
 # max_fix_rounds: how many automatic coder fix rounds a PR gets before the loop
 # escalates to a human. Counts CHANGES_REQUESTED reviews (this run's verdict
-# included). Distinct from agent-pipeline.yml's max_turns (turns inside one
+# included). Distinct from interns.yml's max_turns (turns inside one
 # agent run) — this counts whole agent invocations across a PR, so it stays a
 # workflow-behaviour constant here, not an execution limit in the config file.
 #

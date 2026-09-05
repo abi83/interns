@@ -112,14 +112,6 @@ jobs:
           ref: ${{ steps.pipeline_ref.outputs.ref }}
           path: .interns
 
-      # vars.WIKI_REPO — repo-level Actions variable pointing at a wiki repo, or unset.
-      - name: Checkout wiki
-        if: vars.WIKI_REPO != ''
-        uses: actions/checkout@v5
-        with:
-          repository: ${{ vars.WIKI_REPO }}
-          path: wiki
-
       - name: Resolve issue
         id: issue
         uses: ./.interns/.github/actions/resolve-issue
@@ -189,11 +181,13 @@ jobs:
         uses: ./.interns/.github/actions/resolve-agent-config
         with:
           agent: coder
-          pipeline_model: ${{ vars.PIPELINE_MODEL }}
-          pipeline_max_turns: ${{ vars.PIPELINE_MAX_TURNS }}
-          pipeline_timeout_minutes: ${{ vars.PIPELINE_TIMEOUT_MINUTES }}
-          pipeline_max_output_tokens: ${{ vars.PIPELINE_MAX_OUTPUT_TOKENS }}
-          pipeline_cost_warn_usd: ${{ vars.PIPELINE_COST_WARN_USD }}
+
+      - name: Checkout wiki
+        if: steps.cfg.outputs.wiki_enabled == 'true'
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ steps.cfg.outputs.wiki_repo }}
+          path: wiki
 
       - name: Resolve existing PR (fix round)
         id: pr
@@ -422,14 +416,6 @@ jobs:
           ref: ${{ steps.pipeline_ref.outputs.ref }}
           path: .interns
 
-      # vars.WIKI_REPO — repo-level Actions variable pointing at a wiki repo, or unset.
-      - name: Checkout wiki
-        if: vars.WIKI_REPO != ''
-        uses: actions/checkout@v5
-        with:
-          repository: ${{ vars.WIKI_REPO }}
-          path: wiki
-
       - name: Resolve linked issue
         id: linked
         uses: ./.interns/.github/actions/resolve-linked-issue
@@ -441,11 +427,13 @@ jobs:
         uses: ./.interns/.github/actions/resolve-agent-config
         with:
           agent: reviewer
-          pipeline_model: ${{ vars.PIPELINE_MODEL }}
-          pipeline_max_turns: ${{ vars.PIPELINE_MAX_TURNS }}
-          pipeline_timeout_minutes: ${{ vars.PIPELINE_TIMEOUT_MINUTES }}
-          pipeline_max_output_tokens: ${{ vars.PIPELINE_MAX_OUTPUT_TOKENS }}
-          pipeline_cost_warn_usd: ${{ vars.PIPELINE_COST_WARN_USD }}
+
+      - name: Checkout wiki
+        if: steps.cfg.outputs.wiki_enabled == 'true'
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ steps.cfg.outputs.wiki_repo }}
+          path: wiki
 
       - name: Wait for test + build checks
         id: checks

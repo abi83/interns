@@ -162,7 +162,7 @@ stored in the repo. What happens, by starting state:
 
 If protection is enforced some other way this check can't see — an org-wide
 ruleset, say, rather than classic branch protection — skip it with
-`allow_agent_push_to_default_branch: true` in `.github/agent-pipeline.yml`.
+`allow_agent_push_to_default_branch: true` in `.github/interns.yml`.
 
 #### 2. GitHub Pages
 
@@ -211,7 +211,7 @@ Synced from the manifest ([`.github/labels.json`](.github/labels.json)).
 #### 6. The caller-stub PR
 
 Adds two thin caller workflows that own the triggers and delegate to the
-reusable cores, plus a starter `.github/agent-pipeline.yml`. It adds only
+reusable cores, plus a starter `.github/interns.yml`. It adds only
 missing files, never overwriting a hand-edited one. Merge it to finish. The
 stubs are pinned to `@v0.1.0` — keep the pin, the cores check out their own
 matching assets from that ref. Full stubs, including the `on:` triggers, are
@@ -221,20 +221,14 @@ Pass `--issue-templates` (or `install_issue_templates: true` to `install.yml`)
 to also add the default issue templates
 ([`templates/issue/`](templates/issue)).
 
-### Optional pipeline variables
+### Pipeline configuration
 
-Per-repo overrides of the pipeline defaults; the
-[`.github/agent-pipeline.yml`](templates/config/agent-pipeline.yml) config file
-wins over these:
-
-| Variable | Default | Effect |
-|---|---|---|
-| `PIPELINE_MODEL` | per-agent built-in | model for every agent |
-| `PIPELINE_MAX_TURNS` | 40 | agent turn ceiling |
-| `PIPELINE_TIMEOUT_MINUTES` | 20 | per-run timeout |
-| `PIPELINE_MAX_OUTPUT_TOKENS` | action default | output-token safety ceiling |
-| `PIPELINE_COST_WARN_USD` | 2.0 | run-summary cost warning threshold |
-| `WIKI_REPO` | unset | `owner/name` of a wiki repo to check out for the agents |
+One source of truth: [`.github/interns.yml`](templates/config/interns.yml),
+installed with every key already filled in at its default so you can see
+what's configurable without reading the source. Edit it, or delete a key to
+fall back to interns' own built-in default. There is no second, overlapping
+way to set the same thing (no Actions variables) — a value can only come from
+this file or the built-in.
 
 The consumer repo also needs `test` and `build` status checks on its PRs (from
 its own `deploy.yml` or equivalent) — the reviewer waits on them and won't run

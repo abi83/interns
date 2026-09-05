@@ -4,7 +4,7 @@ name: Install interns
 #   1. syncs the versioned label manifest (unconditional)
 #   2. checks that the App/OAuth secrets and variables interns-install wrote
 #      are present (best-effort -- github.token can't list them either)
-#   3. opens a PR with the thin caller stubs + a starter agent-pipeline.yml
+#   3. opens a PR with the thin caller stubs + a starter interns.yml
 #   4. optionally drops in the default issue templates
 #
 # Branch protection and Pages are NOT checked here -- both need admin access

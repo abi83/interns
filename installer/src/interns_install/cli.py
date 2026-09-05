@@ -170,7 +170,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         default_branch = _default_branch(repo)
         safety.check_branch_protection(con, repo, default_branch,
-                                        config_path=Path(".github/agent-pipeline.yml"))
+                                        config_path=Path(".github/interns.yml"))
         safety.check_pages(con, repo)
     except (gh.GhError, safety.SafetyCheckError) as exc:
         con.error(str(exc))
