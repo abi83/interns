@@ -1,8 +1,6 @@
 import unittest
-from pathlib import Path
-from tempfile import TemporaryDirectory
 
-from interns_install.safety import _config_allows_agent_push, _protection_violation
+from interns_install.safety import _protection_violation
 
 
 class ProtectionViolationTests(unittest.TestCase):
@@ -31,29 +29,6 @@ class ProtectionViolationTests(unittest.TestCase):
         }
         violation = _protection_violation(body, ["interns-coder[bot]"])
         self.assertIn("interns-coder[bot]", violation)
-
-
-class ConfigAllowsAgentPushTests(unittest.TestCase):
-    def test_false_when_file_absent(self):
-        self.assertFalse(_config_allows_agent_push(Path("/nonexistent/interns.yml")))
-
-    def test_true_when_set(self):
-        with TemporaryDirectory() as tmp:
-            path = Path(tmp) / "interns.yml"
-            path.write_text("allow_agent_push_to_default_branch: true\n")
-            self.assertTrue(_config_allows_agent_push(path))
-
-    def test_false_when_unset_or_other_keys_present(self):
-        with TemporaryDirectory() as tmp:
-            path = Path(tmp) / "interns.yml"
-            path.write_text("some_other_key: true\n")
-            self.assertFalse(_config_allows_agent_push(path))
-
-    def test_false_when_explicitly_false(self):
-        with TemporaryDirectory() as tmp:
-            path = Path(tmp) / "interns.yml"
-            path.write_text("allow_agent_push_to_default_branch: false\n")
-            self.assertFalse(_config_allows_agent_push(path))
 
 
 if __name__ == "__main__":

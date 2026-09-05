@@ -161,8 +161,8 @@ stored in the repo. What happens, by starting state:
 | a bot identity is on the push allowlist | **install fails** — remove it, then re-run |
 
 If protection is enforced some other way this check can't see — an org-wide
-ruleset, say, rather than classic branch protection — skip it with
-`allow_agent_push_to_default_branch: true` in `.github/interns.yml`.
+ruleset, say, rather than classic branch protection — pass
+`interns-install --branch-protection-handled-externally` to skip it.
 
 #### 2. GitHub Pages
 

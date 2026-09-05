@@ -62,6 +62,7 @@ Python 3.12+ (managed by `uv`).
 | `--issue-templates[=true\|false]` | ask `install.yml` to add the default issue templates |
 | `--handoff-ref REF` | ref to dispatch `install.yml` on (default: target default branch) |
 | `--skip-handoff` | don't touch `install.yml` |
+| `--branch-protection-handled-externally` | skip applying baseline branch protection when unprotected — only if it's already enforced some other way (e.g. an org ruleset) this check can't see |
 
 ## Develop
 

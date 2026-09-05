@@ -52,10 +52,8 @@ if [[ -f "$config" ]]; then
 
   while IFS= read -r k; do
     [[ -z "$k" ]] && continue
-    # allow_agent_push_to_default_branch is an installer-only safety knob; it's
-    # valid in the shared config file but means nothing to the agents.
     case "$k" in
-      defaults | agents | allow_agent_push_to_default_branch | wiki) ;;
+      defaults | agents | wiki) ;;
       *) die "unknown top-level key '$k' in $config" ;;
     esac
   done < <(yq 'keys | .[]' "$config")

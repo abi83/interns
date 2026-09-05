@@ -10,8 +10,6 @@ has to be stashed as a repo secret.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from . import gh
 from .console import Console
 
@@ -34,16 +32,6 @@ class SafetyCheckError(RuntimeError):
     pass
 
 
-def _config_allows_agent_push(config_path: Path) -> bool:
-    if not config_path.exists():
-        return False
-    for line in config_path.read_text().splitlines():
-        key, _, value = line.partition("#")[0].partition(":")
-        if key.strip() == "allow_agent_push_to_default_branch":
-            return value.strip().lower() == "true"
-    return False
-
-
 def _protection_violation(body: dict, bot_logins: list[str]) -> str | None:
     """None if `body` (a branch-protection API response) satisfies the
     pipeline's requirement, else a description of what's wrong."""
@@ -62,7 +50,7 @@ def _protection_violation(body: dict, bot_logins: list[str]) -> str | None:
 
 
 def check_branch_protection(con: Console, repo: gh.Repo, default_branch: str,
-                             config_path: Path,
+                             handled_externally: bool = False,
                              bot_logins: list[str] | None = None) -> None:
     bots = bot_logins if bot_logins is not None else DEFAULT_BOT_LOGINS
     con.step(f"Branch protection: {default_branch}")
@@ -83,9 +71,9 @@ def check_branch_protection(con: Console, repo: gh.Repo, default_branch: str,
         return
 
     # state == "missing": the branch has no protection yet.
-    if _config_allows_agent_push(config_path):
+    if handled_externally:
         con.say(f"branch '{default_branch}' is unprotected; "
-                "allow_agent_push_to_default_branch is set, skipping")
+                "--branch-protection-handled-externally was passed, skipping")
         return
 
     if not con.mutation(f"apply baseline branch protection to '{default_branch}'"):

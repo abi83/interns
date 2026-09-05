@@ -3,11 +3,6 @@
 # Delete a key (or leave it at the value shown) to fall back to the next one.
 # Schema: abi83/interns/.github/interns.schema.json
 
-# Safety: keep the agents off the default branch. Set true only if
-# protection is enforced some other way the installer's check can't see — an
-# org-wide ruleset, say, rather than classic branch protection.
-allow_agent_push_to_default_branch: false
-
 # Wiki checked out for the agents to read, at ./wiki. Disabled by default.
 wiki:
   enabled: false

@@ -15,7 +15,6 @@ from __future__ import annotations
 import argparse
 import sys
 import webbrowser
-from pathlib import Path
 
 from . import gh, safety
 from .apps import APPS, AppSpec, ManifestServer, build_manifest, settings_new_url
@@ -42,6 +41,10 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
                    help="ref to dispatch install.yml on (default: target default branch)")
     p.add_argument("--skip-handoff", action="store_true",
                    help="don't dispatch or describe install.yml")
+    p.add_argument("--branch-protection-handled-externally", action="store_true",
+                   help="skip applying baseline branch protection when unprotected -- "
+                        "only if it's already enforced some other way (e.g. an org ruleset) "
+                        "that this check can't see")
     return p.parse_args(argv)
 
 
@@ -170,7 +173,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         default_branch = _default_branch(repo)
         safety.check_branch_protection(con, repo, default_branch,
-                                        config_path=Path(".github/interns.yml"))
+                                        handled_externally=args.branch_protection_handled_externally)
         safety.check_pages(con, repo)
     except (gh.GhError, safety.SafetyCheckError) as exc:
         con.error(str(exc))
