@@ -32,8 +32,8 @@ APP_PERMISSIONS = {
 class AppSpec:
     key: str            # "reviewer" / "coder"
     default_name: str   # "interns-reviewer" / "interns-coder"
-    id_var: str         # "REVIEWER_APP_ID"
-    key_secret: str     # "REVIEWER_APP_PRIVATE_KEY"
+    id_var: str         # "INTERNS_REVIEWER_APP_ID"
+    key_secret: str     # "INTERNS_REVIEWER_APP_PRIVATE_KEY"
     description: str
 
 
@@ -41,15 +41,15 @@ APPS = [
     AppSpec(
         key="reviewer",
         default_name="interns-reviewer",
-        id_var="REVIEWER_APP_ID",
-        key_secret="REVIEWER_APP_PRIVATE_KEY",
+        id_var="INTERNS_REVIEWER_APP_ID",
+        key_secret="INTERNS_REVIEWER_APP_PRIVATE_KEY",
         description="submits PR reviews for the interns pipeline (claude[bot] can't approve its own PR)",
     ),
     AppSpec(
         key="coder",
         default_name="interns-coder",
-        id_var="CODER_APP_ID",
-        key_secret="CODER_APP_PRIVATE_KEY",
+        id_var="INTERNS_CODER_APP_ID",
+        key_secret="INTERNS_CODER_APP_PRIVATE_KEY",
         description="coder-side pushes, PRs, comments and label edits for the interns pipeline",
     ),
 ]

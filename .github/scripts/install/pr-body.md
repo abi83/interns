@@ -14,9 +14,9 @@ missing and re-syncs label drift.
 
 ### Before merging
 
-- Add the `CLAUDE_CODE_OAUTH_TOKEN`, `REVIEWER_APP_PRIVATE_KEY` and
-  `CODER_APP_PRIVATE_KEY` secrets and the `REVIEWER_APP_ID` and `CODER_APP_ID`
-  variables (two GitHub Apps — one reviewer, one coder).
-- Turn on default-branch protection.
+`interns-install` already wrote the App secrets/variables and verified
+branch protection and Pages locally before opening this PR. The one thing
+still manual: install each GitHub App (`interns-reviewer`, `interns-coder`)
+on this repo, using the links it printed.
 
 See the interns README for the full prerequisite list.

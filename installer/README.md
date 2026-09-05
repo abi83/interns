@@ -39,14 +39,14 @@ Python 3.12+ (managed by `uv`).
    (`github-actions[bot]`, `claude[bot]`, the two Apps) — applies a baseline
    (PR + 1 approval required, no force-push/deletion) if it's unprotected,
    fails if a bot is on the push allowlist or your session can't verify it.
-2. Checks GitHub Pages is enabled (the dashboard's deploy target) — turns it
+2. Checks GitHub Pages is enabled (the dashboard's deployment target) — turns it
    on if it's off.
 3. Mints `interns-reviewer` and `interns-coder` via the GitHub App Manifest
    flow — a localhost callback server, one "Create GitHub App" click per app.
-4. Writes `REVIEWER_APP_ID` / `CODER_APP_ID` (variables) and
-   `REVIEWER_APP_PRIVATE_KEY` / `CODER_APP_PRIVATE_KEY` / `CLAUDE_CODE_OAUTH_TOKEN`
-   (secrets). Private keys go straight from the manifest conversion response
-   into the secret, never to disk.
+4. Writes `INTERNS_REVIEWER_APP_ID` / `INTERNS_CODER_APP_ID` (variables) and
+   `INTERNS_REVIEWER_APP_PRIVATE_KEY` / `INTERNS_CODER_APP_PRIVATE_KEY` /
+   `CLAUDE_CODE_OAUTH_TOKEN` (secrets). Private keys go straight from the
+   manifest conversion response into the secret, never to disk.
 5. Dispatches `install.yml` (or prints the manual step if the target repo has
    no wrapper yet).
 6. Prints a summary and a checklist of anything still manual — installing each
