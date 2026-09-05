@@ -1,8 +1,12 @@
 """`interns-install` — the interactive local half of interns setup.
 
-Covers exactly what a headless `install.yml` run cannot: minting the two bot
-GitHub Apps (an interactive browser click) and writing repo secrets/variables
-(`secrets: write` is not grantable to `GITHUB_TOKEN`). Everything else is
+Covers what a headless `install.yml` run cannot: minting the two bot GitHub
+Apps (an interactive browser click), writing repo secrets/variables
+(`secrets: write` is not grantable to `GITHUB_TOKEN`), and the branch
+protection / Pages safety checks (reading or writing either needs admin
+access, also not grantable to `GITHUB_TOKEN`). All of it runs with the
+operator's own admin-scoped `gh` session, so no admin-capable token has to be
+stored in the repo. Everything else -- label sync, the caller-stub PR -- is
 handed off to `install.yml`.
 """
 
@@ -11,8 +15,9 @@ from __future__ import annotations
 import argparse
 import sys
 import webbrowser
+from pathlib import Path
 
-from . import gh
+from . import gh, safety
 from .apps import APPS, AppSpec, ManifestServer, build_manifest, settings_new_url
 from .console import Console
 
@@ -161,6 +166,16 @@ def main(argv: list[str] | None = None) -> int:
 
     existing_secrets = _scope_preflight(con, repo.slug)
     existing_vars = gh.list_variable_names(repo.slug)
+
+    try:
+        default_branch = _default_branch(repo)
+        safety.check_branch_protection(con, repo, default_branch,
+                                        config_path=Path(".github/agent-pipeline.yml"))
+        safety.check_pages(con, repo)
+    except (gh.GhError, safety.SafetyCheckError) as exc:
+        con.error(str(exc))
+        con.summary()
+        return 1
 
     try:
         for spec in APPS:

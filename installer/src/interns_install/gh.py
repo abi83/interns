@@ -66,6 +66,16 @@ def api(path: str, *, method: str = "GET", fields: dict[str, str] | None = None,
     return json.loads(out) if out else None
 
 
+def api_status(path: str) -> tuple[str, object]:
+    """GET `path`. Returns ("ok", body), ("missing", None) for a 404 (the
+    resource doesn't exist), or ("blocked", None) for any other error --
+    typically a 403 from a token that lacks admin access."""
+    try:
+        return "ok", api(path)
+    except GhError as exc:
+        return ("missing" if "HTTP 404" in str(exc) else "blocked"), None
+
+
 @dataclass
 class Repo:
     owner: str

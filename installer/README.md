@@ -3,14 +3,17 @@
 Interactive local front end for provisioning a repo for the interns pipeline.
 
 `install.yml` does everything a headless GitHub Actions run can — label sync,
-caller-stub PR, starter config, safety checks. It deliberately can't do the two
-things that keep setup heavy:
+caller-stub PR, starter config. It deliberately can't do the things that keep
+setup heavy, because `GITHUB_TOKEN` is never grantable admin access or
+`secrets: write`:
 
 - **create the bot GitHub Apps** — needs an interactive browser click
-- **write repo secrets / variables** — `secrets: write` isn't grantable to
-  `GITHUB_TOKEN`
+- **write repo secrets / variables**
+- **read or write default-branch protection, and enable Pages** — GitHub's
+  branch-protection and Pages APIs both require admin access to the repo
 
-`interns-install` fills exactly that gap, then hands off to `install.yml`.
+`interns-install` fills exactly that gap, running locally with your own
+already-admin `gh` session, then hands off to `install.yml`.
 
 ## Run it
 
@@ -26,22 +29,28 @@ uvx --from git+https://github.com/abi83/interns.git@v0.1.0#subdirectory=installe
 ```
 
 Prerequisites: the [GitHub CLI](https://cli.github.com/) authenticated
-(`gh auth login`) with a token that can write repo secrets — classic scope
-`repo`, or a fine-grained PAT with **Secrets: write** and **Variables: write**
-on the target repo. Python 3.12+ (managed by `uv`).
+(`gh auth login`) as an account with **admin access to the target repo** —
+needed to write repo secrets, and to read/fix branch protection and Pages.
+Python 3.12+ (managed by `uv`).
 
 ## What it does
 
-1. Mints `interns-reviewer` and `interns-coder` via the GitHub App Manifest
+1. Checks the default branch is protected against the bot identities
+   (`github-actions[bot]`, `claude[bot]`, the two Apps) — applies a baseline
+   (PR + 1 approval required, no force-push/deletion) if it's unprotected,
+   fails if a bot is on the push allowlist or your session can't verify it.
+2. Checks GitHub Pages is enabled (the dashboard's deploy target) — turns it
+   on if it's off.
+3. Mints `interns-reviewer` and `interns-coder` via the GitHub App Manifest
    flow — a localhost callback server, one "Create GitHub App" click per app.
-2. Writes `REVIEWER_APP_ID` / `CODER_APP_ID` (variables) and
+4. Writes `REVIEWER_APP_ID` / `CODER_APP_ID` (variables) and
    `REVIEWER_APP_PRIVATE_KEY` / `CODER_APP_PRIVATE_KEY` / `CLAUDE_CODE_OAUTH_TOKEN`
    (secrets). Private keys go straight from the manifest conversion response
    into the secret, never to disk.
-3. Dispatches `install.yml` (or prints the manual step if the target repo has
+5. Dispatches `install.yml` (or prints the manual step if the target repo has
    no wrapper yet).
-4. Prints a summary and a checklist of anything still manual — installing each
-   App on the repo, branch protection the token couldn't set.
+6. Prints a summary and a checklist of anything still manual — installing each
+   App on the repo.
 
 ## Flags
 

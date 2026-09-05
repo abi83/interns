@@ -119,17 +119,16 @@ exist for humans sorting the backlog.
 ## Setup
 
 From a local clone of your repo, with the [GitHub CLI](https://cli.github.com/)
-authenticated (`gh auth login`):
+authenticated (`gh auth login`) as an account with **admin access to the
+repo** (needed to write repo secrets and variables):
 
 ```bash
 curl -LsSf https://raw.githubusercontent.com/abi83/interns/v0.1.0/install.sh | sh
 ```
 
 That's the whole install. The script installs [`uv`](https://docs.astral.sh/uv/)
-if it's missing, then runs the `interns-install` CLI. `gh` needs a token that
-can write repo secrets — classic scope `repo`, or a fine-grained PAT with
-**Secrets: write** and **Variables: write** on the target repo. Running the CLI
-directly and every flag: [`installer/README.md`](installer/README.md).
+if it's missing, then runs the `interns-install` CLI. Running the CLI directly
+and every flag: [`installer/README.md`](installer/README.md).
 
 ### What the installer does
 
@@ -154,7 +153,10 @@ the reviewer can review the coder's PRs. Same permission set, no webhook:
 Installing each App on the repo is still a manual click — the installer prints
 the links.
 
-**Secrets and variables** on the consumer repo:
+**Secrets and variables** on the consumer repo — the installer writes all of
+these itself. The App keys and IDs come from the mint above; for
+`CLAUDE_CODE_OAUTH_TOKEN` it prompts you to paste a token you obtain
+separately (see `anthropics/claude-code-action`), then writes it too.
 
 | Kind | Name | Value |
 |---|---|---|
@@ -173,19 +175,19 @@ warns and leaves verification to you.
 **Default-branch protection.** The agents push branches with the consumer
 repo's own credentials, so no bot identity (`github-actions[bot]`,
 `claude[bot]`, the two Apps) may be allowed to push to the default branch —
-every change goes through a human-merged PR. `install.yml` runs a safety
-check for this that **fails the install** unless it is satisfied.
+every change goes through a human-merged PR. `interns-install` checks this
+itself, locally, before it provisions anything else. Reading or writing
+branch protection needs admin access to the repo, which `GITHUB_TOKEN` can
+never be granted — running the check locally means it uses the admin-scoped
+`gh` session you already authenticated for Setup, instead of a second
+admin-capable token stored in the repo. What happens, by starting state:
 
-The check needs a repo-admin token to read or write branch protection, which
-`GITHUB_TOKEN` isn't. Give it one by adding a repo secret named `admin_token`
-(a PAT or fine-grained token with admin on the repo) *before* running the
-installer. What happens then, by starting state:
-
-| Default branch | With `admin_token` | Without it |
-|---|---|---|
-| already requires a PR review, no bot on the push allowlist | passes | passes |
-| unprotected | installer applies the baseline — require a PR + 1 approval, no force-push, no deletion | **install fails** — set protection yourself, then re-run |
-| protected, but the check can't read it | reads and verifies it | warning only, install continues — verifying it is on you |
+| Default branch | Result |
+|---|---|
+| already requires a PR review, no bot on the push allowlist | passes |
+| unprotected | installer applies the baseline — require a PR + 1 approval, no force-push, no deletion |
+| protected, but your `gh` session lacks admin on the repo | **install fails** — re-auth with admin access, then re-run |
+| a bot identity is on the push allowlist | **install fails** — remove it, then re-run |
 
 To manage protection yourself instead, set it by hand (require a PR review,
 keep every bot off the push allowlist) and skip the check with
@@ -248,9 +250,10 @@ the coder's `claude[bot]` (Dependabot, etc.).
 
 | Failure | Fix |
 |---|---|
-| `missing repo secret(s)` / `variable(s)` | add them (see Setup) — the installer can't set their values |
-| `can't read branch protection … needs repo-admin scope` | add an `admin_token` repo secret with repo-admin scope, or set branch protection by hand |
+| `missing repo secret(s)` / `variable(s)` | add them (see Setup) — `install.yml` can't set their values |
+| `can't read branch protection … needs admin access` | re-run `gh auth login` (or refresh your PAT) with admin access on the repo, then re-run `interns-install` |
 | `branch '…' push allowlist grants '…[bot]'` | remove that bot from the default branch's push restrictions |
+| `can't read GitHub Pages state … needs admin access` | same as above — `interns-install` needs an admin-scoped `gh` session |
 | `GitHub Pages could not be enabled` | turn it on under Settings → Pages (build type: GitHub Actions) |
 
 **An issue on `status:ready` bounced to `status:needs-attention`.** It reached
