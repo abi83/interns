@@ -1,29 +1,13 @@
 name: resolve-agent-config
 description: >
-  Resolve the effective execution limits for one agent job via
-  agent-config.sh (precedence: config file > Actions var PIPELINE_* > built-in).
-  The PIPELINE_* Actions vars are passed in as inputs — the `vars` context is
-  not available inside composite actions.
+  Resolve the effective execution limits (and wiki setting) for one agent job
+  via agent-config.sh: config file, else the built-in default. No other
+  override layer.
 
 inputs:
   agent:
     description: refiner | estimator | coder | reviewer
     required: true
-  pipeline_model:
-    required: false
-    default: ""
-  pipeline_max_turns:
-    required: false
-    default: ""
-  pipeline_timeout_minutes:
-    required: false
-    default: ""
-  pipeline_max_output_tokens:
-    required: false
-    default: ""
-  pipeline_cost_warn_usd:
-    required: false
-    default: ""
 
 outputs:
   model:
@@ -36,6 +20,10 @@ outputs:
     value: ${{ steps.resolve.outputs.max_output_tokens }}
   cost_warn_usd:
     value: ${{ steps.resolve.outputs.cost_warn_usd }}
+  wiki_enabled:
+    value: ${{ steps.resolve.outputs.wiki_enabled }}
+  wiki_repo:
+    value: ${{ steps.resolve.outputs.wiki_repo }}
 
 runs:
   using: composite
@@ -43,12 +31,6 @@ runs:
     - name: Resolve agent config
       id: resolve
       shell: bash
-      env:
-        PIPELINE_MODEL: ${{ inputs.pipeline_model }}
-        PIPELINE_MAX_TURNS: ${{ inputs.pipeline_max_turns }}
-        PIPELINE_TIMEOUT_MINUTES: ${{ inputs.pipeline_timeout_minutes }}
-        PIPELINE_MAX_OUTPUT_TOKENS: ${{ inputs.pipeline_max_output_tokens }}
-        PIPELINE_COST_WARN_USD: ${{ inputs.pipeline_cost_warn_usd }}
       # github.action_path is this action's dir; composite `run:` steps
       # otherwise default their cwd to the caller's workspace root.
       run: ${{ github.action_path }}/../../scripts/pipeline/agent-config.sh ${{ inputs.agent }}

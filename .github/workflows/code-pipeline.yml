@@ -32,11 +32,11 @@ on:
       CLAUDE_CODE_OAUTH_TOKEN:
         description: OAuth token for anthropics/claude-code-action
         required: true
-      REVIEWER_APP_PRIVATE_KEY:
-        description: Private key for the reviewer GitHub App (paired with vars.REVIEWER_APP_ID); reviewer job only
+      INTERNS_REVIEWER_APP_PRIVATE_KEY:
+        description: Private key for the reviewer GitHub App (paired with vars.INTERNS_REVIEWER_APP_ID); reviewer job only
         required: true
-      CODER_APP_PRIVATE_KEY:
-        description: Private key for the coder GitHub App (paired with vars.CODER_APP_ID); coder job only
+      INTERNS_CODER_APP_PRIVATE_KEY:
+        description: Private key for the coder GitHub App (paired with vars.INTERNS_CODER_APP_ID); coder job only
         required: true
 
 permissions:
@@ -81,15 +81,15 @@ jobs:
       # identity (interns-coder: pull_requests/issues write, contents write), so
       # authorship, audit trail, and branch-protection rules can treat it
       # separately from the reviewer's identity and from github-actions[bot].
-      # The installer's safety check requires vars.CODER_APP_ID +
-      # secrets.CODER_APP_PRIVATE_KEY, so this is unconditional like the
+      # The installer's safety check requires vars.INTERNS_CODER_APP_ID +
+      # secrets.INTERNS_CODER_APP_PRIVATE_KEY, so this is unconditional like the
       # reviewer's equivalent.
       - name: Generate coder app token
         id: coder_token
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ vars.CODER_APP_ID }}
-          private-key: ${{ secrets.CODER_APP_PRIVATE_KEY }}
+          app-id: ${{ vars.INTERNS_CODER_APP_ID }}
+          private-key: ${{ secrets.INTERNS_CODER_APP_PRIVATE_KEY }}
 
       - name: Checkout
         uses: actions/checkout@v5
@@ -111,14 +111,6 @@ jobs:
           repository: abi83/interns
           ref: ${{ steps.pipeline_ref.outputs.ref }}
           path: .interns
-
-      # vars.WIKI_REPO — repo-level Actions variable pointing at a wiki repo, or unset.
-      - name: Checkout wiki
-        if: vars.WIKI_REPO != ''
-        uses: actions/checkout@v5
-        with:
-          repository: ${{ vars.WIKI_REPO }}
-          path: wiki
 
       - name: Resolve issue
         id: issue
@@ -189,11 +181,13 @@ jobs:
         uses: ./.interns/.github/actions/resolve-agent-config
         with:
           agent: coder
-          pipeline_model: ${{ vars.PIPELINE_MODEL }}
-          pipeline_max_turns: ${{ vars.PIPELINE_MAX_TURNS }}
-          pipeline_timeout_minutes: ${{ vars.PIPELINE_TIMEOUT_MINUTES }}
-          pipeline_max_output_tokens: ${{ vars.PIPELINE_MAX_OUTPUT_TOKENS }}
-          pipeline_cost_warn_usd: ${{ vars.PIPELINE_COST_WARN_USD }}
+
+      - name: Checkout wiki
+        if: steps.cfg.outputs.wiki_enabled == 'true'
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ steps.cfg.outputs.wiki_repo }}
+          path: wiki
 
       - name: Resolve existing PR (fix round)
         id: pr
@@ -375,7 +369,7 @@ jobs:
     # Skip PRs the reviewer can't meaningfully handle instead of failing on them
     # (see #132 defect 8):
     #  - fork PRs have no access to secrets, so CLAUDE_CODE_OAUTH_TOKEN /
-    #    REVIEWER_APP_PRIVATE_KEY are empty and the run just errors out;
+    #    INTERNS_REVIEWER_APP_PRIVATE_KEY are empty and the run just errors out;
     #  - bot PRs other than the coder's claude[bot] (Dependabot, etc.) aren't in
     #    allowed_bots and produce an "Automated review failed" comment.
     # A skipped job posts nothing. workflow_dispatch stays an unconditional
@@ -422,14 +416,6 @@ jobs:
           ref: ${{ steps.pipeline_ref.outputs.ref }}
           path: .interns
 
-      # vars.WIKI_REPO — repo-level Actions variable pointing at a wiki repo, or unset.
-      - name: Checkout wiki
-        if: vars.WIKI_REPO != ''
-        uses: actions/checkout@v5
-        with:
-          repository: ${{ vars.WIKI_REPO }}
-          path: wiki
-
       - name: Resolve linked issue
         id: linked
         uses: ./.interns/.github/actions/resolve-linked-issue
@@ -441,11 +427,13 @@ jobs:
         uses: ./.interns/.github/actions/resolve-agent-config
         with:
           agent: reviewer
-          pipeline_model: ${{ vars.PIPELINE_MODEL }}
-          pipeline_max_turns: ${{ vars.PIPELINE_MAX_TURNS }}
-          pipeline_timeout_minutes: ${{ vars.PIPELINE_TIMEOUT_MINUTES }}
-          pipeline_max_output_tokens: ${{ vars.PIPELINE_MAX_OUTPUT_TOKENS }}
-          pipeline_cost_warn_usd: ${{ vars.PIPELINE_COST_WARN_USD }}
+
+      - name: Checkout wiki
+        if: steps.cfg.outputs.wiki_enabled == 'true'
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ steps.cfg.outputs.wiki_repo }}
+          path: wiki
 
       - name: Wait for test + build checks
         id: checks
@@ -470,11 +458,11 @@ jobs:
         id: reviewer_token
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ vars.REVIEWER_APP_ID }}
-          private-key: ${{ secrets.REVIEWER_APP_PRIVATE_KEY }}
+          app-id: ${{ vars.INTERNS_REVIEWER_APP_ID }}
+          private-key: ${{ secrets.INTERNS_REVIEWER_APP_PRIVATE_KEY }}
 
       # One source of truth for the reviewer's bot login, derived from the app
-      # token (which is derived from vars.REVIEWER_APP_ID). Every step that
+      # token (which is derived from vars.INTERNS_REVIEWER_APP_ID). Every step that
       # matches reviews by author reads this output — renaming the app only
       # touches the variable, never a hardcoded slug (see #132 defect 3).
       - name: Resolve reviewer identity

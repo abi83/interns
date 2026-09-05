@@ -33,7 +33,7 @@ copy_if_absent() {
 
 copy_if_absent "$INTERNS_DIR/templates/workflows/issue-pipeline.yml" .github/workflows/issue-pipeline.yml
 copy_if_absent "$INTERNS_DIR/templates/workflows/code-pipeline.yml"  .github/workflows/code-pipeline.yml
-copy_if_absent "$INTERNS_DIR/templates/config/agent-pipeline.yml"    .github/agent-pipeline.yml
+copy_if_absent "$INTERNS_DIR/templates/config/interns.yml"           .github/interns.yml
 
 if [[ "$INSTALL_TEMPLATES" == "true" && ! -d .github/ISSUE_TEMPLATE ]]; then
   mkdir -p .github/ISSUE_TEMPLATE

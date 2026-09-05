@@ -2,8 +2,15 @@ name: Install interns
 
 # Provisions a consumer repo for the interns pipeline:
 #   1. syncs the versioned label manifest (unconditional)
-#   2. opens a PR with the thin caller stubs + a starter agent-pipeline.yml
-#   3. optionally drops in the default issue templates
+#   2. checks that the App/OAuth secrets and variables interns-install wrote
+#      are present (best-effort -- github.token can't list them either)
+#   3. opens a PR with the thin caller stubs + a starter interns.yml
+#   4. optionally drops in the default issue templates
+#
+# Branch protection and Pages are NOT checked here -- both need admin access
+# to read or write, which github.token can never be granted. interns-install
+# checks and fixes them locally, with the operator's own admin-scoped `gh`
+# session, before it ever dispatches this workflow.
 #
 # Callable two ways:
 #   - workflow_call, pinned to a tag, from a consumer repo's own wrapper
@@ -27,13 +34,6 @@ on:
         type: boolean
         default: false
   workflow_call:
-    secrets:
-      admin_token:
-        description: >
-          Repo-admin token for the safety checks (branch protection, secrets,
-          Pages). Optional — without it those checks run best-effort on
-          github.token and fail loudly on anything they can't verify.
-        required: false
     inputs:
       ref:
         description: >
@@ -56,7 +56,6 @@ permissions:
   contents: write
   issues: write
   pull-requests: write
-  pages: write  # safety check enables Pages when it's off
 
 jobs:
   install:
@@ -99,11 +98,11 @@ jobs:
       - name: Sync the label manifest
         run: .interns/.github/scripts/install/sync-labels.sh .interns/.github/labels.json
 
-      # Refuses to finish if the default branch isn't protected against the bot
-      # identities, a required secret is missing, or Pages can't be enabled.
-      - name: Verify prerequisites and safety checks
-        env:
-          GH_TOKEN: ${{ secrets.admin_token || github.token }}
+      # Branch protection and Pages are checked by interns-install itself,
+      # locally, before this workflow ever runs -- both need admin access,
+      # which github.token can't be granted. This is just a best-effort
+      # presence check for the secrets/variables interns-install writes.
+      - name: Verify required secrets and variables
         run: .interns/.github/scripts/install/safety-checks.sh
 
       - name: Stage caller stubs and starter config

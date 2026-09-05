@@ -1,8 +1,12 @@
 """`interns-install` — the interactive local half of interns setup.
 
-Covers exactly what a headless `install.yml` run cannot: minting the two bot
-GitHub Apps (an interactive browser click) and writing repo secrets/variables
-(`secrets: write` is not grantable to `GITHUB_TOKEN`). Everything else is
+Covers what a headless `install.yml` run cannot: minting the two bot GitHub
+Apps (an interactive browser click), writing repo secrets/variables
+(`secrets: write` is not grantable to `GITHUB_TOKEN`), and the branch
+protection / Pages safety checks (reading or writing either needs admin
+access, also not grantable to `GITHUB_TOKEN`). All of it runs with the
+operator's own admin-scoped `gh` session, so no admin-capable token has to be
+stored in the repo. Everything else -- label sync, the caller-stub PR -- is
 handed off to `install.yml`.
 """
 
@@ -12,7 +16,7 @@ import argparse
 import sys
 import webbrowser
 
-from . import gh
+from . import gh, safety
 from .apps import APPS, AppSpec, ManifestServer, build_manifest, settings_new_url
 from .console import Console
 
@@ -37,6 +41,10 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
                    help="ref to dispatch install.yml on (default: target default branch)")
     p.add_argument("--skip-handoff", action="store_true",
                    help="don't dispatch or describe install.yml")
+    p.add_argument("--branch-protection-handled-externally", action="store_true",
+                   help="skip applying baseline branch protection when unprotected -- "
+                        "only if it's already enforced some other way (e.g. an org ruleset) "
+                        "that this check can't see")
     return p.parse_args(argv)
 
 
@@ -161,6 +169,16 @@ def main(argv: list[str] | None = None) -> int:
 
     existing_secrets = _scope_preflight(con, repo.slug)
     existing_vars = gh.list_variable_names(repo.slug)
+
+    try:
+        default_branch = _default_branch(repo)
+        safety.check_branch_protection(con, repo, default_branch,
+                                        handled_externally=args.branch_protection_handled_externally)
+        safety.check_pages(con, repo)
+    except (gh.GhError, safety.SafetyCheckError) as exc:
+        con.error(str(exc))
+        con.summary()
+        return 1
 
     try:
         for spec in APPS:

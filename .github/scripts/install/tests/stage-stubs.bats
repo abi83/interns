@@ -10,7 +10,7 @@ setup() {
   mkdir -p "$INTERNS/templates/workflows" "$INTERNS/templates/config" "$INTERNS/templates/issue"
   echo "issue-stub"  > "$INTERNS/templates/workflows/issue-pipeline.yml"
   echo "code-stub"   > "$INTERNS/templates/workflows/code-pipeline.yml"
-  echo "config-stub" > "$INTERNS/templates/config/agent-pipeline.yml"
+  echo "config-stub" > "$INTERNS/templates/config/interns.yml"
   echo "bug"         > "$INTERNS/templates/issue/bug.md"
   echo "cfg"         > "$INTERNS/templates/issue/config.yml"
 
@@ -28,7 +28,7 @@ changed() { grep -oE 'changed=[01]' "$GITHUB_OUTPUT" | tail -1; }
   [ "$status" -eq 0 ]
   [ "$(cat "$REPO/.github/workflows/issue-pipeline.yml")" = "issue-stub" ]
   [ "$(cat "$REPO/.github/workflows/code-pipeline.yml")" = "code-stub" ]
-  [ "$(cat "$REPO/.github/agent-pipeline.yml")" = "config-stub" ]
+  [ "$(cat "$REPO/.github/interns.yml")" = "config-stub" ]
   [ "$(changed)" = "changed=1" ]
 }
 

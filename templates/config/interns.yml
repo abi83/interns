@@ -1,0 +1,29 @@
+# interns pipeline config — every configurable key, set to its default.
+# Precedence: agents.<name>.<key> > defaults.<key> > interns' own built-in.
+# Delete a key (or leave it at the value shown) to fall back to the next one.
+# Schema: abi83/interns/.github/interns.schema.json
+
+# Wiki checked out for the agents to read, at ./wiki. Disabled by default.
+wiki:
+  enabled: false
+  # url: owner/repo.wiki
+
+defaults:
+  model: claude-sonnet-5
+  max_turns: 40
+  timeout_minutes: 20
+  max_output_tokens: 32000
+  cost_warn_usd: 2.0
+
+agents:
+  # The refiner investigates the codebase before rewriting, so it gets fewer
+  # turns for the same budget.
+  refiner:
+    max_turns: 25
+  estimator:
+    max_turns: 20
+  # The coder does the most work per run, so it gets a longer timeout.
+  coder:
+    timeout_minutes: 30
+  reviewer:
+    max_turns: 30

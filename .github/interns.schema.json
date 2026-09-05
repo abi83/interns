@@ -1,15 +1,10 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "agent-pipeline config",
+  "title": "interns config",
   "description": "Per-agent execution limits for the refine/estimate/code/review pipeline.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "allow_agent_push_to_default_branch": {
-      "type": "boolean",
-      "default": false,
-      "description": "Installer safety knob. When false (default) the installer requires — and creates if absent — default-branch protection that blocks the pipeline's bot identities from pushing directly."
-    },
     "defaults": { "$ref": "#/definitions/limits" },
     "agents": {
       "type": "object",
@@ -19,6 +14,18 @@
         "estimator": { "$ref": "#/definitions/limits" },
         "coder": { "$ref": "#/definitions/limits" },
         "reviewer": { "$ref": "#/definitions/limits" }
+      }
+    },
+    "wiki": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "description": "owner/name of a wiki repo to check out for the agents. Required when enabled is true."
+        }
       }
     }
   },
