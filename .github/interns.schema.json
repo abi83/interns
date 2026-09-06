@@ -27,6 +27,17 @@
           "description": "owner/name of a wiki repo to check out for the agents. Required when enabled is true."
         }
       }
+    },
+    "checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ignore": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Check names the reviewer gate ignores — for non-blocking advisory checks (preview deploys, coverage deltas). Everything else must be green before the reviewer runs."
+        }
+      }
     }
   },
   "definitions": {

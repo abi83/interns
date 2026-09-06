@@ -436,7 +436,7 @@ jobs:
           repository: ${{ steps.cfg.outputs.wiki_repo }}
           path: wiki
 
-      - name: Wait for test + build checks
+      - name: Wait for PR checks
         id: checks
         env:
           GH_TOKEN: ${{ github.token }}

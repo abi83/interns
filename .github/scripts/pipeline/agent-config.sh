@@ -53,7 +53,9 @@ if [[ -f "$config" ]]; then
   while IFS= read -r k; do
     [[ -z "$k" ]] && continue
     case "$k" in
-      defaults | agents | wiki) ;;
+      # `checks` (the reviewer's ignore list) is consumed by wait-for-checks.sh,
+      # not here — accept it so a valid config doesn't trip the unknown-key gate.
+      defaults | agents | wiki | checks) ;;
       *) die "unknown top-level key '$k' in $config" ;;
     esac
   done < <(yq 'keys | .[]' "$config")

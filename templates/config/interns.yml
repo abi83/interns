@@ -8,6 +8,13 @@ wiki:
   enabled: false
   # url: owner/repo.wiki
 
+# The reviewer waits for every PR check to be green before it runs. List any
+# non-blocking advisory checks here (preview deploys, coverage deltas) to keep
+# them out of that gate.
+checks:
+  ignore: []
+  #  - preview-deploy
+
 defaults:
   model: claude-sonnet-5
   max_turns: 40
