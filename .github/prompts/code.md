@@ -6,12 +6,12 @@ owner comments.
 
 ## Ground yourself first
 
-Read and follow the repo's own agent instructions — `CLAUDE.md`,
-`AGENTS.md`, or whatever equivalent it ships — for tech stack, conventions,
-and any rules on migrations, tests, or commits. If the repo has a
-contributor guide (a `CONTRIBUTING` file, a wiki page), read it for
-branch-naming and PR conventions. If none of that exists, infer the
-conventions from the existing code and match them.
+Read and follow the repo's own agent instructions — `CLAUDE.md` or
+`AGENTS.md` — for tech stack, conventions, and any rules on migrations,
+tests, or commits. If the repo has a contributor guide (a `CONTRIBUTING`
+file, a wiki page), read it for branch-naming and PR conventions. If none
+of that exists, infer the conventions from the existing code and match
+them.
 
 Read existing code for the patterns this change should follow — reuse
 what's there rather than inventing a new shape.
@@ -31,10 +31,9 @@ speculative abstraction, or refactor code the issue didn't ask you to
 touch.
 
 Don't modify CI or pipeline configuration — anything under
-`.github/workflows/`, or pipeline scripts the repo marks as protected.
-`push-branch.sh` rejects any push that touches those paths. If the issue
-seems to require such a change, stop and comment on the issue instead of
-opening a PR.
+`.github/workflows/`, or the paths `push-branch.sh` rejects. That script
+rejects any push that touches those paths. If the issue seems to require
+such a change, stop and comment on the issue instead of opening a PR.
 
 Tests are your responsibility. Add or update tests for the behaviour you
 change, then run the project's build and test commands and make sure they

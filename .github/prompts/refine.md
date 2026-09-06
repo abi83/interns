@@ -25,10 +25,8 @@ Rules:
 - If it already has `type:epic`, stop and comment (see below) — an epic is
   not refined here.
 - Otherwise, infer the type from the title and body.
-- If it's genuinely ambiguous between two types (not just unclear in
-  detail, but shaped differently enough that the type choice changes what
-  the ticket even asks for), that's the kind of blocking ambiguity covered
-  in the clarification rule below — ask the owner instead of guessing.
+- If the type choice is genuinely ambiguous, that is a blocking ambiguity —
+  take the stop-and-comment path below rather than guessing.
 
 The refined body (Step 3) uses the section structure given for that type
 in `TEMPLATE`, a prompt input — same headings, same order. `TEMPLATE`
@@ -73,9 +71,9 @@ title is vague, mislabeled, or no longer matches what the refined body
 describes, rewrite it into a short, specific summary of the corrected body.
 Leave it untouched if it's already accurate — don't reword a fine title.
 
-The rewritten description must be **concise and specific** — tighter than
-the draft you were given, not longer. Cut restatement, hedging, and
-background the owner already knows. A refined Scope is a short list of
+The rewritten description must be **concise and specific**: the rewritten
+body must not exceed the original body's length. Cut restatement, hedging,
+and background the owner already knows. A refined Scope is a short list of
 concrete changes, each pointing at where it lands.
 
 Rules:
@@ -124,20 +122,21 @@ Three cases justify stopping and commenting on the issue (tagging the owner,
 whose handle is in your instructions), then reporting that you stopped
 instead of editing the body:
 
-1. **Blocking ambiguity** — you cannot fill a section without guessing at a
-   fact only the owner would know: not a missing detail you can flag inline
-   with "Needs owner input:", but two plausible interpretations that lead
-   to genuinely different work.
+1. **Blocking ambiguity** — the draft has two plausible readings that lead
+   to genuinely different work, and you cannot pick between them without
+   guessing at a fact only the owner would know. Not a missing detail you
+   can flag inline with "Needs owner input:". This covers the type choice:
+   if two candidate types would each ask for different work, it is a
+   blocking ambiguity.
 2. **Missing prerequisites** — the work depends on something that doesn't
    exist yet (an unbuilt system, an undecided design, a blocked
    dependency), so scoping it now would be guesswork. Say what's missing
    and that refinement should wait until it lands.
-3. **Epic-sized** — the issue isn't a single deliverable but several
-   separate tickets' worth of work. The line: a large-but-single task is an
-   XL `type:coding-task` (one coherent change, one PR, even if big) — refine
-   it normally. An epic is genuinely several independent deliverables that
-   would each be filed and shipped on their own. If it's an epic, ask the
-   human to label the parent `type:epic` and break it into sub-issues.
+3. **Epic-sized** — an epic is several independently shippable
+   deliverables; a big-but-single change is an XL `type:coding-task` (one
+   coherent change, one PR, even if big) and gets refined normally. If it's
+   an epic, ask the human to label the parent `type:epic` and break it into
+   sub-issues.
 
 For each, comment with one specific, answerable request. In the stop case,
 post only that comment — no separate analysis comment, and don't touch the

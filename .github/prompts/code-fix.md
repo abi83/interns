@@ -22,8 +22,8 @@ run `.interns/.github/scripts/gh-safe/comment-pr.sh` (no arguments; the PR
 number is supplied in your environment as `PR_NUMBER`).
 
 Don't modify CI or pipeline configuration — anything under
-`.github/workflows/`, or pipeline scripts the repo marks as protected.
-`push-branch.sh` rejects any push that touches those paths. If addressing
+`.github/workflows/`, or the paths `push-branch.sh` rejects. That script
+rejects any push that touches those paths. If addressing
 the feedback requires such a change, decline the task (see below).
 
 Re-check the repo's own conventions (`CLAUDE.md` / `AGENTS.md`, any
@@ -52,7 +52,10 @@ reviewer for a wasted round. Instead:
 3. Stop without committing or pushing.
 
 The workflow detects the sentinel, sets `status:needs-attention`, and
-escalates to the owner instead of re-running the reviewer.
+escalates to the owner instead of re-running the reviewer. The
+`.coder-gave-up.md` sentinel is the only thing that escalates — a reply
+posted with `comment-pr.sh` alone does not, so it is never a substitute
+for writing the sentinel when you need the owner.
 
 ## Commit and push
 
