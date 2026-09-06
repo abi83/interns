@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 #
-# A PR check isn't green, so the reviewer won't run. The coder writes and runs
-# tests before pushing, so a red check here goes straight to a human rather
-# than back through a coder retry (#133).
+# A red PR check goes straight to a human, no coder retry loop (#133).
 #
 # Usage: route-red-checks.sh <pr> <issue-or-empty> <reason>
 
