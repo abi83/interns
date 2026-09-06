@@ -10,6 +10,8 @@ import base64
 import json
 import shutil
 import subprocess
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 
 
@@ -136,7 +138,27 @@ def app_public(slug: str) -> dict | None:
 
 
 def convert_manifest(code: str) -> dict:
-    data = api(f"app-manifest/{code}/conversions", method="POST")
+    """Exchange the one-time manifest code for the App's credentials.
+
+    Unauthenticated on purpose: GitHub scopes the code to the browser session
+    that submitted the manifest, and sending an `Authorization` header makes
+    this endpoint 404 even when the token's user is that same account.
+    """
+    req = urllib.request.Request(
+        f"https://api.github.com/app-manifest/{code}/conversions",
+        method="POST",
+        headers={"Accept": "application/vnd.github+json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read() or b"{}")
+    except urllib.error.HTTPError as exc:
+        raise GhError(
+            f"manifest conversion failed (HTTP {exc.code}) — the code is single-use "
+            "and expires after an hour; re-run to create the App again"
+        ) from exc
+    except urllib.error.URLError as exc:
+        raise GhError(f"manifest conversion request failed: {exc.reason}") from exc
     if not isinstance(data, dict) or "pem" not in data:
         raise GhError("manifest conversion did not return a private key")
     return data
