@@ -376,6 +376,7 @@ jobs:
     # manual override.
     if: >
       (github.event_name == 'pull_request' &&
+        github.event.action != 'closed' &&
         github.event.pull_request.head.repo.fork == false &&
         (github.event.pull_request.user.type != 'Bot' ||
          github.event.pull_request.user.login == 'claude[bot]')) ||
@@ -598,6 +599,50 @@ jobs:
           .interns/.github/scripts/pipeline/flag-failure.sh --noun review
           --pr "${{ github.event.pull_request.number || inputs.pr_number }}"
           --issue "${{ steps.linked.outputs.issue_number }}"
+
+  pr_closed:
+    # Nothing else in the pipeline reacts to a PR closing, so the linked issue
+    # would keep status:in-progress forever (#37). On merge, drop the label from
+    # the already-closed issue; on an unmerged close, move it to
+    # status:needs-attention with a comment. Clears any stale pr:* label either
+    # way. No agent, no secrets — just label bookkeeping.
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    concurrency:
+      group: pr-closed-${{ github.event.pull_request.number }}
+    steps:
+      - name: Resolve pipeline ref
+        id: pipeline_ref
+        shell: bash
+        env:
+          JOB_WORKFLOW_REF: ${{ github.job_workflow_ref }}
+        run: echo "ref=${JOB_WORKFLOW_REF##*@}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout pipeline assets
+        uses: actions/checkout@v5
+        with:
+          repository: abi83/interns
+          ref: ${{ steps.pipeline_ref.outputs.ref }}
+          path: .interns
+
+      - name: Resolve linked issue
+        id: linked
+        uses: ./.interns/.github/actions/resolve-linked-issue
+        with:
+          pr_number: ${{ github.event.pull_request.number }}
+
+      - name: Handle PR closed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          .interns/.github/scripts/pipeline/handle-pr-closed.sh
+          "${{ github.event.pull_request.number }}"
+          "${{ steps.linked.outputs.issue_number }}"
+          "${{ github.event.pull_request.merged }}"
 
   metrics:
     # One commit per workflow run: append the records the agent jobs uploaded to
