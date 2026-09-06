@@ -4,7 +4,7 @@ A tireless team of interns that refine issues, estimate them, open PRs, and  rev
 the loop when really needed.
 
 The pipeline drives [Claude Code](https://github.com/anthropics/claude-code) over a checked-out repo, respects its `CLAUDE.md` / `AGENTS.md`, and runs
-entirely in the consumer repo's GitHub Actions — no hosted service.
+entirely in the host repo's GitHub Actions — no hosted service.
 
 Status: early. Consumed by [`abi83/prepify`](https://github.com/abi83/prepify).
 Design and roadmap: [#3](https://github.com/abi83/interns/issues/3).
@@ -145,7 +145,7 @@ re-run either any time to fix drift.
 
 #### 1. Default-branch protection
 
-The agents push branches with the consumer repo's own credentials, so no bot
+The agents push branches with your repo's own credentials, so no bot
 identity (`github-actions[bot]`, `claude[bot]`, the two Apps) may be allowed
 to push to the default branch — every change goes through a human-merged PR.
 Running this check locally means it uses the admin-scoped `gh` session you
@@ -228,7 +228,7 @@ what's configurable without reading the source. Edit it, or delete a key to
 fall back to interns' own built-in default. A value can only come from this
 file or the built-in — there is no second, overlapping source.
 
-The consumer repo also needs `test` and `build` status checks on its PRs (from
+Your repo also needs `test` and `build` status checks on its PRs (from
 its own `deploy.yml` or equivalent) — the reviewer waits on them and won't run
 until both are green.
 
@@ -284,7 +284,7 @@ decision) and set `status:needs-attention`. Pipeline config under
 ## Pipeline metrics
 
 Every agent run appends one machine-readable record per `(run, job)` to
-`metrics.jsonl` on an orphan `metrics` branch in the consumer repo — tokens
+`metrics.jsonl` on an orphan `metrics` branch in your repo — tokens
 (per model, sub-agents included), tool-call counts, `num_turns`, durations,
 cost, and the agent's process result. A final `metrics` job on each workflow
 run gathers the records its agent jobs uploaded and commits them in a single
@@ -308,7 +308,7 @@ fetch of `raw.githubusercontent.com/<owner>/<repo>/metrics/metrics.jsonl`.
 | `.github/scripts/gh-safe/*` | the narrow `gh` surface the agents may call |
 | `.github/scripts/install/*` | installer steps (label sync, safety checks, + `bats` tests) |
 | `.github/labels.json` | versioned label manifest (+ `.schema.json`) |
-| `.github/prompts/*` | agent prompts, layered over the consumer's `CLAUDE.md` |
+| `.github/prompts/*` | agent prompts, layered over your repo's `CLAUDE.md` |
 | `templates/issue/*` | default issue templates |
 | `templates/workflows/*`, `templates/config/*` | caller stubs + starter config the installer commits |
 | `installer/` | `interns-install` — the local CLI for Apps + secrets (Python, stdlib only) |
