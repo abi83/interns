@@ -306,7 +306,7 @@ scripts are protected — `push-branch.sh` rejects any push touching them.
 
 </details>
 
-## Pipeline metrics (TBD in #11)
+## Pipeline metrics
 
 Every agent run appends one machine-readable record per `(run, job)` to
 `metrics.jsonl` on an orphan `metrics` branch in your repo — tokens
