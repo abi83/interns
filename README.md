@@ -1,10 +1,9 @@
 # interns
 
-A tireless team of interns that refine issues, estimate them, open PRs, and
-review each other's work — with a human in the loop on every merge.
+A tireless team of interns that refine issues, estimate them, open PRs, and  review each other's work — with a human in
+the loop when really needed.
 
-The pipeline drives [Claude Code](https://github.com/anthropics/claude-code)
-over a checked-out repo, respects its `CLAUDE.md` / `AGENTS.md`, and runs
+The pipeline drives [Claude Code](https://github.com/anthropics/claude-code) over a checked-out repo, respects its `CLAUDE.md` / `AGENTS.md`, and runs
 entirely in the consumer repo's GitHub Actions — no hosted service.
 
 Status: early. Consumed by [`abi83/prepify`](https://github.com/abi83/prepify).
@@ -63,8 +62,8 @@ not in the manifest are left alone.
 |---|--------------------------------------------------------|-----------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `status:needs-refinement` | awaiting the refiner                                   | **human**, triggers the refinement-estimation pipeline                      | `status:refined`, or `status:needs-attention` if the refiner needs a decision                                                                                                  |
 | `status:refined` | refined, awaiting estimation                           | refiner                                                                     | `status:estimated` (+ `size:*`); `status:ready` directly for a `type:epic`; `status:needs-attention` if unsizeable                                                             |
-| `status:estimated` | estimated — waiting on the owner to approve or comment | estimator                                                                   | `status:ready` set by human to thrigger the coder, or an human **comment** for triggering conversational follow-up TBD in ([#11](https://github.com/abi83/interns/issues/11)). |
-| `status:ready` | approved for the coder                                 | **human**, triggers the coder-reviewer pipeline | `status:in-progress` when the coder starts; `status:needs-attention` if the issue isn't a `type:coding-task` / `type:bug`                                                      |
+| `status:estimated` | estimated — waiting on the owner to approve or comment | estimator                                                                   | `status:ready` set by a human to trigger the coder, or a human **comment** to trigger conversational follow-up (TBD, [#11](https://github.com/abi83/interns/issues/11)). |
+| `status:ready` | approved for the coder                                 | **human**, triggers the coder-reviewer pipeline; or the estimate phase, for a `type:epic` (bypasses sizing) | `status:in-progress` when the coder starts; `status:needs-attention` if the issue isn't a `type:coding-task` / `type:bug`                                                      |
 | `status:in-progress` | a coder-reviewer loop is in progress                   | coder                                                                       | issue closed on merge, or `status:needs-attention`                                                                                                                             |
 | `status:needs-attention` | pipeline stalled — a human needs to look               | any agent                                                                   | cleared when a human re-dispatches (the coder drops it on pickup)                                                                                                              |
 
@@ -226,9 +225,8 @@ to also add the default issue templates
 One source of truth: [`.github/interns.yml`](templates/config/interns.yml),
 installed with every key already filled in at its default so you can see
 what's configurable without reading the source. Edit it, or delete a key to
-fall back to interns' own built-in default. There is no second, overlapping
-way to set the same thing (no Actions variables) — a value can only come from
-this file or the built-in.
+fall back to interns' own built-in default. A value can only come from this
+file or the built-in — there is no second, overlapping source.
 
 The consumer repo also needs `test` and `build` status checks on its PRs (from
 its own `deploy.yml` or equivalent) — the reviewer waits on them and won't run
