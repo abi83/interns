@@ -1,0 +1,36 @@
+name: gate-issue-type
+description: Deterministic issue-type gate — park the issue and signal skip when its type:* label isn't accepted
+
+inputs:
+  issue_number:
+    description: Issue number to gate
+    required: true
+  accepted_types:
+    description: Comma-separated type:* labels the calling job can handle
+    required: true
+  remove_status:
+    description: status:* label to remove when parking a rejected issue
+    required: true
+  reject_comment:
+    description: Comment body posted on a rejected issue
+    required: true
+
+outputs:
+  skip:
+    description: "'true' when the issue's type isn't accepted and the caller must not run its agent"
+    value: ${{ steps.gate.outputs.skip }}
+
+runs:
+  using: composite
+  steps:
+    - name: Gate
+      id: gate
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        ISSUE: ${{ inputs.issue_number }}
+        ACCEPTED: ${{ inputs.accepted_types }}
+        REMOVE_STATUS: ${{ inputs.remove_status }}
+        REJECT_COMMENT: ${{ inputs.reject_comment }}
+      run: ${{ github.action_path }}/../../scripts/pipeline/gate-issue-type.sh

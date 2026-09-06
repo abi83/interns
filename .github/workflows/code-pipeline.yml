@@ -118,6 +118,25 @@ jobs:
         with:
           issue_number: ${{ github.event.issue.number || inputs.issue_number }}
 
+      # Deterministic type gate: only type:coding-task and type:bug are
+      # implementable. status:ready can also land on a spike or (via a manual
+      # mislabel) an epic — the coder should never attempt either. Shared with
+      # the estimate job's gate. Skipped on a fix round: the issue is already
+      # status:in-progress and its type hasn't changed.
+      - name: Gate issue type
+        id: gate
+        if: inputs.fix_round != 'true'
+        uses: ./.interns/.github/actions/gate-issue-type
+        with:
+          issue_number: ${{ steps.issue.outputs.number }}
+          accepted_types: type:coding-task,type:bug
+          remove_status: status:ready
+          reject_comment: >-
+            This issue reached `status:ready` without a `type:coding-task` or
+            `type:bug` label, so the coder agent won't attempt it — only those
+            two types are implementable code deliverables. If this should be
+            implemented, add the correct type label and re-apply `status:ready`.
+
       - name: Guard against duplicate or stale trigger
         id: guard
         env:
@@ -125,25 +144,18 @@ jobs:
         run: |
           NUM="${{ steps.issue.outputs.number }}"
           FIX_ROUND="${{ inputs.fix_round }}"
-          LABELS=$(gh issue view "$NUM" --repo ${{ github.repository }} --json labels --jq '[.labels[].name] | join(",")')
-          echo "labels=$LABELS" >> "$GITHUB_OUTPUT"
           echo "fix_round=$FIX_ROUND" >> "$GITHUB_OUTPUT"
+          if [[ "${{ steps.gate.outputs.skip }}" == "true" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          LABELS=$(gh issue view "$NUM" --repo ${{ github.repository }} --json labels --jq '[.labels[].name] | join(",")')
           # A fix round is an explicit dispatch from the reviewer against an issue
           # that is *already* status:in-progress — the stale-trigger guard below
           # would wrongly skip it, so let it through.
           if [[ "$FIX_ROUND" != "true" ]] && \
              [[ "$LABELS" == *"status:in-progress"* || "$LABELS" == *"status:needs-attention"* ]]; then
             echo "Issue #$NUM is already past status:ready ($LABELS) — stale or duplicate trigger, skipping."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          elif [[ "$LABELS" != *"type:coding-task"* && "$LABELS" != *"type:bug"* ]]; then
-            # Deterministic type gate: only type:coding-task and type:bug are
-            # implementable. status:ready can also land on an epic (via its
-            # estimate-phase bypass) or a spike, neither of which the coder
-            # should ever attempt — see #112.
-            echo "Issue #$NUM is not type:coding-task or type:bug ($LABELS) — not implementable, escalating."
-            gh issue edit "$NUM" --repo ${{ github.repository }} \
-              --add-label "status:needs-attention" --remove-label "status:ready"
-            gh issue comment "$NUM" --repo ${{ github.repository }} --body "This issue reached \`status:ready\` without a \`type:coding-task\` or \`type:bug\` label, so the coder agent won't attempt it — only those two types are implementable code deliverables. If this should be implemented, add the correct type label and re-apply \`status:ready\`."
             echo "skip=true" >> "$GITHUB_OUTPUT"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"

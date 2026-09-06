@@ -246,8 +246,24 @@ jobs:
         with:
           issue_number: ${{ github.event.issue.number || inputs.issue_number }}
 
+      # Deterministic backstop: the refiner can no longer produce a type:epic, so
+      # on the happy path the estimator never sees one. This catches a manual
+      # mislabel or a workflow_dispatch — a pure label transition, no agent.
+      - name: Gate issue type
+        id: gate
+        uses: ./.interns/.github/actions/gate-issue-type
+        with:
+          issue_number: ${{ steps.issue.outputs.number }}
+          accepted_types: type:coding-task,type:bug,type:spike
+          remove_status: status:refined
+          reject_comment: >-
+            Epics aren't sized directly — a dev-effort number doesn't mean
+            anything before the work is broken down. Break this into sub-issues
+            and estimate those.
+
       - name: Run Claude estimation
         id: claude
+        if: steps.gate.outputs.skip != 'true'
         timeout-minutes: ${{ fromJSON(steps.cfg.outputs.timeout_minutes) }}
         uses: anthropics/claude-code-action@v1
         env:
@@ -331,7 +347,7 @@ jobs:
         run: >
           .interns/.github/scripts/pipeline/verify-outcome.sh Estimation
           "${{ steps.issue.outputs.number }}"
-          status:estimated status:ready status:needs-attention
+          status:estimated status:needs-attention
 
       - name: Write run summary
         if: always() && steps.claude.outcome != 'skipped'

@@ -3,13 +3,6 @@ You are estimating effort for a refined issue.
 Input: the issue title, its refined body (Value / Scope / Acceptance
 Criteria), and any comments on it.
 
-If the issue has a `type:epic` label, do not estimate it. Epics are intent
-and scope, not a sized deliverable — sizing them in dev-effort terms
-doesn't mean anything before they're broken into sub-issues. Instead,
-comment on the issue explaining that epics aren't estimated directly (size
-the sub-issues once they're filed), and swap labels:
-`--remove-label "status:refined" --add-label "status:ready"`. Then stop.
-
 Assume coding itself is cheap — most tickets are implemented by an AI
 coding agent. The real cost is whatever the owner personally has to touch:
 risk, review, and anything an agent can't verify itself. Size against that
@@ -76,6 +69,15 @@ SIZE: <XS|S|M|L|XL>
 <one sentence on which criterion or criteria drove the size>
 
 Output nothing else — no preamble, no closing remarks.
+
+## Spikes
+
+A `type:spike` is sized the same way — the estimate tells the owner whether
+the investigation is worth their time. A spike's pipeline path ends here: no
+coder picks it up. Add one line above the format block in your comment:
+
+> This is a spike; no coder picks it up. The estimate is for your planning.
+> Do the investigation and close when done.
 
 ## When to stop instead of estimating
 

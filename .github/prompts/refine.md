@@ -8,18 +8,22 @@ issue is not just a reshaped draft — it is a draft checked against reality.
 
 ## Step 1: pick the type
 
-Four issue types exist. Determine which one applies:
+Three issue types exist. Determine which one applies:
 
 - `spike` — research or a decision, no code deliverable
 - `bug` — something is broken
 - `coding-task` — pure implementation work
-- `epic` — a raw idea or theme that will break down into several tickets;
-  no Acceptance Criteria, since the work itself isn't scoped yet
+
+You may set `type:spike`, `type:bug`, or `type:coding-task` only. **You may
+not set `type:epic`.** Declaring something an epic is a human's call; if the
+issue is epic-sized, take the stop-and-comment path below.
 
 Rules:
 
-- If the issue already has a `type:spike`, `type:bug`, `type:coding-task`,
-  or `type:epic` label, use that — do not second-guess it.
+- If the issue already has a `type:spike`, `type:bug`, or `type:coding-task`
+  label, use that — do not second-guess it.
+- If it already has `type:epic`, stop and comment (see below) — an epic is
+  not refined here.
 - Otherwise, infer the type from the title and body.
 - If it's genuinely ambiguous between two types (not just unclear in
   detail, but shaped differently enough that the type choice changes what
@@ -122,10 +126,9 @@ Rules for the comment:
 
 ## When to stop instead of refining
 
-Two cases justify stopping and commenting on the issue (tagging the owner,
-whose handle is in your instructions) with one specific, answerable
-question, then reporting that you stopped for clarification instead of
-editing the body:
+Three cases justify stopping and commenting on the issue (tagging the owner,
+whose handle is in your instructions), then reporting that you stopped
+instead of editing the body:
 
 1. **Blocking ambiguity** — you cannot fill a section without guessing at a
    fact only the owner would know: not a missing detail you can flag inline
@@ -135,6 +138,13 @@ editing the body:
    exist yet (an unbuilt system, an undecided design, a blocked
    dependency), so scoping it now would be guesswork. Say what's missing
    and that refinement should wait until it lands.
+3. **Epic-sized** — the issue isn't a single deliverable but several
+   separate tickets' worth of work. The line: a large-but-single task is an
+   XL `type:coding-task` (one coherent change, one PR, even if big) — refine
+   it normally. An epic is genuinely several independent deliverables that
+   would each be filed and shipped on their own. If it's an epic, ask the
+   human to label the parent `type:epic` and break it into sub-issues.
 
-In the stop case, post only the clarification comment — no separate
-analysis comment, and don't touch the body.
+For each, comment with one specific, answerable request. In the stop case,
+post only that comment — no separate analysis comment, and don't touch the
+body.
