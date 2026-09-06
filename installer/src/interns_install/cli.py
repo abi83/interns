@@ -97,6 +97,13 @@ def _secret_verb(name: str, existing: list[str] | None) -> str:
     return "overwrite" if name in existing else "add"
 
 
+def _app_owner(app: dict) -> str:
+    """Login of the account that owns a `GET /apps/{slug}` result, lowercased.
+    A same-name App owned by someone else is a global-namespace collision, not
+    something this account can reuse."""
+    return str((app.get("owner") or {}).get("login", "")).lower()
+
+
 def _use_existing_app(con: Console, repo: gh.Repo, spec: AppSpec,
                       app_id: str | None, slug: str,
                       existing_secrets: list[str] | None) -> None:
@@ -139,11 +146,13 @@ def _use_existing_app(con: Console, repo: gh.Repo, spec: AppSpec,
                 "keys held by other repos are unaffected)")
     elif con.assume_yes:
         con.note_manual(f"set the {spec.key_secret} secret (a PEM private key for "
-                        f"'{spec.default_name}')")
+                        f"'{slug}')")
     else:
         pem = con.prompt_secret(
-            f"Paste a PEM private key for '{spec.default_name}' — reuse another "
-            "repo's or generate a new one (blank to skip):")
+            f"Paste a private key (PEM) for the '{slug}' App. This repo needs its "
+            f"own copy in {spec.key_secret}; GitHub Actions secrets aren't shared "
+            f"between repos. Reuse a .pem you saved for another repo, or generate "
+            f"one at {settings_url}. Blank to set the secret yourself later:")
         if pem and con.mutation(
                 f"{_secret_verb(spec.key_secret, existing_secrets)} secret {spec.key_secret}"):
             gh.set_secret(repo.slug, spec.key_secret, pem)
@@ -161,39 +170,42 @@ def _provision_app(con: Console, repo: gh.Repo, spec: AppSpec,
                    app_id: str | None,
                    existing_secrets: list[str] | None,
                    existing_vars: list[str] | None) -> None:
-    con.step(f"GitHub App: {spec.default_name} ({spec.key})")
+    name = spec.name_for(repo.owner)
+    con.step(f"GitHub App: {name} ({spec.key})")
 
     if app_id is not None:
         con.say(f"--{spec.key}-app-id given — reusing App {app_id}, skipping the mint")
-        _use_existing_app(con, repo, spec, app_id, spec.default_name, existing_secrets)
+        _use_existing_app(con, repo, spec, app_id, name, existing_secrets)
         return
 
-    if not con.confirm(f"Set up the App '{spec.default_name}' now?", default=True):
+    if not con.confirm(f"Set up the App '{name}' now?", default=True):
         con.note_manual(f"create the {spec.key} App and set {spec.id_var} / {spec.key_secret}")
         return
 
-    existing = gh.app_public(spec.default_name)
-    if existing:
-        con.say(f"an App named '{spec.default_name}' already exists on this account — "
-                "reusing it, no duplicate minted")
+    existing = gh.app_public(name)
+    if existing and _app_owner(existing) == repo.owner.lower():
+        con.say(f"you already own an App named '{name}' — reusing it, no duplicate minted")
         discovered_id = existing.get("id")
         _use_existing_app(con, repo, spec,
                           str(discovered_id) if discovered_id else None,
-                          existing.get("slug", spec.default_name), existing_secrets)
+                          existing.get("slug", name), existing_secrets)
         return
+    if existing:
+        con.say(f"the name '{name}' is held by another account — GitHub will ask "
+                "you to pick a different name in the form")
 
     action_url = settings_new_url(repo.owner, repo.is_org)
 
     if con.dry_run:
-        con.mutation(f"open {action_url} to create App '{spec.default_name}' via manifest")
+        con.mutation(f"open {action_url} to create App '{name}' via manifest")
         con.mutation(f"{_secret_verb(spec.key_secret, existing_secrets)} secret {spec.key_secret}")
         con.mutation(f"set variable {spec.id_var}")
         con.note_manual(f"install the {spec.key} App on {repo.slug}")
         return
 
     with ManifestServer(action_url, lambda redirect: build_manifest(
-        spec.default_name, redirect, spec.description)) as server:
-        con.say(f"opening your browser to create '{spec.default_name}' — "
+        name, redirect, spec.description)) as server:
+        con.say(f"opening your browser to create '{name}' — "
                 "click 'Create GitHub App'")
         con.say(f"if nothing opened, visit: {server.base_url}")
         webbrowser.open(server.base_url)
@@ -201,7 +213,7 @@ def _provision_app(con: Console, repo: gh.Repo, spec: AppSpec,
 
     conv = gh.convert_manifest(code)
     app_id = str(conv["id"])
-    slug = conv.get("slug", spec.default_name)
+    slug = conv.get("slug", name)
     pem = conv["pem"]
 
     # Resilient ordering: the private key is returned exactly once, so it goes

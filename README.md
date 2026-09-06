@@ -179,8 +179,10 @@ to skip it.
 
 #### GitHub Apps
 
-`interns-coder` and `interns-reviewer`, minted via the App Manifest flow, one
-"Create GitHub App" click each. Same permission set, no webhook:
+`interns-coder-<owner>` and `interns-reviewer-<owner>`, minted via the App
+Manifest flow, one "Create GitHub App" click each. GitHub App names are globally
+unique, so the minted name carries the owning account. Same permission set, no
+webhook:
 
 | Permission | Access | Why |
 |---|---|---|
@@ -194,16 +196,16 @@ Installing each App on the repo is a manual click — the installer prints the
 links.
 
 **One App, many repos.** A GitHub App is per-account (or per-org); only its
-*installation* and the repo's secrets/variables are per-repo. App names are
-globally unique, so a second consumer repo under the same account must reuse
-the Apps from the first, not mint `interns-coder-2`:
+*installation* and the repo's secrets/variables are per-repo. A second consumer
+repo under the same account reuses that account's `interns-*-<owner>` pair
+rather than minting a duplicate:
 
 - Pass `--coder-app-id` / `--reviewer-app-id` to run the App step
   non-interactively against the existing Apps.
-- Without the flags, the installer detects that an App with the default name
-  already exists, reads its App ID from the App's public metadata, and asks
-  only for a PEM private key instead of minting. If that lookup can't return
-  the ID, it prints the settings URL and asks for it too.
+- Without the flags, the installer looks up `interns-<role>-<owner>`, confirms
+  the account owns it, reads its App ID from the App's public metadata, and
+  asks only for a PEM private key instead of minting. If that lookup can't
+  return the ID, it prints the settings URL and asks for it too.
 - For the key you can paste the same PEM the first repo already stores, or
   click **Generate a private key** — an App holds several keys at once and
   adding one does not revoke the others, so the first repo keeps working.
@@ -220,10 +222,10 @@ installer prompts you to paste a token you obtain separately (see
 | Kind | Name | Value |
 |---|---|---|
 | Secret | `CLAUDE_CODE_OAUTH_TOKEN` | OAuth token for `anthropics/claude-code-action` |
-| Secret | `INTERNS_CODER_APP_PRIVATE_KEY` | `interns-coder` private key (PEM) |
-| Secret | `INTERNS_REVIEWER_APP_PRIVATE_KEY` | `interns-reviewer` private key (PEM) |
-| Variable | `INTERNS_CODER_APP_ID` | `interns-coder` App ID |
-| Variable | `INTERNS_REVIEWER_APP_ID` | `interns-reviewer` App ID |
+| Secret | `INTERNS_CODER_APP_PRIVATE_KEY` | coder App private key (PEM) |
+| Secret | `INTERNS_REVIEWER_APP_PRIVATE_KEY` | reviewer App private key (PEM) |
+| Variable | `INTERNS_CODER_APP_ID` | coder App ID |
+| Variable | `INTERNS_REVIEWER_APP_ID` | reviewer App ID |
 
 The `install.yml` safety check fails the install if a required secret or
 variable is missing; if its token can't list them it warns and leaves
