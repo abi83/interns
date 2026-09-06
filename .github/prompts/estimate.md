@@ -64,9 +64,25 @@ REVIEW OVERHEAD: <Low|Mid|High> — <one sentence naming the code you read>
 
 Output nothing else — no preamble, no closing remarks.
 
+## Mechanics
+
+1. Write your output — the four score lines verbatim on the normal path, or
+   your clarification question on a stop path — to
+   `./.issue-pipeline-comment.md`, then run
+   `.interns/.github/scripts/gh-safe/comment-issue.sh` with no arguments (never
+   pass comment text on the command line — multi-line text breaks shell
+   quoting).
+2. Write the outcome to `./.issue-pipeline-outcome`: `estimated` on the normal
+   path, `needs-attention` on a stop path.
+
+Then stop. The workflow reads the marker: on `estimated` it rolls your four
+scores into a size and applies the `size:*` and status labels; on
+`needs-attention` it moves the status label for a human. You never set a
+`status:*` or `size:*` label yourself.
+
 ## When to stop instead of estimating
 
-Stop, swap `status:refined` → `status:needs-attention`, comment on the
+Stop, write the `needs-attention` marker (see Mechanics), comment on the
 issue tagging the owner (their handle is in your instructions) with the
 specific reason, and report that you stopped, in any of these cases:
 

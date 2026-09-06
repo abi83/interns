@@ -118,39 +118,15 @@ jobs:
             type, rewrite the body into the block whose `type:` header matches):
             ${{ steps.template.outputs.skeleton }}
 
-            Read .interns/.github/prompts/refine.md for the exact rewrite rules and
-            apply them to the issue and comments above to produce a new
-            body.
+            Read .interns/.github/prompts/refine.md for the exact rewrite
+            rules and the mechanical steps, and apply them to the issue and
+            comments above.
 
             Important: never pass issue body or comment text as a Bash
             command-line argument — multi-line markdown breaks shell
             quoting. Instead, use the Write tool to write text to a file
             first, then run the script with no arguments so it reads
             that file.
-
-            If refine.md says to stop for clarification:
-            1. Write your question to ./.issue-pipeline-comment.md
-            2. Run ./.interns/.github/scripts/gh-safe/comment-issue.sh (no args)
-            3. Swap labels:
-               ./.interns/.github/scripts/gh-safe/edit-issue-labels.sh --remove-label "status:needs-refinement" --add-label "status:needs-attention"
-            Then stop. Do not edit the body in this case.
-
-            Otherwise, in order:
-            1. Investigate the draft against the repo and wiki (refine.md
-               Step 2), then write the new body to ./.issue-pipeline-body.md
-            2. Run ./.interns/.github/scripts/gh-safe/edit-issue-body.sh (no args)
-            3. If the title no longer describes the refined body (refine.md
-               Step 3), write the corrected title to ./.issue-pipeline-title.md
-               and run ./.interns/.github/scripts/gh-safe/edit-issue-title.sh
-               (no args). Leave the title as-is if it's already accurate.
-            4. Write the blockers/dependencies analysis (refine.md Step 4)
-               to ./.issue-pipeline-comment.md and run
-               ./.interns/.github/scripts/gh-safe/comment-issue.sh (no args)
-            5. Swap labels:
-               ./.interns/.github/scripts/gh-safe/edit-issue-labels.sh --remove-label "status:needs-refinement" --add-label "status:refined"
-
-            Post exactly the one analysis comment described in refine.md —
-            no other comments, no edits beyond the title, body, and labels.
           claude_args: |
             --model ${{ steps.cfg.outputs.model }}
             --max-turns ${{ steps.cfg.outputs.max_turns }}
@@ -185,14 +161,15 @@ jobs:
           if-no-files-found: ignore
           retention-days: 2
 
-      - name: Verify outcome
+      - name: Apply refinement outcome
         if: success() && steps.claude.outputs.execution_file != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          ISSUE: ${{ steps.issue.outputs.number }}
         run: >
-          .interns/.github/scripts/pipeline/verify-outcome.sh Refinement
-          "${{ steps.issue.outputs.number }}"
-          status:refined status:needs-attention
+          .interns/.github/scripts/pipeline/apply-outcome.sh refinement
+          ./.issue-pipeline-outcome
 
       - name: Write run summary
         if: always() && steps.claude.outcome != 'skipped'
@@ -290,34 +267,20 @@ jobs:
 
             ${{ steps.issue.outputs.comments }}
 
-            Read .interns/.github/prompts/estimate.md for the exact sizing rules and
-            apply them to the refined issue and comments above.
+            Read .interns/.github/prompts/estimate.md for the exact sizing
+            rules and the mechanical steps, and apply them to the refined
+            issue and comments above.
 
             Important: never pass comment text as a Bash command-line
             argument — multi-line text breaks shell quoting. Instead, use
             the Write tool to write text to a file first, then run the
             script with no arguments so it reads that file.
-
-            If estimate.md says to stop for clarification:
-            1. Write your question to ./.issue-pipeline-comment.md
-            2. Run ./.interns/.github/scripts/gh-safe/comment-issue.sh (no args)
-            3. Swap labels:
-               ./.interns/.github/scripts/gh-safe/edit-issue-labels.sh --remove-label "status:refined" --add-label "status:needs-attention"
-            Then stop.
-
-            Otherwise, in order:
-            1. Write the estimate output (verbatim) to
-               ./.issue-pipeline-comment.md
-            2. Run ./.interns/.github/scripts/gh-safe/comment-issue.sh (no args)
-            Then stop. The workflow rolls your four scores into a size and
-            applies the `size:*` and `status:estimated` labels — you don't
-            touch labels on this path.
           claude_args: |
             --model ${{ steps.cfg.outputs.model }}
             --max-turns ${{ steps.cfg.outputs.max_turns }}
-            --allowedTools "Read,Grep,Glob,Write,${{ env.ALLOWED_COMMENT }},${{ env.ALLOWED_EDIT_LABELS }}"
+            --allowedTools "Read,Grep,Glob,Write,${{ env.ALLOWED_COMMENT }}"
 
-      - name: Roll up size and apply labels
+      - name: Apply estimation outcome
         id: size
         if: steps.gate.outputs.skip != 'true' && steps.claude.outcome == 'success'
         env:
@@ -325,11 +288,12 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           ISSUE: ${{ steps.issue.outputs.number }}
         run: >
-          .interns/.github/scripts/pipeline/roll-up-estimate.sh
+          .interns/.github/scripts/pipeline/apply-outcome.sh estimation
+          ./.issue-pipeline-outcome
           ./.issue-pipeline-comment.md
 
       - name: Spike advisory
-        if: steps.gate.outputs.skip != 'true' && steps.claude.outcome == 'success'
+        if: steps.gate.outputs.skip != 'true' && steps.size.outputs.outcome == 'estimated'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -364,15 +328,6 @@ jobs:
           path: ${{ runner.temp }}/metrics-estimator.json
           if-no-files-found: ignore
           retention-days: 2
-
-      - name: Verify outcome
-        if: success() && steps.claude.outputs.execution_file != ''
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: >
-          .interns/.github/scripts/pipeline/verify-outcome.sh Estimation
-          "${{ steps.issue.outputs.number }}"
-          status:estimated status:needs-attention
 
       - name: Write run summary
         if: always() && steps.claude.outcome != 'skipped'
