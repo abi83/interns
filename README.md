@@ -28,7 +28,8 @@ whether to run the automated implementation flow, or send the task back for
 rework — e.g. the scope is too broad to land in one PR, the estimator flagged a
 huge blast radius, or refinement surfaced blockers and missing prerequisites.
 Approving is a single move: the label `status:estimated` → `status:ready`.
-Second, check and merge the implemented and approved PR. Everything in between is automated, and
+Second, give the finished PR — already implemented and reviewer-approved — a
+final look and merge it. Everything in between is automated, and
 anything the automation can't finish — a Claude error, a vague issue
 description, missing prerequisites or blockers — is parked on
 `status:needs-attention` / `pr:needs-attention` for a human to pick up.
@@ -57,11 +58,6 @@ flowchart TD
     P2 -.->|escalation| K["pr:needs-attention"]
 ```
 
-Dotted edges are the escape hatches: whenever an agent can't finish — a Claude
-error, a vague issue, missing prerequisites, a stalled review loop — the work is
-parked on `status:needs-attention` / `pr:needs-attention` for a human. The owner
-can also send a refined issue back for rework instead of approving it.
-
 ## Label state machine
 
 The installer syncs these from the versioned manifest
@@ -73,9 +69,9 @@ not in the manifest are left alone.
 | Label | Meaning                                                | Set by                                                                      | Moves to                                                                                                                                                                       |
 |---|--------------------------------------------------------|-----------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `status:needs-refinement` | awaiting the refiner                                   | **human**, triggers the refinement-estimation pipeline                      | `status:refined`, or `status:needs-attention` if the refiner needs a decision                                                                                                  |
-| `status:refined` | refined, awaiting estimation                           | refiner                                                                     | `status:estimated` (+ `size:*`); `status:ready` directly for a `type:epic`; `status:needs-attention` if unsizeable                                                             |
+| `status:refined` | refined, awaiting estimation                           | refiner                                                                     | `status:estimated` (+ `size:*`); `status:needs-attention` if unsizeable                                                                                                       |
 | `status:estimated` | estimated — waiting on the owner to approve or comment | estimator                                                                   | `status:ready` set by a human to trigger the coder, or a human **comment** to trigger conversational follow-up (TBD, [#11](https://github.com/abi83/interns/issues/11)). |
-| `status:ready` | approved for the coder                                 | **human**, triggers the coder-reviewer pipeline; or the estimate phase, for a `type:epic` (bypasses sizing) | `status:in-progress` when the coder starts; `status:needs-attention` if the issue isn't a `type:coding-task` / `type:bug`                                                      |
+| `status:ready` | approved for the coder                                 | **human**, triggers the coder-reviewer pipeline                             | `status:in-progress` when the coder starts; `status:needs-attention` if the issue isn't a `type:coding-task` / `type:bug`                                                      |
 | `status:in-progress` | a coder-reviewer loop is in progress                   | coder                                                                       | issue closed on merge, or `status:needs-attention`                                                                                                                             |
 | `status:needs-attention` | pipeline stalled — a human needs to look               | any agent                                                                   | cleared when a human re-dispatches (the coder drops it on pickup)                                                                                                              |
 
@@ -96,11 +92,11 @@ Two limits bound the loop:
 Red `test` / `build` checks also send the PR straight to `pr:needs-attention`,
 with no fix round.
 
-| Label | Meaning | Set by | Moves to |
-|---|---|---|---|
-| `pr:coding` | a coder agent is on this PR (a fix round) | reviewer, when it requests changes | `pr:in-review` after the coder pushes |
-| `pr:in-review` | a reviewer agent is on this PR | coder, at hand-off | cleared on `APPROVE`; `pr:coding` on `REQUEST_CHANGES`; `pr:needs-attention` on escalation |
-| `pr:needs-attention` | PR pipeline stalled — a human needs to look | reviewer gate | cleared by the next agent pickup or an `APPROVE` |
+| Label | Meaning                                      | Set by                      | Moves to |
+|---|----------------------------------------------|-----------------------------|---|
+| `pr:coding` | a coder agent is on this PR (e.g. fix round) | reviewer, when work started | `pr:in-review` after the coder pushes |
+| `pr:in-review` | a reviewer agent is on this PR               | coder, at hand-off          | cleared on `APPROVE`; `pr:coding` on `REQUEST_CHANGES`; `pr:needs-attention` on escalation |
+| `pr:needs-attention` | PR pipeline stalled — a human needs to look  | reviewer gate               | cleared by the next agent pickup or an `APPROVE` |
 
 An approved PR carries **no** `pr:*` label — the native review state is the
 signal. List the PRs waiting on a human with
@@ -113,12 +109,12 @@ signal. List the PRs waiting on a human with
 | `type:coding-task` | yes | yes |
 | `type:bug` | yes | yes |
 | `type:spike` | yes | no — a human does the investigation |
-| `type:epic` | no — skipped straight to `status:ready` | no — a human breaks it into sub-issues |
+| `type:epic` | no — estimator's type gate rejects it | no — a human breaks it into sub-issues |
 
 There is no agent for spikes or epics — the pipeline only refines them (and
-estimates the spike). Once refined, the work is a human's: a spike that reaches
-`status:ready` (or an epic, via its estimate-phase bypass) is bounced straight
-to `status:needs-attention` by the coder's type gate.
+estimates the spike). Once refined, the work is a human's: an epic is stopped at
+the estimator's type gate, and a spike that reaches `status:ready` is stopped at
+the coder's — both bounced to `status:needs-attention`.
 
 ### `size:*` and `priority:*`
 
