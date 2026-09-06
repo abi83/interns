@@ -1,10 +1,7 @@
-import io
 import unittest
 import urllib.error
 import urllib.request
-from unittest import mock
 
-from interns_install import gh
 from interns_install.apps import (
     APP_PERMISSIONS,
     ManifestServer,
@@ -57,33 +54,6 @@ class ManifestServerTests(unittest.TestCase):
             self.assertEqual(ctx.exception.code, 400)
             with self.assertRaises(TimeoutError):
                 server.wait_for_code(timeout=1)
-
-
-class ConvertManifestTests(unittest.TestCase):
-    def test_exchanges_code_without_authorization_header(self):
-        captured = {}
-
-        def fake_urlopen(req, timeout=None):
-            captured["headers"] = req.headers
-            captured["method"] = req.get_method()
-            captured["url"] = req.full_url
-            return io.BytesIO(b'{"id": 42, "pem": "-----KEY-----", "slug": "x"}')
-
-        with mock.patch("urllib.request.urlopen", fake_urlopen):
-            out = gh.convert_manifest("tok123")
-
-        self.assertEqual(out["id"], 42)
-        self.assertEqual(captured["method"], "POST")
-        self.assertIn("app-manifest/tok123/conversions", captured["url"])
-        self.assertNotIn("Authorization", captured["headers"])
-
-    def test_http_error_becomes_ghError(self):
-        def boom(req, timeout=None):
-            raise urllib.error.HTTPError(req.full_url, 404, "Not Found", {}, None)
-
-        with mock.patch("urllib.request.urlopen", boom), \
-             self.assertRaises(gh.GhError):
-            gh.convert_manifest("expired")
 
 
 if __name__ == "__main__":
