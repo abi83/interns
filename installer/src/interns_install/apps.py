@@ -31,23 +31,29 @@ APP_PERMISSIONS = {
 @dataclass
 class AppSpec:
     key: str            # "reviewer" / "coder"
-    default_name: str   # "interns-reviewer" / "interns-coder"
+    name_base: str      # "interns-reviewer" / "interns-coder"
     id_var: str         # "INTERNS_REVIEWER_APP_ID"
     key_secret: str     # "INTERNS_REVIEWER_APP_PRIVATE_KEY"
     description: str
+
+    def name_for(self, owner: str) -> str:
+        """GitHub App names are globally unique, so the minted name carries the
+        owning account: two accounts each get their own `interns-<role>-<acct>`
+        instead of racing for one global `interns-<role>`."""
+        return f"{self.name_base}-{owner.lower()}"
 
 
 APPS = [
     AppSpec(
         key="reviewer",
-        default_name="interns-reviewer",
+        name_base="interns-reviewer",
         id_var="INTERNS_REVIEWER_APP_ID",
         key_secret="INTERNS_REVIEWER_APP_PRIVATE_KEY",
         description="submits PR reviews for the interns pipeline (claude[bot] can't approve its own PR)",
     ),
     AppSpec(
         key="coder",
-        default_name="interns-coder",
+        name_base="interns-coder",
         id_var="INTERNS_CODER_APP_ID",
         key_secret="INTERNS_CODER_APP_PRIVATE_KEY",
         description="coder-side pushes, PRs, comments and label edits for the interns pipeline",

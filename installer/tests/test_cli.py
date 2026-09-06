@@ -89,25 +89,30 @@ class ReuseAppTests(unittest.TestCase):
         m["set_secret"].assert_not_called()
         self.assertTrue(any(CODER.key_secret in n for n in con.manual))
 
-    def test_provision_discovers_existing_app_and_skips_mint(self):
-        con = Console(assume_yes=True)
-        with mock.patch.object(cli.gh, "app_public", return_value={"slug": "interns-coder"}), \
-             mock.patch.object(cli, "ManifestServer") as server, \
-             mock.patch.multiple(cli.gh, set_variable=mock.DEFAULT, set_secret=mock.DEFAULT):
-            _provision_app(con, _repo(), CODER, None,
-                           existing_secrets=[CODER.key_secret], existing_vars=[])
-        server.assert_not_called()
+    def test_minted_name_is_namespaced_per_owner(self):
+        self.assertEqual(CODER.name_for("Acme"), "interns-coder-acme")
 
-    def test_provision_prefills_app_id_from_public_metadata(self):
+    def test_provision_reuses_own_app_and_prefills_id(self):
         con = Console(assume_yes=True)
-        with mock.patch.object(cli.gh, "app_public",
-                               return_value={"slug": "interns-coder", "id": 987654}), \
+        owned = {"slug": "interns-coder-acme", "id": 987654,
+                 "owner": {"login": "acme"}}
+        with mock.patch.object(cli.gh, "app_public", return_value=owned), \
              mock.patch.object(cli, "ManifestServer") as server, \
              mock.patch.multiple(cli.gh, set_variable=mock.DEFAULT, set_secret=mock.DEFAULT) as m:
             _provision_app(con, _repo(), CODER, None,
                            existing_secrets=[CODER.key_secret], existing_vars=[])
         server.assert_not_called()
         m["set_variable"].assert_called_once_with("acme/widgets", CODER.id_var, "987654")
+
+    def test_provision_mints_when_same_name_owned_by_someone_else(self):
+        con = Console(assume_yes=True, dry_run=True)
+        stranger = {"slug": "interns-coder-acme", "id": 4701402,
+                    "owner": {"login": "jpdlr"}}
+        with mock.patch.object(cli.gh, "app_public", return_value=stranger):
+            _provision_app(con, _repo(), CODER, None,
+                           existing_secrets=[], existing_vars=[])
+        self.assertTrue(any("via manifest" in p for p in con.planned))
+        self.assertFalse(any(str(4701402) in p for p in con.planned))
 
     def test_provision_mints_when_no_existing_app(self):
         con = Console(assume_yes=True, dry_run=True)
