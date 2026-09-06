@@ -56,8 +56,15 @@ what you looked for and didn't find:
 
 Then roll the four scores into a single SIZE (XS/S/M/L/XL) — a holistic
 call, not a formula. Mostly-Low across the board is XS/S; a mix of Mid is
-M; multiple Highs is L; a High on more than one criterion at once, or an
-unsizeable mix, is XL.
+M; multiple Highs is L; a High on more than one criterion at once is XL.
+XL is still a coherent, scoped deliverable — if the scope is too large or
+entangled to put a number on, don't force out an XL; see the stop
+conditions below.
+
+If you see natural seams where the work could be split, say so in the
+normal reasoning — the "which criterion drove the size" sentence, or the
+REVIEW OVERHEAD / TOUCH reasoning. The owner decides whether to split
+before approving.
 
 Output exactly this format:
 
@@ -68,16 +75,13 @@ REVIEW OVERHEAD: <Low|Mid|High> — <one sentence naming the code you read>
 SIZE: <XS|S|M|L|XL>
 <one sentence on which criterion or criteria drove the size>
 
-If SIZE is XL, add a line:
-SPLIT: <one sentence on where the natural seams are to break this up>
-
 Output nothing else — no preamble, no closing remarks.
 
 ## When to stop instead of estimating
 
-Stop, comment on the issue tagging the owner (their handle is in your
-instructions) with one specific question, and report that you stopped for
-clarification, in either of these cases:
+Stop, swap `status:refined` → `status:needs-attention`, comment on the
+issue tagging the owner (their handle is in your instructions) with the
+specific reason, and report that you stopped, in any of these cases:
 
 1. **Unsizeable ambiguity** — Scope or Acceptance Criteria are genuinely
    unsizeable without knowing which of two very different implementations
@@ -85,3 +89,6 @@ clarification, in either of these cases:
 2. **Missing prerequisites** — the ticket depends on something not built or
    not decided yet, so estimating it now is guesswork. Say what's missing
    and that it should be estimated once that lands.
+3. **Too large to size** — the scope is coherent but so big that any single
+   number would be a guess, and it isn't a `type:epic`. Note why, and
+   suggest a breakdown (splitting it, or re-typing it as an epic).
