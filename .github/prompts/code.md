@@ -45,18 +45,20 @@ them green, stop and comment on the issue instead.
 
 ## Branch and commit
 
-Branch name: `<type>/<short-slug>`, matching the type your PR title will
-carry — e.g. `feat/quiz-export` for a PR titled `feat: ...`. Commit your
-changes with a normal, clear commit message. `push-branch.sh` collapses the
-branch to a single commit before pushing, so don't rely on your
-intermediate commit structure surviving.
+Use the branch name given as `BRANCH` in your prompt — it's derived from
+the issue and already matches the commit type. Commit your changes with a
+normal, clear commit message. `push-branch.sh` collapses the branch to a
+single commit before pushing, so don't rely on your intermediate commit
+structure surviving.
 
 ## Open the PR
 
 PR title: a [Conventional Commit](https://www.conventionalcommits.org/)
-subject line (`feat:`, `fix:`, `refactor:`, etc.). If the repo
-squash-merges and derives releases from commit history, this line becomes
-that commit — get the type right.
+subject line. Use `COMMIT_TYPE_HINT` from your prompt as the prefix — it's
+derived from the issue's type label. Override it only when the change is
+genuinely a different type (e.g. a `type:coding-task` that is really a
+`fix:`), and say so in one line in the PR body. If the repo squash-merges
+and derives releases from commit history, this line becomes that commit.
 
 PR body: a concise, meaningful summary of what changed and why — readable
 on its own without needing to open the issue.
