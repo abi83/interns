@@ -201,13 +201,13 @@ the Apps from the first, not mint `interns-coder-2`:
 - Pass `--coder-app-id` / `--reviewer-app-id` to run the App step
   non-interactively against the existing Apps.
 - Without the flags, the installer detects that an App with the default name
-  already exists, prints its settings URL, and asks for the App ID and a PEM
-  private key instead of minting.
-- The App ID is on the App's settings page. For the key you can paste the same
-  PEM the first repo already stores, or click **Generate a private key** — an
-  App holds several keys at once and adding one does not revoke the others, so
-  the first repo keeps working. Client secret and webhook secret are
-  account-wide and need no change.
+  already exists, reads its App ID from the App's public metadata, and asks
+  only for a PEM private key instead of minting. If that lookup can't return
+  the ID, it prints the settings URL and asks for it too.
+- For the key you can paste the same PEM the first repo already stores, or
+  click **Generate a private key** — an App holds several keys at once and
+  adding one does not revoke the others, so the first repo keeps working.
+  Client secret and webhook secret are account-wide and need no change.
 - Then install the existing App on the new repo (the installer prints the
   link) and let it write `INTERNS_*_APP_ID` + `INTERNS_*_APP_PRIVATE_KEY`.
 
