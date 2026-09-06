@@ -301,15 +301,32 @@ jobs:
             1. Write the estimate output (verbatim) to
                ./.issue-pipeline-comment.md
             2. Run ./.interns/.github/scripts/gh-safe/comment-issue.sh (no args)
-            3. Add the size label matching your SIZE line (size:XS,
-               size:S, size:M, size:L, or size:XL) and swap status:
-               ./.interns/.github/scripts/gh-safe/edit-issue-labels.sh --remove-label "status:refined" --add-label "status:estimated" --add-label "size:<SIZE>"
-
-            Do nothing else.
+            Then stop. The workflow rolls your four scores into a size and
+            applies the `size:*` and `status:estimated` labels — you don't
+            touch labels on this path.
           claude_args: |
             --model ${{ steps.cfg.outputs.model }}
             --max-turns ${{ steps.cfg.outputs.max_turns }}
             --allowedTools "Read,Grep,Glob,Write,${{ env.ALLOWED_COMMENT }},${{ env.ALLOWED_EDIT_LABELS }}"
+
+      - name: Roll up size and apply labels
+        id: size
+        if: steps.gate.outputs.skip != 'true' && steps.claude.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          ISSUE: ${{ steps.issue.outputs.number }}
+        run: >
+          .interns/.github/scripts/pipeline/roll-up-estimate.sh
+          ./.issue-pipeline-comment.md
+
+      - name: Spike advisory
+        if: steps.gate.outputs.skip != 'true' && steps.claude.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          ISSUE: ${{ steps.issue.outputs.number }}
+        run: .interns/.github/scripts/pipeline/spike-advisory.sh
 
       - name: Report run cost
         if: always() && steps.claude.outputs.execution_file != ''
