@@ -126,6 +126,15 @@ def set_variable(repo: str, name: str, value: str) -> None:
     _run(["variable", "set", name, "--repo", repo, "--body", "-"], input_text=value)
 
 
+def app_public(slug: str) -> dict | None:
+    """Public metadata for the App registered under this slug, or None if no
+    such App exists. App names are globally unique, so a hit on the default
+    name means minting it again would collide — reuse the existing App instead.
+    """
+    status, body = api_status(f"apps/{slug}")
+    return body if status == "ok" and isinstance(body, dict) else None
+
+
 def convert_manifest(code: str) -> dict:
     data = api(f"app-manifest/{code}/conversions", method="POST")
     if not isinstance(data, dict) or "pem" not in data:

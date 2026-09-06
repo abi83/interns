@@ -73,6 +73,14 @@ def settings_new_url(repo_owner: str, is_org: bool) -> str:
     return "https://github.com/settings/apps/new"
 
 
+def settings_app_url(repo_owner: str, is_org: bool, slug: str) -> str:
+    """Settings page of an existing App — where its App ID is shown and a new
+    private key can be generated."""
+    if is_org:
+        return f"https://github.com/organizations/{repo_owner}/settings/apps/{slug}"
+    return f"https://github.com/settings/apps/{slug}"
+
+
 class _Handler(BaseHTTPRequestHandler):
     server_version = "interns-install/0.1"
 
