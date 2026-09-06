@@ -47,16 +47,12 @@ what you looked for and didn't find:
   one clean review pass is Low; multiple PRs or back-and-forth design
   review is High.
 
-Then roll the four scores into a single SIZE (XS/S/M/L/XL) — a holistic
-call, not a formula. Mostly-Low across the board is XS/S; a mix of Mid is
-M; multiple Highs is L; a High on more than one criterion at once is XL.
-XL is still a coherent, scoped deliverable — if the scope is too large or
-entangled to put a number on, don't force out an XL; see the stop
-conditions below.
+Score the four criteria and stop there — the pipeline maps the tuple to a
+single size deterministically, so there is no SIZE line for you to write or
+reason about.
 
 If you see natural seams where the work could be split, say so in the
-normal reasoning — the "which criterion drove the size" sentence, or the
-REVIEW OVERHEAD / TOUCH reasoning. The owner decides whether to split
+REVIEW OVERHEAD or TOUCH reasoning. The owner decides whether to split
 before approving.
 
 Output exactly this format:
@@ -65,19 +61,8 @@ BLAST RADIUS: <Low|Mid|High> — <one sentence naming the code you read>
 TOUCH: <Low|Mid|High> — <one sentence naming the code you read>
 HUMAN INVOLVEMENT: <Low|Mid|High> — <one sentence naming the code you read>
 REVIEW OVERHEAD: <Low|Mid|High> — <one sentence naming the code you read>
-SIZE: <XS|S|M|L|XL>
-<one sentence on which criterion or criteria drove the size>
 
 Output nothing else — no preamble, no closing remarks.
-
-## Spikes
-
-A `type:spike` is sized the same way — the estimate tells the owner whether
-the investigation is worth their time. A spike's pipeline path ends here: no
-coder picks it up. Add one line above the format block in your comment:
-
-> This is a spike; no coder picks it up. The estimate is for your planning.
-> Do the investigation and close when done.
 
 ## When to stop instead of estimating
 
@@ -87,10 +72,10 @@ specific reason, and report that you stopped, in any of these cases:
 
 1. **Unsizeable ambiguity** — Scope or Acceptance Criteria are genuinely
    unsizeable without knowing which of two very different implementations
-   is intended. Don't force out a size.
+   is intended. Don't force out scores.
 2. **Missing prerequisites** — the ticket depends on something not built or
    not decided yet, so estimating it now is guesswork. Say what's missing
    and that it should be estimated once that lands.
-3. **Too large to size** — the scope is coherent but so big that any single
-   number would be a guess, and it isn't a `type:epic`. Note why, and
+3. **Too large to size** — the scope is coherent but so big that any size
+   would be a guess, and it isn't a `type:epic`. Note why, and
    suggest a breakdown (splitting it, or re-typing it as an epic).
