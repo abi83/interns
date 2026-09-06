@@ -24,9 +24,11 @@ Four agents pick issues up by label and hand them along a fixed track:
 | **Reviewer** | a PR opened/updated by the coder (or a human)                         | waits for the `test` / `build` checks, reviews the diff against the linked issue, submits `APPROVE` or `REQUEST_CHANGES` | PR approved, or a coder fix round, or `pr:needs-attention` |
 
 The human owner steps in twice. First, on a refined and estimated issue: decide
-whether to run the automated implementation flow or send the task back for
-rework — done by moving the label `status:estimated` → `status:ready`. Second,
-review and merge the finished PR. Everything in between is automated, and
+whether to run the automated implementation flow, or send the task back for
+rework — e.g. the scope is too broad to land in one PR, the estimator flagged a
+huge blast radius, or refinement surfaced blockers and missing prerequisites.
+Approving is a single move: the label `status:estimated` → `status:ready`.
+Second, review and merge the finished PR. Everything in between is automated, and
 anything the automation can't finish — a Claude error, a vague issue
 description, missing prerequisites or blockers — is parked on
 `status:needs-attention` / `pr:needs-attention` for a human to pick up.
