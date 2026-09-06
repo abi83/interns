@@ -21,7 +21,7 @@ Four agents pick issues up by label and hand them along a fixed track:
 | **Refiner** | `status:needs-refinement` on an issue                                 | picks the type, checks the draft against the codebase and wiki, rewrites the body into the type's template, posts a blockers/dependencies comment | `status:refined` |
 | **Estimator** | `status:refined`                                                      | reads the code the Scope touches, scores blast radius / touch / human involvement / review overhead, rolls that into a size | `status:estimated` + `size:*` |
 | **Coder** | `status:ready` (human-assigned) on a `type:coding-task` or `type:bug` | implements every Acceptance Criteria item, writes tests, opens a PR that `Closes #N` | `status:in-progress`, a PR labelled `pr:in-review` |
-| **Reviewer** | a PR opened/updated by the coder (or a human)                         | waits for the `test` / `build` checks, reviews the diff against the linked issue, submits `APPROVE` or `REQUEST_CHANGES` | PR approved, or a coder fix round, or `pr:needs-attention` |
+| **Reviewer** | a PR opened/updated by the coder (or a human)                         | waits for the PR's checks to be green, reviews the diff against the linked issue, submits `APPROVE` or `REQUEST_CHANGES` | PR approved, or a coder fix round, or `pr:needs-attention` |
 
 The human owner steps in twice. First, on a refined and estimated issue: decide
 whether to run the automated implementation flow, or send the task back for
@@ -89,8 +89,8 @@ Two limits bound the loop:
   can keep pushing commits and each one still spawns a reviewer run. At 5 total
   reviews on the PR, automatic review stops entirely and stays manual.
 
-Red `test` / `build` checks also send the PR straight to `pr:needs-attention`,
-with no fix round.
+A red PR check also sends the PR straight to `pr:needs-attention`, with no fix
+round.
 
 | Label | Meaning                                      | Set by                      | Moves to |
 |---|----------------------------------------------|-----------------------------|---|
@@ -222,9 +222,10 @@ what's configurable without reading the source. Edit it, or delete a key to
 fall back to interns' own built-in default. A value can only come from this
 file or the built-in — there is no second, overlapping source.
 
-Your repo also needs `test` and `build` status checks on its PRs (from
-its own `deploy.yml` or equivalent) — the reviewer waits on them and won't run
-until both are green.
+The reviewer waits for **all** of a PR's checks to be green before it runs — a
+red or cancelled check on anything routes the PR to a human instead. Name any
+non-blocking advisory checks (preview deploys, coverage deltas) under
+`checks.ignore` in `.github/interns.yml` to keep them out of that gate.
 
 ### Doing it by hand
 
@@ -288,8 +289,8 @@ those two are implementable. Add the right type label and re-apply
 <details>
 <summary><b>A PR is stuck on <code>pr:needs-attention</code>.</b></summary>
 
-One of: the `test` / `build` checks went red (the coder is expected to push
-green — this goes straight to a human, no retry), a second review round still
+One of: a PR check went red (the coder is expected to push green — this goes
+straight to a human, no retry), a second review round still
 requested changes (the fix loop didn't converge), or the automatic-review cap
 (5 per PR) was hit. Read the PR comment the pipeline left for which. Re-engage a
 reviewer with the caller's `workflow_dispatch` (`phase: reviewer`,
