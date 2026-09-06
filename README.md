@@ -141,23 +141,20 @@ then runs the `interns-install` CLI.
 `.github/workflows/install.yml` for the rest. Both halves are idempotent —
 re-run either any time to fix drift.
 
-| # | Step | Why                                                                                                                                                                                          |
-|---|---|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 1 | Check (and fix) default-branch protection | Agent output isn't deterministic — an agent could ignore its instructions and push straight to the default branch. Protection guarantees every change still goes through a PR. |
-| 2 | Check (and enable) GitHub Pages | The dashboard the pipeline reports to deploys here — nothing to look at without it.                                                                                                          |
-| 3 | Mint the two GitHub Apps | Separate coder/reviewer identities, so the reviewer can approve the coder's PRs (`claude[bot]` can't approve its own).                                                                       |
-| 4 | Write App secrets/variables + `CLAUDE_CODE_OAUTH_TOKEN` | The pipeline's workflows need these to authenticate as the Apps and call Claude.                                                                                                             |
-| 5 | Sync labels | Keeps the repo's labels matching the manifest the pipeline reads (`status:*`, `type:*`, etc.) — it can't route issues without them.                                                         |
-| 6 | Open the caller-stub PR | Adds the pipeline's own workflows and starter config; merging it finishes setup.                                                                                                         |
+| # | Step | Why |
+|---|---|---|
+| 1 | Check (and fix) default-branch protection | An agent could ignore its instructions and push straight to the default branch; protection forces every change through a PR. |
+| 2 | Check (and enable) GitHub Pages | The dashboard the pipeline reports to deploys here. |
+| 3 | Mint the two GitHub Apps | Separate coder/reviewer identities, so the reviewer can approve the coder's PRs (`claude[bot]` can't approve its own). |
+| 4 | Write App secrets/variables + `CLAUDE_CODE_OAUTH_TOKEN` | The workflows need these to authenticate as the Apps and call Claude. |
+| 5 | Sync labels | The pipeline routes on `status:*` / `type:*` / `pr:*` and can't run without them. |
+| 6 | Open the caller-stub PR | Adds the pipeline's workflows and starter config; merging it finishes setup. |
 
-#### 1. Default-branch protection
+#### Default-branch protection
 
-The agents push branches with your repo's own credentials, so no bot
-identity (`github-actions[bot]`, `claude[bot]`, the two Apps) may be allowed
-to push to the default branch — every change goes through a human-merged PR.
-Running this check locally means it uses the admin-scoped `gh` session you
-already authenticated for Setup, instead of a second admin-capable token
-stored in the repo. What happens, by starting state:
+The agents push branches with your repo's own credentials, so no bot identity
+(`github-actions[bot]`, `claude[bot]`, the two Apps) may be on the default
+branch's push allowlist. By starting state:
 
 | Default branch | Result |
 |---|---|
@@ -166,20 +163,14 @@ stored in the repo. What happens, by starting state:
 | protected, but your `gh` session lacks admin on the repo | **install fails** — re-auth with admin access, then re-run |
 | a bot identity is on the push allowlist | **install fails** — remove it, then re-run |
 
-If protection is enforced some other way this check can't see — an org-wide
-ruleset, say, rather than classic branch protection — pass
-`interns-install --branch-protection-handled-externally` to skip it.
+If protection is enforced some other way this check can't see (an org-wide
+ruleset, say), pass `interns-install --branch-protection-handled-externally`
+to skip it.
 
-#### 2. GitHub Pages
-
-The dashboard's deploy target. Enabled with the "GitHub Actions" build type
-if it's off; passes straight through if it's already on.
-
-#### 3. Two GitHub Apps
+#### GitHub Apps
 
 `interns-coder` and `interns-reviewer`, minted via the App Manifest flow, one
-"Create GitHub App" click each. Separate identities, so the reviewer can
-review the coder's PRs. Same permission set, no webhook:
+"Create GitHub App" click each. Same permission set, no webhook:
 
 | Permission | Access | Why |
 |---|---|---|
@@ -189,14 +180,14 @@ review the coder's PRs. Same permission set, no webhook:
 | Checks | Read | reviewer reads check results |
 | Metadata | Read | mandatory baseline |
 
-Installing each App on the repo is still a manual click — the installer
-prints the links.
+Installing each App on the repo is a manual click — the installer prints the
+links.
 
-#### 4. Secrets and variables
+#### Secrets and variables
 
-The App keys and IDs come from the mint above; for `CLAUDE_CODE_OAUTH_TOKEN`
-the installer prompts you to paste a token you obtain separately (see
-`anthropics/claude-code-action`), then writes it too.
+App keys and IDs come from the mint above; for `CLAUDE_CODE_OAUTH_TOKEN` the
+installer prompts you to paste a token you obtain separately (see
+`anthropics/claude-code-action`).
 
 | Kind | Name | Value |
 |---|---|---|
@@ -207,21 +198,16 @@ the installer prompts you to paste a token you obtain separately (see
 | Variable | `INTERNS_REVIEWER_APP_ID` | `interns-reviewer` App ID |
 
 The `install.yml` safety check fails the install if a required secret or
-variable is missing (it can't set the values); if its token can't list them it
-warns and leaves verification to you.
+variable is missing; if its token can't list them it warns and leaves
+verification to you.
 
-#### 5. Labels
-
-Synced from the manifest ([`.github/labels.json`](.github/labels.json)).
-
-#### 6. The caller-stub PR
+#### Caller-stub PR
 
 Adds two thin caller workflows that own the triggers and delegate to the
-reusable cores, plus a starter `.github/interns.yml`. It adds only
-missing files, never overwriting a hand-edited one. Merge it to finish. The
-stubs are pinned to `@v0.1.0` — keep the pin, the cores check out their own
-matching assets from that ref. Full stubs, including the `on:` triggers, are
-in [`templates/workflows/`](templates/workflows).
+reusable cores, plus a starter `.github/interns.yml`. Adds only missing files,
+never overwriting a hand-edited one; pinned to `@v0.1.0`. Merge it to finish.
+Full stubs, including the `on:` triggers, are in
+[`templates/workflows/`](templates/workflows).
 
 Pass `--issue-templates` (or `install_issue_templates: true` to `install.yml`)
 to also add the default issue templates
