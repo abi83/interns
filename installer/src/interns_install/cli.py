@@ -19,7 +19,14 @@ import time
 import webbrowser
 
 from . import gh, safety
-from .apps import APPS, AppSpec, ManifestServer, build_manifest, settings_new_url
+from .apps import (
+    APPS,
+    AppSpec,
+    ManifestServer,
+    build_manifest,
+    settings_app_url,
+    settings_new_url,
+)
 from .console import Console
 
 WORKFLOW = "install.yml"
@@ -50,6 +57,11 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
                    help="target repo (default: the repo `gh` resolves for the cwd)")
     p.add_argument("--yes", action="store_true",
                    help="assume yes for every prompt (non-interactive)")
+    p.add_argument("--coder-app-id", metavar="ID",
+                   help="reuse the coder App with this ID instead of minting one "
+                        "(the App is account-wide; only its install + secrets are per-repo)")
+    p.add_argument("--reviewer-app-id", metavar="ID",
+                   help="reuse the reviewer App with this ID instead of minting one")
     p.add_argument("--dry-run", action="store_true",
                    help="print every mutation without performing it")
     p.add_argument("--issue-templates", nargs="?", const="true", default="false",
@@ -85,12 +97,88 @@ def _secret_verb(name: str, existing: list[str] | None) -> str:
     return "overwrite" if name in existing else "add"
 
 
+def _use_existing_app(con: Console, repo: gh.Repo, spec: AppSpec,
+                      app_id: str | None, slug: str,
+                      existing_secrets: list[str] | None) -> None:
+    """Reuse an account-wide App: write this repo's App-ID variable and private
+    key secret, and prompt to install it here. Never mints, never reads a key
+    back — the operator pastes a PEM (reused from another repo, or freshly
+    generated on the App's settings page; adding a key does not revoke others).
+    """
+    settings_url = settings_app_url(repo.owner, repo.is_org, slug)
+    have_key = existing_secrets is not None and spec.key_secret in existing_secrets
+
+    if con.dry_run:
+        if app_id is None:
+            con.say(f"App '{spec.default_name}' already exists — {settings_url}")
+        con.mutation(f"set variable {spec.id_var} (existing {spec.key} App)")
+        if not have_key:
+            con.mutation(f"{_secret_verb(spec.key_secret, existing_secrets)} "
+                         f"secret {spec.key_secret} (pasted PEM)")
+        con.note_manual(f"install the existing {spec.key} App on {repo.slug}")
+        return
+
+    if app_id is None:
+        con.say(f"an App named '{spec.default_name}' already exists on this account — "
+                "reusing it, no duplicate minted")
+        con.say(f"its App ID (and 'Generate a private key') is on: {settings_url}")
+        if con.assume_yes:
+            con.note_manual(f"pass --{spec.key}-app-id (from {settings_url}) and set "
+                            f"{spec.key_secret}, then install the App on {repo.slug}")
+            return
+        app_id = con.prompt(f"{spec.id_var} — the numeric App ID (blank to skip):")
+        if not app_id:
+            con.note_manual(f"set {spec.id_var} / {spec.key_secret} for the existing "
+                            f"{spec.key} App, then install it on {repo.slug}")
+            return
+    else:
+        con.say(f"reusing {spec.key} App {app_id} — {settings_url}")
+
+    if con.mutation(f"set variable {spec.id_var} = {app_id}"):
+        gh.set_variable(repo.slug, spec.id_var, app_id)
+
+    if have_key:
+        con.say(f"{spec.key_secret} is already set — leaving it (its key stays valid; "
+                "keys held by other repos are unaffected)")
+    elif con.assume_yes:
+        con.note_manual(f"set the {spec.key_secret} secret (a PEM private key for "
+                        f"'{spec.default_name}')")
+    else:
+        pem = con.prompt_secret(
+            f"Paste a PEM private key for '{spec.default_name}' — reuse another "
+            "repo's or generate a new one (blank to skip):")
+        if pem and con.mutation(
+                f"{_secret_verb(spec.key_secret, existing_secrets)} secret {spec.key_secret}"):
+            gh.set_secret(repo.slug, spec.key_secret, pem)
+        elif not pem:
+            con.note_manual(f"set the {spec.key_secret} secret (PEM private key)")
+        pem = None  # noqa: F841 - drop the only reference to the key
+
+    con.note_manual(
+        f"confirm the {spec.key} App is installed on {repo.slug}: "
+        f"https://github.com/apps/{slug}/installations/new"
+    )
+
+
 def _provision_app(con: Console, repo: gh.Repo, spec: AppSpec,
+                   app_id: str | None,
                    existing_secrets: list[str] | None,
                    existing_vars: list[str] | None) -> None:
     con.step(f"GitHub App: {spec.default_name} ({spec.key})")
-    if not con.confirm(f"Create the App '{spec.default_name}' now?", default=True):
+
+    if app_id is not None:
+        con.say(f"--{spec.key}-app-id given — reusing App {app_id}, skipping the mint")
+        _use_existing_app(con, repo, spec, app_id, spec.default_name, existing_secrets)
+        return
+
+    if not con.confirm(f"Set up the App '{spec.default_name}' now?", default=True):
         con.note_manual(f"create the {spec.key} App and set {spec.id_var} / {spec.key_secret}")
+        return
+
+    existing = gh.app_public(spec.default_name)
+    if existing:
+        _use_existing_app(con, repo, spec, None,
+                          existing.get("slug", spec.default_name), existing_secrets)
         return
 
     action_url = settings_new_url(repo.owner, repo.is_org)
@@ -105,7 +193,7 @@ def _provision_app(con: Console, repo: gh.Repo, spec: AppSpec,
     with ManifestServer(action_url, lambda redirect: build_manifest(
         spec.default_name, redirect, spec.description)) as server:
         con.say(f"opening your browser to create '{spec.default_name}' — "
-                "click 'Create GitHub App' (rename it first if that name is taken)")
+                "click 'Create GitHub App'")
         con.say(f"if nothing opened, visit: {server.base_url}")
         webbrowser.open(server.base_url)
         code = server.wait_for_code()
@@ -224,8 +312,10 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     try:
+        app_ids = {"coder": args.coder_app_id, "reviewer": args.reviewer_app_id}
         for spec in APPS:
-            _provision_app(con, repo, spec, existing_secrets, existing_vars)
+            _provision_app(con, repo, spec, app_ids.get(spec.key),
+                           existing_secrets, existing_vars)
         _write_oauth_token(con, repo, existing_secrets)
         if not args.skip_handoff:
             _handoff(con, repo, args)

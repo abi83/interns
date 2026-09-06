@@ -154,7 +154,7 @@ re-run either any time to fix drift.
 |---|---|---|
 | 1 | Check (and fix) default-branch protection | An agent could ignore its instructions and push straight to the default branch; protection forces every change through a PR. |
 | 2 | Check (and enable) GitHub Pages | Deploy target for the visibility dashboard ([#6](https://github.com/abi83/interns/issues/6)). |
-| 3 | Mint the two GitHub Apps | Separate coder/reviewer identities, so the reviewer can approve the coder's PRs (`claude[bot]` can't approve its own). |
+| 3 | Mint (or reuse) the two GitHub Apps | Separate coder/reviewer identities, so the reviewer can approve the coder's PRs (`claude[bot]` can't approve its own). Reused as-is on further repos under the same account — see [GitHub Apps](#github-apps). |
 | 4 | Write App secrets/variables + `CLAUDE_CODE_OAUTH_TOKEN` | The workflows need these to authenticate as the Apps and call Claude. |
 | 5 | Hand off to `install.yml` | If no caller for it exists yet, open a one-file PR adding `.github/workflows/install.yml` (a thin wrapper) — merge it and re-run the installer. Once present, dispatch it. |
 | 6 | (`install.yml`) Sync labels | The pipeline routes on `status:*` / `type:*` / `pr:*` and can't run without them. |
@@ -192,6 +192,24 @@ to skip it.
 
 Installing each App on the repo is a manual click — the installer prints the
 links.
+
+**One App, many repos.** A GitHub App is per-account (or per-org); only its
+*installation* and the repo's secrets/variables are per-repo. App names are
+globally unique, so a second consumer repo under the same account must reuse
+the Apps from the first, not mint `interns-coder-2`:
+
+- Pass `--coder-app-id` / `--reviewer-app-id` to run the App step
+  non-interactively against the existing Apps.
+- Without the flags, the installer detects that an App with the default name
+  already exists, prints its settings URL, and asks for the App ID and a PEM
+  private key instead of minting.
+- The App ID is on the App's settings page. For the key you can paste the same
+  PEM the first repo already stores, or click **Generate a private key** — an
+  App holds several keys at once and adding one does not revoke the others, so
+  the first repo keeps working. Client secret and webhook secret are
+  account-wide and need no change.
+- Then install the existing App on the new repo (the installer prints the
+  link) and let it write `INTERNS_*_APP_ID` + `INTERNS_*_APP_PRIVATE_KEY`.
 
 #### Secrets and variables
 
