@@ -109,12 +109,16 @@ signal. List the PRs waiting on a human with
 | `type:coding-task` | yes | yes |
 | `type:bug` | yes | yes |
 | `type:spike` | yes | no — a human does the investigation |
-| `type:epic` | no — refiner refuses it up front | no — a human breaks it into sub-issues |
+| `type:epic` | no — refiner rejects epic-sized issues to `status:needs-attention` | no — a human breaks it into sub-issues |
 
-Spikes and epics are never implemented automatically. A spike is refined and
-estimated, then bounced to `status:needs-attention` at the coder's type gate. An
-epic doesn't even get refined — the refiner refuses it. Either way, a human
-takes it from there.
+Spikes and epics are never implemented automatically. A spike's pipeline path
+**ends at `status:estimated`** — the estimate exists so the owner can judge
+whether the investigation is worth their time; they then do the work and close
+the issue. There is no spike greenlight: `status:ready` is coder-only, so moving
+a spike there is a mistake, and the coder's type gate bounces it to
+`status:needs-attention`. An epic doesn't get refined at all — the refiner
+rejects epic-sized issues to `status:needs-attention` and a human breaks them
+into sub-issues. Either way, a human takes it from there.
 
 ### `size:*` and `priority:*`
 
