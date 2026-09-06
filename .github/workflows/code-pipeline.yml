@@ -227,6 +227,20 @@ jobs:
           "${{ steps.pr.outputs.head_ref }}"
           "${{ steps.issue.outputs.number }}"
 
+      # Both the Conventional Commit prefix and the branch name are derivable
+      # from the issue's type:* label and title before the agent runs — the
+      # coder shouldn't spend reasoning inventing them. Initial round only; a
+      # fix round reuses the existing PR branch.
+      - name: Derive commit-type and branch hints
+        id: hints
+        if: steps.guard.outputs.skip != 'true' && steps.mode.outputs.fix_round != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: >
+          .interns/.github/scripts/pipeline/derive-code-hints.sh
+          "${{ steps.issue.outputs.number }}"
+
       - name: Run Claude coder (initial implementation)
         id: claude_initial
         if: steps.guard.outputs.skip != 'true' && steps.mode.outputs.fix_round != 'true'
@@ -244,6 +258,8 @@ jobs:
             ISSUE NUMBER: ${{ steps.issue.outputs.number }}
             TITLE: ${{ steps.issue.outputs.title }}
             OWNER: @${{ github.repository_owner }}
+            COMMIT_TYPE_HINT: ${{ steps.hints.outputs.commit_type_hint }}
+            BRANCH: ${{ steps.hints.outputs.branch }}
             BODY:
             ${{ steps.issue.outputs.body }}
 
