@@ -34,6 +34,7 @@ env:
   # form the agent might type it in: relative with ./, relative without it,
   # and workspace-absolute.
   ALLOWED_EDIT_BODY: "Bash(./.interns/.github/scripts/gh-safe/edit-issue-body.sh:*),Bash(.interns/.github/scripts/gh-safe/edit-issue-body.sh:*),Bash(${{ github.workspace }}/.interns/.github/scripts/gh-safe/edit-issue-body.sh:*)"
+  ALLOWED_EDIT_TITLE: "Bash(./.interns/.github/scripts/gh-safe/edit-issue-title.sh:*),Bash(.interns/.github/scripts/gh-safe/edit-issue-title.sh:*),Bash(${{ github.workspace }}/.interns/.github/scripts/gh-safe/edit-issue-title.sh:*)"
   ALLOWED_EDIT_LABELS: "Bash(./.interns/.github/scripts/gh-safe/edit-issue-labels.sh:*),Bash(.interns/.github/scripts/gh-safe/edit-issue-labels.sh:*),Bash(${{ github.workspace }}/.interns/.github/scripts/gh-safe/edit-issue-labels.sh:*)"
   ALLOWED_COMMENT: "Bash(./.interns/.github/scripts/gh-safe/comment-issue.sh:*),Bash(.interns/.github/scripts/gh-safe/comment-issue.sh:*),Bash(${{ github.workspace }}/.interns/.github/scripts/gh-safe/comment-issue.sh:*)"
 
@@ -130,18 +131,22 @@ jobs:
             1. Investigate the draft against the repo and wiki (refine.md
                Step 2), then write the new body to ./.issue-pipeline-body.md
             2. Run ./.interns/.github/scripts/gh-safe/edit-issue-body.sh (no args)
-            3. Write the blockers/dependencies analysis (refine.md Step 4)
+            3. If the title no longer describes the refined body (refine.md
+               Step 3), write the corrected title to ./.issue-pipeline-title.md
+               and run ./.interns/.github/scripts/gh-safe/edit-issue-title.sh
+               (no args). Leave the title as-is if it's already accurate.
+            4. Write the blockers/dependencies analysis (refine.md Step 4)
                to ./.issue-pipeline-comment.md and run
                ./.interns/.github/scripts/gh-safe/comment-issue.sh (no args)
-            4. Swap labels:
+            5. Swap labels:
                ./.interns/.github/scripts/gh-safe/edit-issue-labels.sh --remove-label "status:needs-refinement" --add-label "status:refined"
 
             Post exactly the one analysis comment described in refine.md —
-            no other comments, no edits beyond the body and labels.
+            no other comments, no edits beyond the title, body, and labels.
           claude_args: |
             --model ${{ steps.cfg.outputs.model }}
             --max-turns ${{ steps.cfg.outputs.max_turns }}
-            --allowedTools "Read,Grep,Glob,Write,${{ env.ALLOWED_EDIT_BODY }},${{ env.ALLOWED_EDIT_LABELS }},${{ env.ALLOWED_COMMENT }}"
+            --allowedTools "Read,Grep,Glob,Write,${{ env.ALLOWED_EDIT_BODY }},${{ env.ALLOWED_EDIT_TITLE }},${{ env.ALLOWED_EDIT_LABELS }},${{ env.ALLOWED_COMMENT }}"
 
       - name: Report run cost
         if: always() && steps.claude.outputs.execution_file != ''
