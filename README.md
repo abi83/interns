@@ -3,8 +3,11 @@
 A tireless team of interns that refine issues, estimate them, open PRs, and  review each other's work — with a human in
 the loop when really needed.
 
-The pipeline drives [Claude Code](https://github.com/anthropics/claude-code) over a checked-out repo, respects its `CLAUDE.md` / `AGENTS.md`, and runs
-entirely in the host repo's GitHub Actions — no hosted service.
+The pipeline drives [Claude Code](https://github.com/anthropics/claude-code) over a
+checked-out repo, respects its `CLAUDE.md` / `AGENTS.md`, and runs entirely in the
+host repo's GitHub Actions — no hosted service, no VMs to manage, no machine of your
+own left running. Each issue and PR is its own workflow run, so the work fans out
+concurrently and scales with your Actions runners, not with your attention.
 
 Status: early. Consumed by [`abi83/prepify`](https://github.com/abi83/prepify).
 Design and roadmap: [#3](https://github.com/abi83/interns/issues/3).
@@ -13,17 +16,20 @@ Design and roadmap: [#3](https://github.com/abi83/interns/issues/3).
 
 Four agents pick issues up by label and hand them along a fixed track:
 
-| Agent | Trigger | Does | Leaves |
-|---|---|---|---|
-| **Refiner** | `status:needs-refinement` on an issue | picks the type, checks the draft against the codebase and wiki, rewrites the body into the type's template, posts a blockers/dependencies comment | `status:refined` |
-| **Estimator** | `status:refined` | reads the code the Scope touches, scores blast radius / touch / human involvement / review overhead, rolls that into a size | `status:estimated` + `size:*` |
-| **Coder** | `status:ready` (owner-approved) on a `type:coding-task` or `type:bug` | implements every Acceptance Criteria item, writes tests, opens a PR that `Closes #N` | `status:in-progress`, a PR labelled `pr:in-review` |
-| **Reviewer** | a PR opened/updated by the coder (or a human) | waits for the `test` / `build` checks, reviews the diff against the linked issue, submits `APPROVE` or `REQUEST_CHANGES` | PR approved, or a coder fix round, or `pr:needs-attention` |
+| Agent | Trigger                                                               | Does | Leaves |
+|---|-----------------------------------------------------------------------|---|---|
+| **Refiner** | `status:needs-refinement` on an issue                                 | picks the type, checks the draft against the codebase and wiki, rewrites the body into the type's template, posts a blockers/dependencies comment | `status:refined` |
+| **Estimator** | `status:refined`                                                      | reads the code the Scope touches, scores blast radius / touch / human involvement / review overhead, rolls that into a size | `status:estimated` + `size:*` |
+| **Coder** | `status:ready` (human-assigned) on a `type:coding-task` or `type:bug` | implements every Acceptance Criteria item, writes tests, opens a PR that `Closes #N` | `status:in-progress`, a PR labelled `pr:in-review` |
+| **Reviewer** | a PR opened/updated by the coder (or a human)                         | waits for the `test` / `build` checks, reviews the diff against the linked issue, submits `APPROVE` or `REQUEST_CHANGES` | PR approved, or a coder fix round, or `pr:needs-attention` |
 
-The human owner does two things: approve the estimate (move `status:estimated`
-→ `status:ready`), and merge the final PR. Everything between is automated, and
-anything the automation can't finish is parked on `status:needs-attention` /
-`pr:needs-attention` rather than guessed at.
+The human owner steps in twice. First, on a refined and estimated issue: decide
+whether to run the automated implementation flow or send the task back for
+rework — done by moving the label `status:estimated` → `status:ready`. Second,
+review and merge the finished PR. Everything in between is automated, and
+anything the automation can't finish — a Claude error, a vague issue
+description, missing prerequisites or blockers — is parked on
+`status:needs-attention` / `pr:needs-attention` for a human to pick up.
 
 ```mermaid
 flowchart TD
@@ -126,7 +132,7 @@ curl -LsSf https://raw.githubusercontent.com/abi83/interns/v0.1.0/install.sh | s
 ```
 
 That's it. The script installs [`uv`](https://docs.astral.sh/uv/) if it's missing,
-then runs the `interns-install` CLI. More details under: [`installer/README.md`](installer/README.md).
+then runs the `interns-install` CLI.
 
 ### What the installer does
 
