@@ -133,7 +133,7 @@ curl -LsSf https://raw.githubusercontent.com/abi83/interns/v0.1.0/install.sh | s
 ```
 
 That's it. The script installs [`uv`](https://docs.astral.sh/uv/) if it's missing,
-then runs the `interns-install` CLI wizard.
+then runs the `interns-install` CLI.
 
 ### What the installer does
 
@@ -141,14 +141,14 @@ then runs the `interns-install` CLI wizard.
 `.github/workflows/install.yml` for the rest. Both halves are idempotent —
 re-run either any time to fix drift.
 
-| # | Step | Why                                                                                                                                                                                           |
-|---|---|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 1 | Check (and fix) default-branch protection | Agent output isn't deterministic — an agent could ignore its instructions and push straight to the default branch. Protection guarantees every change still goes through a human-approved PR. |
-| 2 | Check (and enable) GitHub Pages | The dashboard the pipeline reports to deploys here — nothing to look at without it.                                                                                                           |
-| 3 | Mint the two GitHub Apps | Separate coder/reviewer identities, so the reviewer can approve the coder's PRs (`claude[bot]` can't approve its own).                                                                        |
-| 4 | Write App secrets/variables + `CLAUDE_CODE_OAUTH_TOKEN` | The pipeline's workflows need these to authenticate as the Apps and call Claude.                                                                                                              |
-| 5 | Sync labels | Keeps the repo's labels matching the manifest the pipeline reads (`status:*`, `type:*`, etc.) — it can't route issues without them.                                                          |
-| 6 | Open the caller-stub PR | Adds the pipeline's own workflows and starter config; merging it finishes setup.                                                                                                          |
+| # | Step | Why                                                                                                                                                                                          |
+|---|---|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1 | Check (and fix) default-branch protection | Agent output isn't deterministic — an agent could ignore its instructions and push straight to the default branch. Protection guarantees every change still goes through a PR. |
+| 2 | Check (and enable) GitHub Pages | The dashboard the pipeline reports to deploys here — nothing to look at without it.                                                                                                          |
+| 3 | Mint the two GitHub Apps | Separate coder/reviewer identities, so the reviewer can approve the coder's PRs (`claude[bot]` can't approve its own).                                                                       |
+| 4 | Write App secrets/variables + `CLAUDE_CODE_OAUTH_TOKEN` | The pipeline's workflows need these to authenticate as the Apps and call Claude.                                                                                                             |
+| 5 | Sync labels | Keeps the repo's labels matching the manifest the pipeline reads (`status:*`, `type:*`, etc.) — it can't route issues without them.                                                         |
+| 6 | Open the caller-stub PR | Adds the pipeline's own workflows and starter config; merging it finishes setup.                                                                                                         |
 
 #### 1. Default-branch protection
 
