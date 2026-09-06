@@ -5,6 +5,11 @@ repo secrets and variables, checks default-branch protection and Pages, then
 hands off to `install.yml`. It runs locally because `GITHUB_TOKEN` is never
 granted admin access or `secrets: write`.
 
+`install.yml` is a reusable workflow in `abi83/interns`, so the handoff needs a
+local caller. If the repo has none, the CLI opens a one-file PR adding
+`.github/workflows/install.yml` (the wrapper from `templates/workflows/`);
+merge it and re-run the CLI, which then dispatches it.
+
 What it does, step by step, and how it fits the rest of setup:
 [the root README](../README.md).
 

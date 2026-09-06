@@ -133,8 +133,10 @@ repo** (needed to create repo secrets and variables):
 curl -LsSf https://raw.githubusercontent.com/abi83/interns/v0.1.0/install.sh | sh
 ```
 
-That's it. The script installs [`uv`](https://docs.astral.sh/uv/) if it's missing,
-then runs the `interns-install` CLI.
+The script installs [`uv`](https://docs.astral.sh/uv/) if it's missing, then
+runs the `interns-install` CLI. On a fresh repo you merge two small PRs it
+opens (the install wrapper, then the caller stubs) and re-run it once in
+between — see the steps below.
 
 ### What the installer does
 
@@ -148,8 +150,9 @@ re-run either any time to fix drift.
 | 2 | Check (and enable) GitHub Pages | Deploy target for the visibility dashboard ([#6](https://github.com/abi83/interns/issues/6)). |
 | 3 | Mint the two GitHub Apps | Separate coder/reviewer identities, so the reviewer can approve the coder's PRs (`claude[bot]` can't approve its own). |
 | 4 | Write App secrets/variables + `CLAUDE_CODE_OAUTH_TOKEN` | The workflows need these to authenticate as the Apps and call Claude. |
-| 5 | Sync labels | The pipeline routes on `status:*` / `type:*` / `pr:*` and can't run without them. |
-| 6 | Open the caller-stub PR | Adds the pipeline's workflows and starter config; merging it finishes setup. |
+| 5 | Hand off to `install.yml` | If no caller for it exists yet, open a one-file PR adding `.github/workflows/install.yml` (a thin wrapper) — merge it and re-run the installer. Once present, dispatch it. |
+| 6 | (`install.yml`) Sync labels | The pipeline routes on `status:*` / `type:*` / `pr:*` and can't run without them. |
+| 7 | (`install.yml`) Open the caller-stub PR | Adds the pipeline's workflows and starter config; merging it finishes setup. |
 
 #### Default-branch protection
 
@@ -202,6 +205,16 @@ The `install.yml` safety check fails the install if a required secret or
 variable is missing; if its token can't list them it warns and leaves
 verification to you.
 
+#### Install wrapper
+
+`install.yml` is a reusable workflow in `abi83/interns`; a consumer repo can
+only invoke it through a local caller. When `interns-install` finds none, it
+opens a one-file PR adding
+[`.github/workflows/install.yml`](templates/workflows/install.yml) — a thin
+`workflow_dispatch` wrapper pinned to `@v0.1.0`. Merge it (branch protection is
+already on, so it can't be a direct push), then re-run `interns-install`; it
+dispatches the wrapper and proceeds to the caller-stub PR.
+
 #### Caller-stub PR
 
 Adds two thin caller workflows that own the triggers and delegate to the
@@ -233,9 +246,12 @@ non-blocking advisory checks (preview deploys, coverage deltas) under
 <summary>The manual path, without <code>interns-install</code></summary>
 
 The fully manual path stays supported: create the two Apps with the permissions
-above and install them on the repo, add the secrets and variables, sync labels
-from the manifest, set branch protection, and commit the caller stubs from
-[`templates/workflows/`](templates/workflows) yourself.
+above and install them on the repo, add the secrets and variables, set branch
+protection, and commit the caller stubs from
+[`templates/workflows/`](templates/workflows) yourself — including
+[`install.yml`](templates/workflows/install.yml). With that wrapper in place,
+run it (`gh workflow run install.yml`) to sync labels and open the caller-stub
+PR, or sync labels from the manifest by hand.
 
 </details>
 

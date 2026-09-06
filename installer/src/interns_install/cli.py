@@ -13,7 +13,9 @@ handed off to `install.yml`.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
+import time
 import webbrowser
 
 from . import gh, safety
@@ -21,6 +23,22 @@ from .apps import APPS, AppSpec, ManifestServer, build_manifest, settings_new_ur
 from .console import Console
 
 WORKFLOW = "install.yml"
+INTERNS_REPO = "abi83/interns"
+
+# Ref to copy the install wrapper from. install.sh exports INTERNS_REF; the
+# default matches the pin baked into the templates.
+INTERNS_REF = os.environ.get("INTERNS_REF") or "v0.1.0"
+
+WRAPPER_PR_BODY = """\
+## Add the interns install workflow
+
+`install.yml` can only be dispatched once a thin caller for it exists in this
+repo — `interns-install` opened this PR to add it.
+
+After merging, re-run `interns-install` (or dispatch **Install interns** from
+the Actions tab). That run syncs the label manifest and opens the caller-stub
+PR that finishes setup.
+"""
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -133,12 +151,7 @@ def _handoff(con: Console, repo: gh.Repo, args: argparse.Namespace) -> None:
     inputs = {"install_issue_templates": args.issue_templates}
 
     if not gh.workflow_exists(repo.slug, WORKFLOW):
-        con.note_manual(
-            f"add a thin wrapper that calls abi83/interns/.github/workflows/{WORKFLOW} "
-            f"(see the interns README), then run it — or `gh workflow run {WORKFLOW} "
-            f"--repo {repo.slug}` once present"
-        )
-        con.say(f"{WORKFLOW} is not in {repo.slug} yet — see the summary for the manual step")
+        _add_wrapper(con, repo)
         return
 
     ref = args.handoff_ref or _default_branch(repo)
@@ -147,6 +160,36 @@ def _handoff(con: Console, repo: gh.Repo, args: argparse.Namespace) -> None:
         return
     if con.mutation(f"dispatch {WORKFLOW} on {repo.slug}@{ref}"):
         gh.dispatch_workflow(repo.slug, WORKFLOW, ref, inputs)
+
+
+def _add_wrapper(con: Console, repo: gh.Repo) -> None:
+    con.say(f"{WORKFLOW} is not in {repo.slug} yet — it needs a thin caller wrapper "
+            "before it can run")
+    if not con.confirm(f"Open a PR adding .github/workflows/{WORKFLOW}?", default=True):
+        con.note_manual(
+            f"copy templates/workflows/{WORKFLOW} from {INTERNS_REPO} to "
+            f".github/workflows/{WORKFLOW}, merge it, then re-run interns-install"
+        )
+        return
+
+    if not con.mutation(f"open a PR adding .github/workflows/{WORKFLOW} to {repo.slug}"):
+        con.note_manual(f"merge the {WORKFLOW} wrapper PR, then re-run interns-install")
+        return
+
+    wrapper = gh.get_file(INTERNS_REPO, f"templates/workflows/{WORKFLOW}", INTERNS_REF)
+    base = _default_branch(repo)
+    branch = f"interns/install-wrapper-{int(time.time())}"
+    sha = gh.branch_head_sha(repo.slug, base)
+    gh.create_branch(repo.slug, branch, sha)
+    gh.put_file(repo.slug, f".github/workflows/{WORKFLOW}", wrapper,
+                "chore: add interns install workflow wrapper", branch)
+    url = gh.create_pr(repo.slug, branch, base,
+                       "Add the interns install workflow", WRAPPER_PR_BODY)
+    con.say(f"opened {url}")
+    con.note_manual(
+        f"merge {url}, then re-run interns-install (or `gh workflow run {WORKFLOW} "
+        f"--repo {repo.slug}`) to sync labels and open the caller-stub PR"
+    )
 
 
 def _default_branch(repo: gh.Repo) -> str:

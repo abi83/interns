@@ -6,6 +6,7 @@ operator's own credentials — never a token written to disk.
 
 from __future__ import annotations
 
+import base64
 import json
 import shutil
 import subprocess
@@ -145,3 +146,38 @@ def dispatch_workflow(repo: str, workflow: str, ref: str, inputs: dict[str, str]
     for key, value in inputs.items():
         args += ["-f", f"{key}={value}"]
     _run(args)
+
+
+def get_file(repo: str, path: str, ref: str) -> str:
+    """Text content of `path` in `repo` at `ref`, via the contents API."""
+    data = api(f"repos/{repo}/contents/{path}?ref={ref}")
+    if not isinstance(data, dict) or "content" not in data:
+        raise GhError(f"could not read {path} from {repo}@{ref}")
+    return base64.b64decode(data["content"]).decode()
+
+
+def branch_head_sha(repo: str, branch: str) -> str:
+    data = api(f"repos/{repo}/git/ref/heads/{branch}")
+    if not isinstance(data, dict):
+        raise GhError(f"could not resolve heads/{branch} on {repo}")
+    return data["object"]["sha"]
+
+
+def create_branch(repo: str, branch: str, sha: str) -> None:
+    api(f"repos/{repo}/git/refs", method="POST",
+        fields={"ref": f"refs/heads/{branch}", "sha": sha})
+
+
+def put_file(repo: str, path: str, content: str, message: str, branch: str) -> None:
+    api(f"repos/{repo}/contents/{path}", method="PUT", fields={
+        "message": message,
+        "content": base64.b64encode(content.encode()).decode(),
+        "branch": branch,
+    })
+
+
+def create_pr(repo: str, head: str, base: str, title: str, body: str) -> str:
+    """Open a PR and return its URL."""
+    proc = _run(["pr", "create", "--repo", repo, "--head", head, "--base", base,
+                 "--title", title, "--body", body])
+    return proc.stdout.strip()
