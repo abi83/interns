@@ -1,6 +1,6 @@
 # interns
 
-A tireless team of interns that refine issues, estimate them, open PRs, and  review each other's work — with a human in
+A tireless team of interns that refine issues, estimate them, open PRs, and review each other's work — with a human in
 the loop when really needed.
 
 The pipeline drives [Claude Code](https://github.com/anthropics/claude-code) over a
@@ -94,7 +94,7 @@ with no fix round.
 
 | Label | Meaning                                      | Set by                      | Moves to |
 |---|----------------------------------------------|-----------------------------|---|
-| `pr:coding` | a coder agent is on this PR (e.g. fix round) | reviewer, when work started | `pr:in-review` after the coder pushes |
+| `pr:coding` | a coder agent is on this PR (e.g. fix round) | reviewer, when it requests changes | `pr:in-review` after the coder pushes |
 | `pr:in-review` | a reviewer agent is on this PR               | coder, at hand-off          | cleared on `APPROVE`; `pr:coding` on `REQUEST_CHANGES`; `pr:needs-attention` on escalation |
 | `pr:needs-attention` | PR pipeline stalled — a human needs to look  | reviewer gate               | cleared by the next agent run, once a human re-triggers the flow or pushes a commit |
 
@@ -113,7 +113,8 @@ signal. List the PRs waiting on a human with
 
 Spikes and epics are never implemented automatically. A spike is refined and
 estimated, then bounced to `status:needs-attention` at the coder's type gate. An
-epic doesn't even get refined — the refiner refuses it. A human need to work on both issue types.
+epic doesn't even get refined — the refiner refuses it. Either way, a human
+takes it from there.
 
 ### `size:*` and `priority:*`
 
@@ -144,7 +145,7 @@ re-run either any time to fix drift.
 | # | Step | Why |
 |---|---|---|
 | 1 | Check (and fix) default-branch protection | An agent could ignore its instructions and push straight to the default branch; protection forces every change through a PR. |
-| 2 | Check (and enable) GitHub Pages | The dashboard the pipeline reports to deploys here. |
+| 2 | Check (and enable) GitHub Pages | Deploy target for the visibility dashboard ([#6](https://github.com/abi83/interns/issues/6)). |
 | 3 | Mint the two GitHub Apps | Separate coder/reviewer identities, so the reviewer can approve the coder's PRs (`claude[bot]` can't approve its own). |
 | 4 | Write App secrets/variables + `CLAUDE_CODE_OAUTH_TOKEN` | The workflows need these to authenticate as the Apps and call Claude. |
 | 5 | Sync labels | The pipeline routes on `status:*` / `type:*` / `pr:*` and can't run without them. |
