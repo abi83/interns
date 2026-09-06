@@ -28,35 +28,39 @@ whether to run the automated implementation flow, or send the task back for
 rework — e.g. the scope is too broad to land in one PR, the estimator flagged a
 huge blast radius, or refinement surfaced blockers and missing prerequisites.
 Approving is a single move: the label `status:estimated` → `status:ready`.
-Second, review and merge the finished PR. Everything in between is automated, and
+Second, check and merge the implemented and approved PR. Everything in between is automated, and
 anything the automation can't finish — a Claude error, a vague issue
 description, missing prerequisites or blockers — is parked on
 `status:needs-attention` / `pr:needs-attention` for a human to pick up.
 
 ```mermaid
 flowchart TD
-    new([issue opened]) --> nr["ISSUE: status:needs-refinement"]
-    nr -->|refiner| refined["ISSUE: status:refined"]
-    nr -.->|needs a decision| na["ISSUE: status:needs-attention"]
-    refined -->|estimator| est["ISSUE: status:estimated + size:*"]
-    refined -.->|epic| ready
-    refined -.->|needs a decision| na
-    est -->|owner approves| ready["ISSUE: status:ready"]
-    ready -->|coder| inprog["ISSUE: status:in-progress"]
-    inprog -.->|no PR opened / coder declined| na
+    A([issue opened]) --> B
 
-    inprog -->|coder opens PR| loop
-
-    subgraph loop [coder–reviewer loop]
-        inreview["PR: pr:in-review"] -->|reviewer: REQUEST_CHANGES| coding["PR: pr:coding"]
-        coding -->|coder pushes a fix| inreview
+    subgraph P1 ["refine &amp; estimate · automated"]
+        B["status:needs-refinement"] -->|refiner| C["status:refined"]
+        C -->|estimator| D["status:estimated + size:*"]
     end
 
-    loop -->|reviewer: APPROVE| approved["PR approved"]
-    approved -->|owner merges| closed(["ISSUE: closed"])
-    loop -.->|red checks / 2nd review still requests changes / 5-review ceiling| prna["PR: pr:needs-attention"]
-    loop -.->|coder declines the fix round| na
+    D -->|owner approves| E
+
+    subgraph P2 ["code &amp; review · automated"]
+        E["status:ready"] -->|coder opens PR| F["pr:in-review"]
+        F -->|REQUEST_CHANGES| G["pr:coding"]
+        G -->|coder pushes a fix| F
+    end
+
+    F -->|APPROVE| H["PR approved"]
+    H -->|owner merges| I([issue closed])
+
+    P1 -.->|agent can't proceed| J["status:needs-attention"]
+    P2 -.->|escalation| K["pr:needs-attention"]
 ```
+
+Dotted edges are the escape hatches: whenever an agent can't finish — a Claude
+error, a vague issue, missing prerequisites, a stalled review loop — the work is
+parked on `status:needs-attention` / `pr:needs-attention` for a human. The owner
+can also send a refined issue back for rework instead of approving it.
 
 ## Label state machine
 
