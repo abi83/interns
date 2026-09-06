@@ -81,6 +81,10 @@ jobs:
         with:
           issue_number: ${{ github.event.issue.number || inputs.issue_number }}
 
+      - name: Resolve issue template
+        id: template
+        uses: ./.interns/.github/actions/resolve-issue-template
+
       - name: Preserve original body
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -109,6 +113,10 @@ jobs:
             ${{ steps.issue.outputs.body }}
 
             ${{ steps.issue.outputs.comments }}
+
+            TEMPLATE (section skeleton per issue type — after you pick the
+            type, rewrite the body into the block whose `type:` header matches):
+            ${{ steps.template.outputs.skeleton }}
 
             Read .interns/.github/prompts/refine.md for the exact rewrite rules and
             apply them to the issue and comments above to produce a new

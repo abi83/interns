@@ -30,17 +30,11 @@ Rules:
   the ticket even asks for), that's the kind of blocking ambiguity covered
   in the clarification rule below — ask the owner instead of guessing.
 
-Then read the template for that type and use its exact section structure —
-same headings, same order. Look in this order and use the first that
-exists:
-
-1. the consuming repo's `.github/ISSUE_TEMPLATE/<type>.md` (so a
-   refiner-written issue matches what humans see in the New Issue picker)
-2. `.interns/templates/issue/<type>.md` — the built-in default, always
-   present
-
-Ignore the YAML frontmatter and HTML comments; they're authoring guidance,
-not body content.
+The refined body (Step 3) uses the section structure given for that type
+in `TEMPLATE`, a prompt input — same headings, same order. `TEMPLATE`
+arrives already resolved: the consumer repo's override applied where it
+has one, frontmatter and HTML comments stripped, one `type:<name>` block
+per type. Use the block whose header matches the type you picked.
 
 ## Step 2: investigate
 
