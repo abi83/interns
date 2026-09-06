@@ -116,6 +116,36 @@ Rules for the comment:
   once.
 - Keep it short. This is a triage note, not a report.
 
+## Mechanics
+
+Never pass body, title, or comment text as a Bash argument — write it to the
+file named below with the Write tool, then run the script with no arguments so
+it reads that file.
+
+On the normal path, in order:
+
+1. Apply the type you picked (Step 1):
+   `.interns/.github/scripts/gh-safe/edit-issue-labels.sh --add-label <type>`,
+   adding `--remove-label <wrong-type>` if a wrong `type:*` label is set. Skip
+   when the correct label is already there.
+2. Write the rewritten body (Step 3) to `./.issue-pipeline-body.md`, then run
+   `.interns/.github/scripts/gh-safe/edit-issue-body.sh`.
+3. If the title needs correcting (Step 3), write it to
+   `./.issue-pipeline-title.md` and run
+   `.interns/.github/scripts/gh-safe/edit-issue-title.sh`. Otherwise leave it.
+4. Write the analysis comment (Step 4) to `./.issue-pipeline-comment.md`, then
+   run `.interns/.github/scripts/gh-safe/comment-issue.sh`.
+5. Write `refined` to `./.issue-pipeline-outcome`.
+
+On the stop-and-comment path (below): write only the clarification comment
+(`./.issue-pipeline-comment.md` + `comment-issue.sh`), then write
+`needs-attention` to `./.issue-pipeline-outcome`. Don't edit the body, title,
+or type.
+
+The workflow reads that marker and moves the lifecycle label. You never set a
+`status:*` label yourself. Post exactly the one comment for the path you're on
+— no others.
+
 ## When to stop instead of refining
 
 Three cases justify stopping and commenting on the issue (tagging the owner,
@@ -138,6 +168,6 @@ instead of editing the body:
    an epic, ask the human to label the parent `type:epic` and break it into
    sub-issues.
 
-For each, comment with one specific, answerable request. In the stop case,
-post only that comment — no separate analysis comment, and don't touch the
-body.
+For each, comment with one specific, answerable request, then write the
+`needs-attention` marker (see Mechanics). In the stop case, post only that
+comment — no separate analysis comment, and don't touch the body.
