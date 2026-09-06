@@ -98,6 +98,17 @@ class ReuseAppTests(unittest.TestCase):
                            existing_secrets=[CODER.key_secret], existing_vars=[])
         server.assert_not_called()
 
+    def test_provision_prefills_app_id_from_public_metadata(self):
+        con = Console(assume_yes=True)
+        with mock.patch.object(cli.gh, "app_public",
+                               return_value={"slug": "interns-coder", "id": 987654}), \
+             mock.patch.object(cli, "ManifestServer") as server, \
+             mock.patch.multiple(cli.gh, set_variable=mock.DEFAULT, set_secret=mock.DEFAULT) as m:
+            _provision_app(con, _repo(), CODER, None,
+                           existing_secrets=[CODER.key_secret], existing_vars=[])
+        server.assert_not_called()
+        m["set_variable"].assert_called_once_with("acme/widgets", CODER.id_var, "987654")
+
     def test_provision_mints_when_no_existing_app(self):
         con = Console(assume_yes=True, dry_run=True)
         with mock.patch.object(cli.gh, "app_public", return_value=None):

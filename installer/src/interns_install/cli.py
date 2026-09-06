@@ -109,8 +109,7 @@ def _use_existing_app(con: Console, repo: gh.Repo, spec: AppSpec,
     have_key = existing_secrets is not None and spec.key_secret in existing_secrets
 
     if con.dry_run:
-        if app_id is None:
-            con.say(f"App '{spec.default_name}' already exists — {settings_url}")
+        con.say(f"existing {spec.key} App — {settings_url}")
         con.mutation(f"set variable {spec.id_var} (existing {spec.key} App)")
         if not have_key:
             con.mutation(f"{_secret_verb(spec.key_secret, existing_secrets)} "
@@ -119,8 +118,6 @@ def _use_existing_app(con: Console, repo: gh.Repo, spec: AppSpec,
         return
 
     if app_id is None:
-        con.say(f"an App named '{spec.default_name}' already exists on this account — "
-                "reusing it, no duplicate minted")
         con.say(f"its App ID (and 'Generate a private key') is on: {settings_url}")
         if con.assume_yes:
             con.note_manual(f"pass --{spec.key}-app-id (from {settings_url}) and set "
@@ -177,7 +174,11 @@ def _provision_app(con: Console, repo: gh.Repo, spec: AppSpec,
 
     existing = gh.app_public(spec.default_name)
     if existing:
-        _use_existing_app(con, repo, spec, None,
+        con.say(f"an App named '{spec.default_name}' already exists on this account — "
+                "reusing it, no duplicate minted")
+        discovered_id = existing.get("id")
+        _use_existing_app(con, repo, spec,
+                          str(discovered_id) if discovered_id else None,
                           existing.get("slug", spec.default_name), existing_secrets)
         return
 
