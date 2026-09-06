@@ -1,0 +1,20 @@
+name: resolve-issue-template
+description: >
+  Resolve each refineable issue type's section skeleton for the refiner prompt:
+  consumer-repo override wins, frontmatter and HTML comments stripped, headings
+  in order.
+
+outputs:
+  skeleton:
+    description: One block per type — `type:<name>` header followed by its heading lines
+    value: ${{ steps.resolve.outputs.skeleton }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve issue templates
+      id: resolve
+      shell: bash
+      env:
+        BUILTIN_DIR: ${{ github.action_path }}/../../../templates/issue
+      run: ${{ github.action_path }}/../../scripts/pipeline/resolve-issue-template.sh
