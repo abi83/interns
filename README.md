@@ -227,27 +227,43 @@ until both are green.
 
 ### Doing it by hand
 
+<details>
+<summary>The manual path, without <code>interns-install</code></summary>
+
 The fully manual path stays supported: create the two Apps with the permissions
 above and install them on the repo, add the secrets and variables, sync labels
 from the manifest, set branch protection, and commit the caller stubs from
 [`templates/workflows/`](templates/workflows) yourself.
 
+</details>
+
 ## Troubleshooting
 
-**A label change didn't start a run.** Label edits made by `GITHUB_TOKEN` (or
-any action using it) don't trigger new workflow runs — GitHub's anti-recursion
-rule. The `status:estimated` → `status:ready` approval must be a **human**
-label edit for the coder to fire. The pipeline works around this internally by
-dispatching the coder fix round with an explicit `workflow_dispatch` instead of
-a label. To re-run a phase by hand, use the `workflow_dispatch` on the caller
-workflow (`phase: refine|estimate` / `phase: coder|reviewer`).
+<details>
+<summary><b>A label change didn't start a run.</b></summary>
 
-**A fork PR got no review.** The reviewer job skips PRs from forks — forked
-runs have no access to secrets, so the app token and OAuth token would be
-empty. Review fork PRs manually. The same skip applies to bot PRs other than
-the coder's `claude[bot]` (Dependabot, etc.).
+Label edits made by `GITHUB_TOKEN` (or any action using it) don't trigger new
+workflow runs — GitHub's anti-recursion rule. The `status:estimated` →
+`status:ready` approval must be a **human** label edit for the coder to fire.
+The pipeline works around this internally by dispatching the coder fix round
+with an explicit `workflow_dispatch` instead of a label. To re-run a phase by
+hand, use the `workflow_dispatch` on the caller workflow
+(`phase: refine|estimate` / `phase: coder|reviewer`).
 
-**The installer's safety check failed.**
+</details>
+
+<details>
+<summary><b>A fork PR got no review.</b></summary>
+
+The reviewer job skips PRs from forks — forked runs have no access to secrets,
+so the app token and OAuth token would be empty. Review fork PRs manually. The
+same skip applies to bot PRs other than the coder's `claude[bot]`
+(Dependabot, etc.).
+
+</details>
+
+<details>
+<summary><b>The installer's safety check failed.</b></summary>
 
 | Failure | Fix |
 |---|---|
@@ -257,24 +273,40 @@ the coder's `claude[bot]` (Dependabot, etc.).
 | `can't read GitHub Pages state … needs admin access` | same as above — `interns-install` needs an admin-scoped `gh` session |
 | `GitHub Pages could not be enabled` | turn it on under Settings → Pages (build type: GitHub Actions) |
 
-**An issue on `status:ready` bounced to `status:needs-attention`.** It reached
-the coder without a `type:coding-task` or `type:bug` label — only those two are
-implementable. Add the right type label and re-apply `status:ready`.
+</details>
 
-**A PR is stuck on `pr:needs-attention`.** One of: the `test` / `build` checks
-went red (the coder is expected to push green — this goes straight to a human,
-no retry), a second review round still requested changes (the fix loop didn't
-converge), or the automatic-review cap (5 per PR) was hit. Read the PR comment
-the pipeline left for which. Re-engage a reviewer with the caller's
-`workflow_dispatch` (`phase: reviewer`, `pr_number: N`) once addressed.
+<details>
+<summary><b>An issue on <code>status:ready</code> bounced to <code>status:needs-attention</code>.</b></summary>
 
-**The coder declined a fix round.** It left a comment on the issue explaining
-why (feedback needs a protected path, is out of scope, or needs an owner
-decision) and set `status:needs-attention`. Pipeline config under
-`.github/workflows/` and the `gh-safe` / `pipeline` scripts are protected —
-`push-branch.sh` rejects any push touching them.
+It reached the coder without a `type:coding-task` or `type:bug` label — only
+those two are implementable. Add the right type label and re-apply
+`status:ready`.
 
-## Pipeline metrics
+</details>
+
+<details>
+<summary><b>A PR is stuck on <code>pr:needs-attention</code>.</b></summary>
+
+One of: the `test` / `build` checks went red (the coder is expected to push
+green — this goes straight to a human, no retry), a second review round still
+requested changes (the fix loop didn't converge), or the automatic-review cap
+(5 per PR) was hit. Read the PR comment the pipeline left for which. Re-engage a
+reviewer with the caller's `workflow_dispatch` (`phase: reviewer`,
+`pr_number: N`) once addressed.
+
+</details>
+
+<details>
+<summary><b>The coder declined a fix round.</b></summary>
+
+It left a comment on the issue explaining why (feedback needs a protected path,
+is out of scope, or needs an owner decision) and set `status:needs-attention`.
+Pipeline config under `.github/workflows/` and the `gh-safe` / `pipeline`
+scripts are protected — `push-branch.sh` rejects any push touching them.
+
+</details>
+
+## Pipeline metrics (TBD in #11)
 
 Every agent run appends one machine-readable record per `(run, job)` to
 `metrics.jsonl` on an orphan `metrics` branch in your repo — tokens
@@ -290,22 +322,6 @@ record shape is versioned by `schema_version` and specified in
 bump it and the `SCHEMA_VERSION` constant in `extract-metrics.sh` together on
 any breaking change. Read the log from any client with a single unauthenticated
 fetch of `raw.githubusercontent.com/<owner>/<repo>/metrics/metrics.jsonl`.
-
-## Layout
-
-| | |
-|---|---|
-| `.github/workflows/*-pipeline.yml` | reusable `workflow_call` cores |
-| `.github/actions/*` | composite actions the cores use |
-| `.github/scripts/pipeline/*` | pipeline steps (+ `bats` tests) |
-| `.github/scripts/gh-safe/*` | the narrow `gh` surface the agents may call |
-| `.github/scripts/install/*` | installer steps (label sync, safety checks, + `bats` tests) |
-| `.github/labels.json` | versioned label manifest (+ `.schema.json`) |
-| `.github/prompts/*` | agent prompts, layered over your repo's `CLAUDE.md` |
-| `templates/issue/*` | default issue templates |
-| `templates/workflows/*`, `templates/config/*` | caller stubs + starter config the installer commits |
-| `installer/` | `interns-install` — the local CLI for Apps + secrets (Python, stdlib only) |
-| `install.sh` | one-line bootstrap: ensures `uv`, runs `interns-install` |
 
 ## License
 
