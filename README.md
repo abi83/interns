@@ -18,7 +18,7 @@ Four agents pick issues up by label and hand them along a fixed track:
 
 | Agent | Trigger                                                               | Does | Leaves |
 |---|-----------------------------------------------------------------------|---|---|
-| **Refiner** | `status:needs-refinement` on an issue                                 | picks the type, checks the draft against the codebase and wiki, rewrites the body into the type's template, posts a blockers/dependencies comment | `status:refined` |
+| **Refiner** | `status:needs-refinement` on an issue                                 | picks the type, checks the draft against the codebase and wiki, rewrites the body into the type's template (and the title if it no longer fits), posts a blockers/dependencies comment | `status:refined` |
 | **Estimator** | `status:refined`                                                      | reads the code the Scope touches, scores blast radius / touch / human involvement / review overhead, rolls that into a size | `status:estimated` + `size:*` |
 | **Coder** | `status:ready` (human-assigned) on a `type:coding-task` or `type:bug` | implements every Acceptance Criteria item, writes tests, opens a PR that `Closes #N` | `status:in-progress`, a PR labelled `pr:in-review` |
 | **Reviewer** | a PR opened/updated by the coder (or a human)                         | waits for the PR's checks to be green, reviews the diff against the linked issue, submits `APPROVE` or `REQUEST_CHANGES` | PR approved, or a coder fix round, or `pr:needs-attention` |
@@ -180,7 +180,7 @@ to skip it.
 |---|---|---|
 | Contents | Read and write | push branches |
 | Pull requests | Read and write | open PRs, submit reviews, comment |
-| Issues | Read and write | edit labels, comment, rewrite the issue body (the refiner) |
+| Issues | Read and write | edit labels, comment, rewrite the issue title and body (the refiner) |
 | Checks | Read | reviewer reads check results |
 | Metadata | Read | mandatory baseline |
 

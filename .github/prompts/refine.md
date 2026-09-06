@@ -62,12 +62,18 @@ Use this to write a more accurate and *narrower* Scope. Investigation
 sharpens the ticket; it does not license adding scope the draft didn't ask
 for.
 
-## Step 3: rewrite the body
+## Step 3: rewrite the body and title
 
 Rewrite the body into the chosen structure, carrying over every concrete
 requirement already in the original text. Ground each section in what Step
 2 found — name the real files, jobs, and patterns rather than describing
 the work abstractly.
+
+The title was user-typed when the issue was filed and is never revisited
+otherwise. Once the body is rewritten, check the title against it: if the
+title is vague, mislabeled, or no longer matches what the refined body
+describes, rewrite it into a short, specific summary of the corrected body.
+Leave it untouched if it's already accurate — don't reword a fine title.
 
 The rewritten description must be **concise and specific** — tighter than
 the draft you were given, not longer. Cut restatement, hedging, and
