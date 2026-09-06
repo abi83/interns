@@ -118,8 +118,8 @@ takes it from there.
 
 ### `size:*` and `priority:*`
 
-`size:XS` … `size:XL` are added by the estimator alongside `status:estimated`;
-`size:XL` also gets a `SPLIT:` note on the estimate comment. `priority:low` …
+`size:XS` … `size:XL` are added by the estimator alongside `status:estimated`.
+`priority:low` …
 `priority:urgent` are owner triage labels — the pipeline reads neither; they
 exist for humans sorting the backlog.
 
