@@ -96,7 +96,7 @@ with no fix round.
 |---|----------------------------------------------|-----------------------------|---|
 | `pr:coding` | a coder agent is on this PR (e.g. fix round) | reviewer, when work started | `pr:in-review` after the coder pushes |
 | `pr:in-review` | a reviewer agent is on this PR               | coder, at hand-off          | cleared on `APPROVE`; `pr:coding` on `REQUEST_CHANGES`; `pr:needs-attention` on escalation |
-| `pr:needs-attention` | PR pipeline stalled — a human needs to look  | reviewer gate               | cleared by the next agent pickup or an `APPROVE` |
+| `pr:needs-attention` | PR pipeline stalled — a human needs to look  | reviewer gate               | cleared by the next agent run, once a human re-triggers the flow or pushes a commit |
 
 An approved PR carries **no** `pr:*` label — the native review state is the
 signal. List the PRs waiting on a human with
@@ -109,12 +109,11 @@ signal. List the PRs waiting on a human with
 | `type:coding-task` | yes | yes |
 | `type:bug` | yes | yes |
 | `type:spike` | yes | no — a human does the investigation |
-| `type:epic` | no — estimator's type gate rejects it | no — a human breaks it into sub-issues |
+| `type:epic` | no — refiner refuses it up front | no — a human breaks it into sub-issues |
 
-There is no agent for spikes or epics — the pipeline only refines them (and
-estimates the spike). Once refined, the work is a human's: an epic is stopped at
-the estimator's type gate, and a spike that reaches `status:ready` is stopped at
-the coder's — both bounced to `status:needs-attention`.
+Spikes and epics are never implemented automatically. A spike is refined and
+estimated, then bounced to `status:needs-attention` at the coder's type gate. An
+epic doesn't even get refined — the refiner refuses it. A human need to work on both issue types.
 
 ### `size:*` and `priority:*`
 
@@ -127,14 +126,14 @@ exist for humans sorting the backlog.
 
 From a local clone of your repo, with the [GitHub CLI](https://cli.github.com/)
 authenticated (`gh auth login`) as an account with **admin access to the
-repo** (needed to write repo secrets and variables):
+repo** (needed to create repo secrets and variables):
 
 ```bash
 curl -LsSf https://raw.githubusercontent.com/abi83/interns/v0.1.0/install.sh | sh
 ```
 
 That's it. The script installs [`uv`](https://docs.astral.sh/uv/) if it's missing,
-then runs the `interns-install` CLI.
+then runs the `interns-install` CLI wizard.
 
 ### What the installer does
 
