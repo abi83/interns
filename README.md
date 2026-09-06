@@ -1,11 +1,13 @@
 # interns
 
-A tireless team of interns that refine issues, estimate them, open PRs, and
-review each other's work — with a human in the loop on every merge.
+A tireless team of interns that refine issues, estimate them, open PRs, and review each other's work — with a human in
+the loop when really needed.
 
-The pipeline drives [Claude Code](https://github.com/anthropics/claude-code)
-over a checked-out repo, respects its `CLAUDE.md` / `AGENTS.md`, and runs
-entirely in the consumer repo's GitHub Actions — no hosted service.
+The pipeline drives [Claude Code](https://github.com/anthropics/claude-code) over a
+checked-out repo, respects its `CLAUDE.md` / `AGENTS.md`, and runs entirely in the
+host repo's GitHub Actions — no hosted service, no VMs to manage, no machine of your
+own left running. Each issue and PR is its own workflow run, so the work fans out
+concurrently and scales with your Actions runners, not with your attention.
 
 Status: early. Consumed by [`abi83/prepify`](https://github.com/abi83/prepify).
 Design and roadmap: [#3](https://github.com/abi83/interns/issues/3).
@@ -14,41 +16,46 @@ Design and roadmap: [#3](https://github.com/abi83/interns/issues/3).
 
 Four agents pick issues up by label and hand them along a fixed track:
 
-| Agent | Trigger | Does | Leaves |
-|---|---|---|---|
-| **Refiner** | `status:needs-refinement` on an issue | picks the type, checks the draft against the codebase and wiki, rewrites the body into the type's template, posts a blockers/dependencies comment | `status:refined` |
-| **Estimator** | `status:refined` | reads the code the Scope touches, scores blast radius / touch / human involvement / review overhead, rolls that into a size | `status:estimated` + `size:*` |
-| **Coder** | `status:ready` (owner-approved) on a `type:coding-task` or `type:bug` | implements every Acceptance Criteria item, writes tests, opens a PR that `Closes #N` | `status:in-progress`, a PR labelled `pr:in-review` |
-| **Reviewer** | a PR opened/updated by the coder (or a human) | waits for the `test` / `build` checks, reviews the diff against the linked issue, submits `APPROVE` or `REQUEST_CHANGES` | PR approved, or a coder fix round, or `pr:needs-attention` |
+| Agent | Trigger                                                               | Does | Leaves |
+|---|-----------------------------------------------------------------------|---|---|
+| **Refiner** | `status:needs-refinement` on an issue                                 | picks the type, checks the draft against the codebase and wiki, rewrites the body into the type's template, posts a blockers/dependencies comment | `status:refined` |
+| **Estimator** | `status:refined`                                                      | reads the code the Scope touches, scores blast radius / touch / human involvement / review overhead, rolls that into a size | `status:estimated` + `size:*` |
+| **Coder** | `status:ready` (human-assigned) on a `type:coding-task` or `type:bug` | implements every Acceptance Criteria item, writes tests, opens a PR that `Closes #N` | `status:in-progress`, a PR labelled `pr:in-review` |
+| **Reviewer** | a PR opened/updated by the coder (or a human)                         | waits for the `test` / `build` checks, reviews the diff against the linked issue, submits `APPROVE` or `REQUEST_CHANGES` | PR approved, or a coder fix round, or `pr:needs-attention` |
 
-The human owner does two things: approve the estimate (move `status:estimated`
-→ `status:ready`), and merge the final PR. Everything between is automated, and
-anything the automation can't finish is parked on `status:needs-attention` /
-`pr:needs-attention` rather than guessed at.
+The human owner steps in twice. First, on a refined and estimated issue: decide
+whether to run the automated implementation flow, or send the task back for
+rework — e.g. the scope is too broad to land in one PR, the estimator flagged a
+huge blast radius, or refinement surfaced blockers and missing prerequisites.
+Approving is a single move: the label `status:estimated` → `status:ready`.
+Second, give the finished PR — already implemented and reviewer-approved — a
+final look and merge it. Everything in between is automated, and
+anything the automation can't finish — a Claude error, a vague issue
+description, missing prerequisites or blockers — is parked on
+`status:needs-attention` / `pr:needs-attention` for a human to pick up.
 
 ```mermaid
 flowchart TD
-    new([issue opened]) --> nr["ISSUE: status:needs-refinement"]
-    nr -->|refiner| refined["ISSUE: status:refined"]
-    nr -.->|needs a decision| na["ISSUE: status:needs-attention"]
-    refined -->|estimator| est["ISSUE: status:estimated + size:*"]
-    refined -.->|epic| ready
-    refined -.->|needs a decision| na
-    est -->|owner approves| ready["ISSUE: status:ready"]
-    ready -->|coder| inprog["ISSUE: status:in-progress"]
-    inprog -.->|no PR opened / coder declined| na
+    A([issue opened]) --> B
 
-    inprog -->|coder opens PR| loop
-
-    subgraph loop [coder–reviewer loop]
-        inreview["PR: pr:in-review"] -->|reviewer: REQUEST_CHANGES| coding["PR: pr:coding"]
-        coding -->|coder pushes a fix| inreview
+    subgraph P1 ["refine &amp; estimate · automated"]
+        B["status:needs-refinement"] -->|refiner| C["status:refined"]
+        C -->|estimator| D["status:estimated + size:*"]
     end
 
-    loop -->|reviewer: APPROVE| approved["PR approved"]
-    approved -->|owner merges| closed(["ISSUE: closed"])
-    loop -.->|red checks / 2nd review still requests changes / 5-review ceiling| prna["PR: pr:needs-attention"]
-    loop -.->|coder declines the fix round| na
+    D -->|owner approves| E
+
+    subgraph P2 ["code &amp; review · automated"]
+        E["status:ready"] -->|coder opens PR| F["pr:in-review"]
+        F -->|REQUEST_CHANGES| G["pr:coding"]
+        G -->|coder pushes a fix| F
+    end
+
+    F -->|APPROVE| H["PR approved"]
+    H -->|owner merges| I([issue closed])
+
+    P1 -.->|agent can't proceed| J["status:needs-attention"]
+    P2 -.->|escalation| K["pr:needs-attention"]
 ```
 
 ## Label state machine
@@ -62,9 +69,9 @@ not in the manifest are left alone.
 | Label | Meaning                                                | Set by                                                                      | Moves to                                                                                                                                                                       |
 |---|--------------------------------------------------------|-----------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `status:needs-refinement` | awaiting the refiner                                   | **human**, triggers the refinement-estimation pipeline                      | `status:refined`, or `status:needs-attention` if the refiner needs a decision                                                                                                  |
-| `status:refined` | refined, awaiting estimation                           | refiner                                                                     | `status:estimated` (+ `size:*`); `status:ready` directly for a `type:epic`; `status:needs-attention` if unsizeable                                                             |
-| `status:estimated` | estimated — waiting on the owner to approve or comment | estimator                                                                   | `status:ready` set by human to thrigger the coder, or an human **comment** for triggering conversational follow-up TBD in ([#11](https://github.com/abi83/interns/issues/11)). |
-| `status:ready` | approved for the coder                                 | **human**, triggers the coder-reviewer pipeline | `status:in-progress` when the coder starts; `status:needs-attention` if the issue isn't a `type:coding-task` / `type:bug`                                                      |
+| `status:refined` | refined, awaiting estimation                           | refiner                                                                     | `status:estimated` (+ `size:*`); `status:needs-attention` if unsizeable                                                                                                       |
+| `status:estimated` | estimated — waiting on the owner to approve or comment | estimator                                                                   | `status:ready` set by a human to trigger the coder, or a human **comment** to trigger conversational follow-up (TBD, [#11](https://github.com/abi83/interns/issues/11)). |
+| `status:ready` | approved for the coder                                 | **human**, triggers the coder-reviewer pipeline                             | `status:in-progress` when the coder starts; `status:needs-attention` if the issue isn't a `type:coding-task` / `type:bug`                                                      |
 | `status:in-progress` | a coder-reviewer loop is in progress                   | coder                                                                       | issue closed on merge, or `status:needs-attention`                                                                                                                             |
 | `status:needs-attention` | pipeline stalled — a human needs to look               | any agent                                                                   | cleared when a human re-dispatches (the coder drops it on pickup)                                                                                                              |
 
@@ -85,11 +92,11 @@ Two limits bound the loop:
 Red `test` / `build` checks also send the PR straight to `pr:needs-attention`,
 with no fix round.
 
-| Label | Meaning | Set by | Moves to |
-|---|---|---|---|
-| `pr:coding` | a coder agent is on this PR (a fix round) | reviewer, when it requests changes | `pr:in-review` after the coder pushes |
-| `pr:in-review` | a reviewer agent is on this PR | coder, at hand-off | cleared on `APPROVE`; `pr:coding` on `REQUEST_CHANGES`; `pr:needs-attention` on escalation |
-| `pr:needs-attention` | PR pipeline stalled — a human needs to look | reviewer gate | cleared by the next agent pickup or an `APPROVE` |
+| Label | Meaning                                      | Set by                      | Moves to |
+|---|----------------------------------------------|-----------------------------|---|
+| `pr:coding` | a coder agent is on this PR (e.g. fix round) | reviewer, when it requests changes | `pr:in-review` after the coder pushes |
+| `pr:in-review` | a reviewer agent is on this PR               | coder, at hand-off          | cleared on `APPROVE`; `pr:coding` on `REQUEST_CHANGES`; `pr:needs-attention` on escalation |
+| `pr:needs-attention` | PR pipeline stalled — a human needs to look  | reviewer gate               | cleared by the next agent run, once a human re-triggers the flow or pushes a commit |
 
 An approved PR carries **no** `pr:*` label — the native review state is the
 signal. List the PRs waiting on a human with
@@ -102,12 +109,12 @@ signal. List the PRs waiting on a human with
 | `type:coding-task` | yes | yes |
 | `type:bug` | yes | yes |
 | `type:spike` | yes | no — a human does the investigation |
-| `type:epic` | no — skipped straight to `status:ready` | no — a human breaks it into sub-issues |
+| `type:epic` | no — refiner refuses it up front | no — a human breaks it into sub-issues |
 
-There is no agent for spikes or epics — the pipeline only refines them (and
-estimates the spike). Once refined, the work is a human's: a spike that reaches
-`status:ready` (or an epic, via its estimate-phase bypass) is bounced straight
-to `status:needs-attention` by the coder's type gate.
+Spikes and epics are never implemented automatically. A spike is refined and
+estimated, then bounced to `status:needs-attention` at the coder's type gate. An
+epic doesn't even get refined — the refiner refuses it. Either way, a human
+takes it from there.
 
 ### `size:*` and `priority:*`
 
@@ -120,14 +127,14 @@ exist for humans sorting the backlog.
 
 From a local clone of your repo, with the [GitHub CLI](https://cli.github.com/)
 authenticated (`gh auth login`) as an account with **admin access to the
-repo** (needed to write repo secrets and variables):
+repo** (needed to create repo secrets and variables):
 
 ```bash
 curl -LsSf https://raw.githubusercontent.com/abi83/interns/v0.1.0/install.sh | sh
 ```
 
 That's it. The script installs [`uv`](https://docs.astral.sh/uv/) if it's missing,
-then runs the `interns-install` CLI. More details under: [`installer/README.md`](installer/README.md).
+then runs the `interns-install` CLI.
 
 ### What the installer does
 
@@ -135,23 +142,20 @@ then runs the `interns-install` CLI. More details under: [`installer/README.md`]
 `.github/workflows/install.yml` for the rest. Both halves are idempotent —
 re-run either any time to fix drift.
 
-| # | Step | Why                                                                                                                                                                                           |
-|---|---|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 1 | Check (and fix) default-branch protection | Agent output isn't deterministic — an agent could ignore its instructions and push straight to the default branch. Protection guarantees every change still goes through a human-approved PR. |
-| 2 | Check (and enable) GitHub Pages | The dashboard the pipeline reports to deploys here — nothing to look at without it.                                                                                                           |
-| 3 | Mint the two GitHub Apps | Separate coder/reviewer identities, so the reviewer can approve the coder's PRs (`claude[bot]` can't approve its own).                                                                        |
-| 4 | Write App secrets/variables + `CLAUDE_CODE_OAUTH_TOKEN` | The pipeline's workflows need these to authenticate as the Apps and call Claude.                                                                                                              |
-| 5 | Sync labels | Keeps the repo's labels matching the manifest the pipeline reads (`status:*`, `type:*`, etc.) — it can't route issues without them.                                                          |
-| 6 | Open the caller-stub PR | Adds the pipeline's own workflows and starter config; merging it finishes setup.                                                                                                          |
+| # | Step | Why |
+|---|---|---|
+| 1 | Check (and fix) default-branch protection | An agent could ignore its instructions and push straight to the default branch; protection forces every change through a PR. |
+| 2 | Check (and enable) GitHub Pages | Deploy target for the visibility dashboard ([#6](https://github.com/abi83/interns/issues/6)). |
+| 3 | Mint the two GitHub Apps | Separate coder/reviewer identities, so the reviewer can approve the coder's PRs (`claude[bot]` can't approve its own). |
+| 4 | Write App secrets/variables + `CLAUDE_CODE_OAUTH_TOKEN` | The workflows need these to authenticate as the Apps and call Claude. |
+| 5 | Sync labels | The pipeline routes on `status:*` / `type:*` / `pr:*` and can't run without them. |
+| 6 | Open the caller-stub PR | Adds the pipeline's workflows and starter config; merging it finishes setup. |
 
-#### 1. Default-branch protection
+#### Default-branch protection
 
-The agents push branches with the consumer repo's own credentials, so no bot
-identity (`github-actions[bot]`, `claude[bot]`, the two Apps) may be allowed
-to push to the default branch — every change goes through a human-merged PR.
-Running this check locally means it uses the admin-scoped `gh` session you
-already authenticated for Setup, instead of a second admin-capable token
-stored in the repo. What happens, by starting state:
+The agents push branches with your repo's own credentials, so no bot identity
+(`github-actions[bot]`, `claude[bot]`, the two Apps) may be on the default
+branch's push allowlist. By starting state:
 
 | Default branch | Result |
 |---|---|
@@ -160,20 +164,14 @@ stored in the repo. What happens, by starting state:
 | protected, but your `gh` session lacks admin on the repo | **install fails** — re-auth with admin access, then re-run |
 | a bot identity is on the push allowlist | **install fails** — remove it, then re-run |
 
-If protection is enforced some other way this check can't see — an org-wide
-ruleset, say, rather than classic branch protection — pass
-`interns-install --branch-protection-handled-externally` to skip it.
+If protection is enforced some other way this check can't see (an org-wide
+ruleset, say), pass `interns-install --branch-protection-handled-externally`
+to skip it.
 
-#### 2. GitHub Pages
-
-The dashboard's deploy target. Enabled with the "GitHub Actions" build type
-if it's off; passes straight through if it's already on.
-
-#### 3. Two GitHub Apps
+#### GitHub Apps
 
 `interns-coder` and `interns-reviewer`, minted via the App Manifest flow, one
-"Create GitHub App" click each. Separate identities, so the reviewer can
-review the coder's PRs. Same permission set, no webhook:
+"Create GitHub App" click each. Same permission set, no webhook:
 
 | Permission | Access | Why |
 |---|---|---|
@@ -183,14 +181,14 @@ review the coder's PRs. Same permission set, no webhook:
 | Checks | Read | reviewer reads check results |
 | Metadata | Read | mandatory baseline |
 
-Installing each App on the repo is still a manual click — the installer
-prints the links.
+Installing each App on the repo is a manual click — the installer prints the
+links.
 
-#### 4. Secrets and variables
+#### Secrets and variables
 
-The App keys and IDs come from the mint above; for `CLAUDE_CODE_OAUTH_TOKEN`
-the installer prompts you to paste a token you obtain separately (see
-`anthropics/claude-code-action`), then writes it too.
+App keys and IDs come from the mint above; for `CLAUDE_CODE_OAUTH_TOKEN` the
+installer prompts you to paste a token you obtain separately (see
+`anthropics/claude-code-action`).
 
 | Kind | Name | Value |
 |---|---|---|
@@ -201,21 +199,16 @@ the installer prompts you to paste a token you obtain separately (see
 | Variable | `INTERNS_REVIEWER_APP_ID` | `interns-reviewer` App ID |
 
 The `install.yml` safety check fails the install if a required secret or
-variable is missing (it can't set the values); if its token can't list them it
-warns and leaves verification to you.
+variable is missing; if its token can't list them it warns and leaves
+verification to you.
 
-#### 5. Labels
-
-Synced from the manifest ([`.github/labels.json`](.github/labels.json)).
-
-#### 6. The caller-stub PR
+#### Caller-stub PR
 
 Adds two thin caller workflows that own the triggers and delegate to the
-reusable cores, plus a starter `.github/interns.yml`. It adds only
-missing files, never overwriting a hand-edited one. Merge it to finish. The
-stubs are pinned to `@v0.1.0` — keep the pin, the cores check out their own
-matching assets from that ref. Full stubs, including the `on:` triggers, are
-in [`templates/workflows/`](templates/workflows).
+reusable cores, plus a starter `.github/interns.yml`. Adds only missing files,
+never overwriting a hand-edited one; pinned to `@v0.1.0`. Merge it to finish.
+Full stubs, including the `on:` triggers, are in
+[`templates/workflows/`](templates/workflows).
 
 Pass `--issue-templates` (or `install_issue_templates: true` to `install.yml`)
 to also add the default issue templates
@@ -226,37 +219,52 @@ to also add the default issue templates
 One source of truth: [`.github/interns.yml`](templates/config/interns.yml),
 installed with every key already filled in at its default so you can see
 what's configurable without reading the source. Edit it, or delete a key to
-fall back to interns' own built-in default. There is no second, overlapping
-way to set the same thing (no Actions variables) — a value can only come from
-this file or the built-in.
+fall back to interns' own built-in default. A value can only come from this
+file or the built-in — there is no second, overlapping source.
 
-The consumer repo also needs `test` and `build` status checks on its PRs (from
+Your repo also needs `test` and `build` status checks on its PRs (from
 its own `deploy.yml` or equivalent) — the reviewer waits on them and won't run
 until both are green.
 
 ### Doing it by hand
+
+<details>
+<summary>The manual path, without <code>interns-install</code></summary>
 
 The fully manual path stays supported: create the two Apps with the permissions
 above and install them on the repo, add the secrets and variables, sync labels
 from the manifest, set branch protection, and commit the caller stubs from
 [`templates/workflows/`](templates/workflows) yourself.
 
+</details>
+
 ## Troubleshooting
 
-**A label change didn't start a run.** Label edits made by `GITHUB_TOKEN` (or
-any action using it) don't trigger new workflow runs — GitHub's anti-recursion
-rule. The `status:estimated` → `status:ready` approval must be a **human**
-label edit for the coder to fire. The pipeline works around this internally by
-dispatching the coder fix round with an explicit `workflow_dispatch` instead of
-a label. To re-run a phase by hand, use the `workflow_dispatch` on the caller
-workflow (`phase: refine|estimate` / `phase: coder|reviewer`).
+<details>
+<summary><b>A label change didn't start a run.</b></summary>
 
-**A fork PR got no review.** The reviewer job skips PRs from forks — forked
-runs have no access to secrets, so the app token and OAuth token would be
-empty. Review fork PRs manually. The same skip applies to bot PRs other than
-the coder's `claude[bot]` (Dependabot, etc.).
+Label edits made by `GITHUB_TOKEN` (or any action using it) don't trigger new
+workflow runs — GitHub's anti-recursion rule. The `status:estimated` →
+`status:ready` approval must be a **human** label edit for the coder to fire.
+The pipeline works around this internally by dispatching the coder fix round
+with an explicit `workflow_dispatch` instead of a label. To re-run a phase by
+hand, use the `workflow_dispatch` on the caller workflow
+(`phase: refine|estimate` / `phase: coder|reviewer`).
 
-**The installer's safety check failed.**
+</details>
+
+<details>
+<summary><b>A fork PR got no review.</b></summary>
+
+The reviewer job skips PRs from forks — forked runs have no access to secrets,
+so the app token and OAuth token would be empty. Review fork PRs manually. The
+same skip applies to bot PRs other than the coder's `claude[bot]`
+(Dependabot, etc.).
+
+</details>
+
+<details>
+<summary><b>The installer's safety check failed.</b></summary>
 
 | Failure | Fix |
 |---|---|
@@ -266,27 +274,43 @@ the coder's `claude[bot]` (Dependabot, etc.).
 | `can't read GitHub Pages state … needs admin access` | same as above — `interns-install` needs an admin-scoped `gh` session |
 | `GitHub Pages could not be enabled` | turn it on under Settings → Pages (build type: GitHub Actions) |
 
-**An issue on `status:ready` bounced to `status:needs-attention`.** It reached
-the coder without a `type:coding-task` or `type:bug` label — only those two are
-implementable. Add the right type label and re-apply `status:ready`.
+</details>
 
-**A PR is stuck on `pr:needs-attention`.** One of: the `test` / `build` checks
-went red (the coder is expected to push green — this goes straight to a human,
-no retry), a second review round still requested changes (the fix loop didn't
-converge), or the automatic-review cap (5 per PR) was hit. Read the PR comment
-the pipeline left for which. Re-engage a reviewer with the caller's
-`workflow_dispatch` (`phase: reviewer`, `pr_number: N`) once addressed.
+<details>
+<summary><b>An issue on <code>status:ready</code> bounced to <code>status:needs-attention</code>.</b></summary>
 
-**The coder declined a fix round.** It left a comment on the issue explaining
-why (feedback needs a protected path, is out of scope, or needs an owner
-decision) and set `status:needs-attention`. Pipeline config under
-`.github/workflows/` and the `gh-safe` / `pipeline` scripts are protected —
-`push-branch.sh` rejects any push touching them.
+It reached the coder without a `type:coding-task` or `type:bug` label — only
+those two are implementable. Add the right type label and re-apply
+`status:ready`.
+
+</details>
+
+<details>
+<summary><b>A PR is stuck on <code>pr:needs-attention</code>.</b></summary>
+
+One of: the `test` / `build` checks went red (the coder is expected to push
+green — this goes straight to a human, no retry), a second review round still
+requested changes (the fix loop didn't converge), or the automatic-review cap
+(5 per PR) was hit. Read the PR comment the pipeline left for which. Re-engage a
+reviewer with the caller's `workflow_dispatch` (`phase: reviewer`,
+`pr_number: N`) once addressed.
+
+</details>
+
+<details>
+<summary><b>The coder declined a fix round.</b></summary>
+
+It left a comment on the issue explaining why (feedback needs a protected path,
+is out of scope, or needs an owner decision) and set `status:needs-attention`.
+Pipeline config under `.github/workflows/` and the `gh-safe` / `pipeline`
+scripts are protected — `push-branch.sh` rejects any push touching them.
+
+</details>
 
 ## Pipeline metrics
 
 Every agent run appends one machine-readable record per `(run, job)` to
-`metrics.jsonl` on an orphan `metrics` branch in the consumer repo — tokens
+`metrics.jsonl` on an orphan `metrics` branch in your repo — tokens
 (per model, sub-agents included), tool-call counts, `num_turns`, durations,
 cost, and the agent's process result. A final `metrics` job on each workflow
 run gathers the records its agent jobs uploaded and commits them in a single
@@ -299,22 +323,6 @@ record shape is versioned by `schema_version` and specified in
 bump it and the `SCHEMA_VERSION` constant in `extract-metrics.sh` together on
 any breaking change. Read the log from any client with a single unauthenticated
 fetch of `raw.githubusercontent.com/<owner>/<repo>/metrics/metrics.jsonl`.
-
-## Layout
-
-| | |
-|---|---|
-| `.github/workflows/*-pipeline.yml` | reusable `workflow_call` cores |
-| `.github/actions/*` | composite actions the cores use |
-| `.github/scripts/pipeline/*` | pipeline steps (+ `bats` tests) |
-| `.github/scripts/gh-safe/*` | the narrow `gh` surface the agents may call |
-| `.github/scripts/install/*` | installer steps (label sync, safety checks, + `bats` tests) |
-| `.github/labels.json` | versioned label manifest (+ `.schema.json`) |
-| `.github/prompts/*` | agent prompts, layered over the consumer's `CLAUDE.md` |
-| `templates/issue/*` | default issue templates |
-| `templates/workflows/*`, `templates/config/*` | caller stubs + starter config the installer commits |
-| `installer/` | `interns-install` — the local CLI for Apps + secrets (Python, stdlib only) |
-| `install.sh` | one-line bootstrap: ensures `uv`, runs `interns-install` |
 
 ## License
 
