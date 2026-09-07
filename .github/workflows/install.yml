@@ -50,18 +50,27 @@ jobs:
     steps:
       - name: Resolve the interns ref
         id: ref
-        # Precedence: explicit input > the ref the caller pinned this reusable
-        # workflow to (github.job_workflow_ref, ".../install.yml@refs/tags/vX")
-        # > this run's own sha (the workflow_dispatch-on-this-repo case).
+        # Precedence: explicit input (the wrapper defaults this to its own
+        # pinned tag) > the ref the caller pinned this reusable workflow to
+        # (github.job_workflow_ref, ".../install.yml@<ref>") > this run's own
+        # ref (the workflow_dispatch-on-this-repo case). Never github.sha --
+        # in a workflow_call that is the *consumer's* commit, never an interns
+        # ref (#73).
+        env:
+          INPUT_REF: ${{ inputs.ref }}
+          JOB_WORKFLOW_REF: ${{ github.job_workflow_ref }}
+          RUN_REF: ${{ github.ref }}
         run: |
           set -euo pipefail
-          if [[ -n "${{ inputs.ref }}" ]]; then
-            ref="${{ inputs.ref }}"
-          elif [[ -n "${{ github.job_workflow_ref }}" ]]; then
-            ref="${{ github.job_workflow_ref }}"
-            ref="refs/${ref##*@refs/}"
+          if [[ -n "$INPUT_REF" ]]; then
+            ref="$INPUT_REF"
+          elif [[ -n "$JOB_WORKFLOW_REF" ]]; then
+            # "owner/repo/.github/workflows/install.yml@<ref>" -- <ref> is
+            # either a bare tag/branch (wrapper pinned "@v0.1.0") or a fully
+            # qualified "refs/tags/vX" / "refs/heads/x".
+            ref="${JOB_WORKFLOW_REF##*@}"
           else
-            ref="${{ github.sha }}"
+            ref="$RUN_REF"
           fi
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
           echo "Using interns ref: $ref"

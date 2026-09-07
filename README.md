@@ -239,11 +239,11 @@ which carries the `workflow` scope that `GITHUB_TOKEN` is never granted, so the
 `.github/workflows/*` files can be pushed:
 
 - [`.github/workflows/install.yml`](templates/workflows/install.yml) — a thin
-  `workflow_dispatch` wrapper for the reusable install workflow, pinned to
-  `@v0.1.0`.
+  `workflow_dispatch` wrapper for the reusable install workflow, pinned to the
+  installer version.
 - [`.github/workflows/{issue,code}-pipeline.yml`](templates/workflows) — caller
-  stubs that own the triggers and delegate to the reusable cores, pinned to
-  `@v0.1.0`.
+  stubs that own the triggers and delegate to the reusable cores, pinned to the
+  same version.
 - [`.github/interns.yml`](templates/config/interns.yml) — starter config.
 
 Only missing files are added — a hand-edited one is left untouched. Merge the

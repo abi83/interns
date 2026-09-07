@@ -139,6 +139,17 @@ class StageInstallFilesTests(unittest.TestCase):
             ".github/workflows/code-pipeline.yml",
         })
 
+    def test_collect_substitutes_ref_placeholder(self):
+        tmpl = "uses: abi83/interns/.github/workflows/install.yml@__INTERNS_REF__"
+        with mock.patch.object(cli.gh, "path_exists", return_value=False), \
+             mock.patch.object(cli.gh, "get_file", return_value=tmpl), \
+             mock.patch.object(cli, "INTERNS_REF", "v9.9.9"):
+            wanted = _collect_missing_files(self._repo(), "main", issue_templates=False)
+
+        for content in wanted.values():
+            self.assertNotIn("__INTERNS_REF__", content)
+            self.assertIn("@v9.9.9", content)
+
     def test_collect_pulls_issue_templates_when_dir_absent(self):
         with mock.patch.object(cli.gh, "path_exists", return_value=False), \
              mock.patch.object(cli.gh, "list_dir", return_value=["bug.md", "config.yml"]), \
