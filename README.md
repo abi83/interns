@@ -233,10 +233,10 @@ verification to you.
 
 #### Caller-stub PR
 
-`GITHUB_TOKEN` can't create or update `.github/workflows/*`, so the workflow
-can't add its own callers — `interns-install` opens a single PR (with the
-operator's own workflow-scoped `gh` session) adding whichever of these are
-missing:
+`interns-install` opens a single PR that adds the files a consumer repo needs
+to run the pipeline, committing them with the operator's own `gh` session —
+which carries the `workflow` scope that `GITHUB_TOKEN` is never granted, so the
+`.github/workflows/*` files can be pushed:
 
 - [`.github/workflows/install.yml`](templates/workflows/install.yml) — a thin
   `workflow_dispatch` wrapper for the reusable install workflow, pinned to
