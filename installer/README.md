@@ -10,6 +10,10 @@ local caller. If the repo has none, the CLI opens a one-file PR adding
 `.github/workflows/install.yml` (the wrapper from `templates/workflows/`);
 merge it and re-run the CLI, which then dispatches it.
 
+Because that PR writes under `.github/workflows/`, a classic `gh` token needs
+the `workflow` scope; the CLI checks for it up front (unless `--skip-handoff`)
+and stops with a fix hint rather than 404ing at the handoff.
+
 What it does, step by step, and how it fits the rest of setup:
 [the root README](../README.md).
 
