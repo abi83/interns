@@ -4,8 +4,10 @@ name: Install interns
 #   1. syncs the versioned label manifest (unconditional)
 #   2. checks that the App/OAuth secrets and variables interns-install wrote
 #      are present (best-effort -- github.token can't list them either)
-#   3. opens a PR with the thin caller stubs + a starter interns.yml
-#   4. optionally drops in the default issue templates
+#
+# The caller stubs (issue-pipeline.yml, code-pipeline.yml, interns.yml) and the
+# issue templates are staged by interns-install itself: github.token cannot
+# create or update .github/workflows/*, so this workflow can never open that PR.
 #
 # Branch protection and Pages are NOT checked here -- both need admin access
 # to read or write, which github.token can never be granted. interns-install
@@ -16,46 +18,29 @@ name: Install interns
 #   - workflow_call, pinned to a tag, from a consumer repo's own wrapper
 #   - workflow_dispatch, from this repo, to (re-)sync abi83/interns' own labels
 #
-# Idempotent: re-running syncs label drift and skips stub files already present.
+# Idempotent: re-running just re-syncs label drift.
 
 on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "interns ref for the manifest/templates (default: this run's ref)"
+        description: "interns ref for the manifest (default: this run's ref)"
         type: string
         default: ""
-      open_pr:
-        description: Open the caller-stubs PR (vs. label sync only)
-        type: boolean
-        default: true
-      install_issue_templates:
-        description: Add default issue templates if the repo has none
-        type: boolean
-        default: false
   workflow_call:
     inputs:
       ref:
         description: >
-          interns ref to copy the manifest and templates from. Defaults to the
-          exact ref the caller pinned this workflow to, so the manifest always
+          interns ref to copy the label manifest from. Defaults to the exact
+          ref the caller pinned this workflow to, so the manifest always
           matches the installer version. Override with a concrete tag if needed.
         required: false
         type: string
         default: ""
-      open_pr:
-        required: false
-        type: boolean
-        default: true
-      install_issue_templates:
-        required: false
-        type: boolean
-        default: false
 
 permissions:
-  contents: write
+  contents: read
   issues: write
-  pull-requests: write
 
 jobs:
   install:
@@ -81,10 +66,7 @@ jobs:
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
           echo "Using interns ref: $ref"
 
-      - name: Check out the consumer repo
-        uses: actions/checkout@v5
-
-      - name: Check out interns (manifest + templates)
+      - name: Check out interns (manifest + scripts)
         # github.token must be able to read abi83/interns — true for a
         # workflow_dispatch run in this repo, and for consumers in the same
         # org with Actions repo-access configured. A cross-org consumer
@@ -104,31 +86,3 @@ jobs:
       # presence check for the secrets/variables interns-install writes.
       - name: Verify required secrets and variables
         run: .interns/.github/scripts/install/safety-checks.sh
-
-      - name: Stage caller stubs and starter config
-        if: ${{ inputs.open_pr }}
-        id: stage
-        run: >
-          .interns/.github/scripts/install/stage-stubs.sh
-          .interns "${{ inputs.install_issue_templates }}"
-
-      - name: Open the PR
-        if: ${{ inputs.open_pr && steps.stage.outputs.changed == '1' }}
-        run: |
-          set -euo pipefail
-          branch="interns/install-$(date +%Y%m%d%H%M%S)"
-          # Canonical github-actions[bot] identity — the numeric id is what maps
-          # the noreply address to the bot account (same line as append-metrics.sh).
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -b "$branch"
-          git add .github/
-          git commit -m "chore: install interns pipeline caller stubs"
-          git push -u origin "$branch"
-          gh pr create --head "$branch" \
-            --title "Install the interns pipeline" \
-            --body-file .interns/.github/scripts/install/pr-body.md
-
-      - name: Nothing to open
-        if: ${{ inputs.open_pr && steps.stage.outputs.changed != '1' }}
-        run: echo "All caller stubs already present — labels synced, no PR needed."

@@ -142,14 +142,6 @@ def convert_manifest(code: str) -> dict:
     return data
 
 
-def workflow_exists(repo: str, workflow: str) -> bool:
-    try:
-        api(f"repos/{repo}/actions/workflows/{workflow}")
-        return True
-    except GhError:
-        return False
-
-
 def dispatch_workflow(repo: str, workflow: str, ref: str, inputs: dict[str, str]) -> None:
     args = ["workflow", "run", workflow, "--repo", repo, "--ref", ref]
     for key, value in inputs.items():
@@ -163,6 +155,22 @@ def get_file(repo: str, path: str, ref: str) -> str:
     if not isinstance(data, dict) or "content" not in data:
         raise GhError(f"could not read {path} from {repo}@{ref}")
     return base64.b64decode(data["content"]).decode()
+
+
+def path_exists(repo: str, path: str, ref: str) -> bool:
+    """True when `path` (a file or directory) is present in `repo` at `ref`."""
+    status, _ = api_status(f"repos/{repo}/contents/{path}?ref={ref}")
+    if status == "blocked":
+        raise GhError(f"could not check {path} in {repo}@{ref}")
+    return status == "ok"
+
+
+def list_dir(repo: str, path: str, ref: str) -> list[str]:
+    """Names of the entries directly under `path` in `repo` at `ref`."""
+    data = api(f"repos/{repo}/contents/{path}?ref={ref}")
+    if not isinstance(data, list):
+        raise GhError(f"{path} in {repo}@{ref} is not a directory")
+    return [entry["name"] for entry in data]
 
 
 def branch_head_sha(repo: str, branch: str) -> str:
