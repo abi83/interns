@@ -1,32 +1,21 @@
 # Thin caller for the interns install workflow.
-# interns-install opens the PR that adds this file, then dispatches it once the
-# PR is merged. Re-run any time from the Actions tab: label drift re-syncs and
-# caller stubs already present are skipped.
+# interns-install opens the PR that adds this file (alongside the caller stubs),
+# then dispatches it once the PR is merged. Re-run any time from the Actions
+# tab to re-sync label drift.
 name: Install interns
 
 on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "interns ref for the manifest/templates (blank = the pinned tag)"
+        description: "interns ref for the label manifest (blank = the pinned tag)"
         required: false
         type: string
         default: ""
-      open_pr:
-        description: Open the caller-stubs PR (uncheck for label sync only)
-        required: false
-        type: boolean
-        default: true
-      install_issue_templates:
-        description: Add the default issue templates if the repo has none
-        required: false
-        type: boolean
-        default: false
 
 permissions:
-  contents: write
+  contents: read
   issues: write
-  pull-requests: write
 
 jobs:
   install:
@@ -34,5 +23,3 @@ jobs:
     secrets: inherit
     with:
       ref: ${{ inputs.ref }}
-      open_pr: ${{ inputs.open_pr }}
-      install_issue_templates: ${{ inputs.install_issue_templates }}

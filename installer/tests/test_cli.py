@@ -4,10 +4,11 @@ from unittest import mock
 from interns_install import cli, gh
 from interns_install.apps import APPS
 from interns_install.cli import (
-    _add_wrapper,
+    _collect_missing_files,
     _parse_args,
     _provision_app,
     _secret_verb,
+    _stage_install_files,
     _use_existing_app,
 )
 from interns_install.console import Console
@@ -122,32 +123,59 @@ class ReuseAppTests(unittest.TestCase):
         self.assertTrue(any("via manifest" in p for p in con.planned))
 
 
-class AddWrapperTests(unittest.TestCase):
+class StageInstallFilesTests(unittest.TestCase):
     def _repo(self):
         return gh.Repo(owner="acme", name="widgets", is_org=False)
 
-    def test_opens_pr_and_records_manual_followup(self):
+    def test_collect_only_missing_files(self):
+        present = {".github/workflows/issue-pipeline.yml", ".github/interns.yml"}
+        with mock.patch.object(cli.gh, "path_exists",
+                               side_effect=lambda r, p, ref: p in present), \
+             mock.patch.object(cli.gh, "get_file", side_effect=lambda r, p, ref: f"body:{p}"):
+            wanted = _collect_missing_files(self._repo(), "main", issue_templates=False)
+
+        self.assertEqual(set(wanted), {
+            ".github/workflows/install.yml",
+            ".github/workflows/code-pipeline.yml",
+        })
+
+    def test_collect_pulls_issue_templates_when_dir_absent(self):
+        with mock.patch.object(cli.gh, "path_exists", return_value=False), \
+             mock.patch.object(cli.gh, "list_dir", return_value=["bug.md", "config.yml"]), \
+             mock.patch.object(cli.gh, "get_file", side_effect=lambda r, p, ref: f"body:{p}"):
+            wanted = _collect_missing_files(self._repo(), "main", issue_templates=True)
+
+        self.assertIn(".github/ISSUE_TEMPLATE/bug.md", wanted)
+        self.assertIn(".github/ISSUE_TEMPLATE/config.yml", wanted)
+
+    def test_opens_one_pr_for_all_missing_files(self):
         con = Console(assume_yes=True)
-        with mock.patch.multiple(
-            cli.gh,
-            get_file=mock.DEFAULT, branch_head_sha=mock.DEFAULT,
-            create_branch=mock.DEFAULT, put_file=mock.DEFAULT, create_pr=mock.DEFAULT,
-        ) as m:
-            m["get_file"].return_value = "name: Install interns\n"
+        with mock.patch.object(cli, "_collect_missing_files",
+                               return_value={".github/interns.yml": "cfg"}), \
+             mock.patch.multiple(
+                 cli.gh,
+                 branch_head_sha=mock.DEFAULT, create_branch=mock.DEFAULT,
+                 put_file=mock.DEFAULT, create_pr=mock.DEFAULT) as m:
             m["branch_head_sha"].return_value = "abc123"
             m["create_pr"].return_value = "https://github.com/acme/widgets/pull/7"
-            with mock.patch.object(cli, "_default_branch", return_value="main"):
-                _add_wrapper(con, self._repo())
+            url = _stage_install_files(con, self._repo(), "main", issue_templates=False)
 
-        m["get_file"].assert_called_once_with(
-            cli.INTERNS_REPO, "templates/workflows/install.yml", cli.INTERNS_REF)
+        self.assertEqual(url, "https://github.com/acme/widgets/pull/7")
         m["put_file"].assert_called_once()
-        self.assertTrue(any("pull/7" in note for note in con.manual))
+        m["create_pr"].assert_called_once()
+
+    def test_returns_none_when_nothing_missing(self):
+        con = Console(assume_yes=True)
+        with mock.patch.object(cli, "_collect_missing_files", return_value={}), \
+             mock.patch.object(cli.gh, "create_pr") as create_pr:
+            url = _stage_install_files(con, self._repo(), "main", issue_templates=False)
+        self.assertIsNone(url)
+        create_pr.assert_not_called()
 
     def test_dry_run_makes_no_calls(self):
         con = Console(assume_yes=True, dry_run=True)
         with mock.patch.object(cli.gh, "get_file") as get_file:
-            _add_wrapper(con, self._repo())
+            _stage_install_files(con, self._repo(), "main", issue_templates=False)
         get_file.assert_not_called()
         self.assertTrue(con.manual)
 

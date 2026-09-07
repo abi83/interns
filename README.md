@@ -231,27 +231,27 @@ The `install.yml` safety check fails the install if a required secret or
 variable is missing; if its token can't list them it warns and leaves
 verification to you.
 
-#### Install wrapper
-
-`install.yml` is a reusable workflow in `abi83/interns`; a consumer repo can
-only invoke it through a local caller. When `interns-install` finds none, it
-opens a one-file PR adding
-[`.github/workflows/install.yml`](templates/workflows/install.yml) — a thin
-`workflow_dispatch` wrapper pinned to `@v0.1.0`. Merge it (branch protection is
-already on, so it can't be a direct push), then re-run `interns-install`; it
-dispatches the wrapper and proceeds to the caller-stub PR.
-
 #### Caller-stub PR
 
-Adds two thin caller workflows that own the triggers and delegate to the
-reusable cores, plus a starter `.github/interns.yml`. Adds only missing files,
-never overwriting a hand-edited one; pinned to `@v0.1.0`. Merge it to finish.
-Full stubs, including the `on:` triggers, are in
-[`templates/workflows/`](templates/workflows).
+`interns-install` opens a single PR that adds the files a consumer repo needs
+to run the pipeline, committing them with the operator's own `gh` session —
+which carries the `workflow` scope that `GITHUB_TOKEN` is never granted, so the
+`.github/workflows/*` files can be pushed:
 
-Pass `--issue-templates` (or `install_issue_templates: true` to `install.yml`)
-to also add the default issue templates
-([`templates/issue/`](templates/issue)).
+- [`.github/workflows/install.yml`](templates/workflows/install.yml) — a thin
+  `workflow_dispatch` wrapper for the reusable install workflow, pinned to
+  `@v0.1.0`.
+- [`.github/workflows/{issue,code}-pipeline.yml`](templates/workflows) — caller
+  stubs that own the triggers and delegate to the reusable cores, pinned to
+  `@v0.1.0`.
+- [`.github/interns.yml`](templates/config/interns.yml) — starter config.
+
+Only missing files are added — a hand-edited one is left untouched. Merge the
+PR (branch protection is already on, so it can't be a direct push), then re-run
+`interns-install`, which dispatches `install.yml` to sync the label manifest.
+
+Pass `--issue-templates` to also add the default issue templates
+([`templates/issue/`](templates/issue)) when the repo has none.
 
 ### Pipeline configuration
 
@@ -274,10 +274,11 @@ non-blocking advisory checks (preview deploys, coverage deltas) under
 The fully manual path stays supported: create the two Apps with the permissions
 above and install them on the repo, add the secrets and variables, set branch
 protection, and commit the caller stubs from
-[`templates/workflows/`](templates/workflows) yourself — including
-[`install.yml`](templates/workflows/install.yml). With that wrapper in place,
-run it (`gh workflow run install.yml`) to sync labels and open the caller-stub
-PR, or sync labels from the manifest by hand.
+[`templates/workflows/`](templates/workflows) and
+[`templates/config/interns.yml`](templates/config/interns.yml) yourself —
+including the [`install.yml`](templates/workflows/install.yml) wrapper. With
+that wrapper in place, run it (`gh workflow run install.yml`) to sync labels,
+or sync labels from the manifest by hand.
 
 </details>
 

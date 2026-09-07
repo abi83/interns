@@ -6,8 +6,12 @@ Apps (an interactive browser click), writing repo secrets/variables
 protection / Pages safety checks (reading or writing either needs admin
 access, also not grantable to `GITHUB_TOKEN`). All of it runs with the
 operator's own admin-scoped `gh` session, so no admin-capable token has to be
-stored in the repo. Everything else -- label sync, the caller-stub PR -- is
-handed off to `install.yml`.
+stored in the repo.
+
+The caller-stub PR is opened here too: it adds files under
+`.github/workflows/`, which `GITHUB_TOKEN` cannot push, so `install.yml` could
+never open it (see #74). `install.yml` is left with just label sync and the
+best-effort secret check, both fine under `github.token`.
 """
 
 from __future__ import annotations
@@ -36,15 +40,35 @@ INTERNS_REPO = "abi83/interns"
 # default matches the pin baked into the templates.
 INTERNS_REF = os.environ.get("INTERNS_REF") or "v0.1.0"
 
-WRAPPER_PR_BODY = """\
-## Add the interns install workflow
+# Files interns-install stages into the consumer repo, source path in
+# INTERNS_REPO -> destination path in the consumer. GITHUB_TOKEN cannot push
+# .github/workflows/*, so install.yml can't add these itself (see #74) --
+# interns-install commits them with the operator's own workflow-scoped session.
+INSTALL_FILES = {
+    f"templates/workflows/{WORKFLOW}": f".github/workflows/{WORKFLOW}",
+    "templates/workflows/issue-pipeline.yml": ".github/workflows/issue-pipeline.yml",
+    "templates/workflows/code-pipeline.yml": ".github/workflows/code-pipeline.yml",
+    "templates/config/interns.yml": ".github/interns.yml",
+}
 
-`install.yml` can only be dispatched once a thin caller for it exists in this
-repo — `interns-install` opened this PR to add it.
+INSTALL_PR_BODY = """\
+## Install the interns pipeline
 
-After merging, re-run `interns-install` (or dispatch **Install interns** from
-the Actions tab). That run syncs the label manifest and opens the caller-stub
-PR that finishes setup.
+`interns-install` opened this PR to add the files a consumer repo needs before
+the pipeline can run — `GITHUB_TOKEN` can't push `.github/workflows/*`, so the
+workflow can't add them itself.
+
+- **`.github/workflows/install.yml`** — thin `workflow_dispatch` caller for the
+  reusable install workflow (label sync + secret checks).
+- **`.github/workflows/{issue,code}-pipeline.yml`** — caller stubs that own the
+  triggers and delegate to the reusable cores in `abi83/interns`, pinned to a
+  release tag.
+- **`.github/interns.yml`** — per-agent limits; every key is optional and falls
+  back to the interns default.
+
+Only missing files are added — an existing one is left untouched. After merging,
+re-run `interns-install` (or dispatch **Install interns** from the Actions tab)
+to sync the label manifest.
 """
 
 
@@ -66,7 +90,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
                    help="print every mutation without performing it")
     p.add_argument("--issue-templates", nargs="?", const="true", default="false",
                    metavar="true|false",
-                   help="tell install.yml to add the default issue templates")
+                   help="also stage the default issue templates when the repo has none")
     p.add_argument("--handoff-ref", metavar="REF",
                    help="ref to dispatch install.yml on (default: target default branch)")
     p.add_argument("--skip-handoff", action="store_true",
@@ -248,49 +272,72 @@ def _write_oauth_token(con: Console, repo: gh.Repo, existing_secrets: list[str] 
 
 
 def _handoff(con: Console, repo: gh.Repo, args: argparse.Namespace) -> None:
-    con.step("Hand off to install.yml (labels, caller stubs, safety checks)")
-    inputs = {"install_issue_templates": args.issue_templates}
+    con.step("Hand off to install.yml (label sync + secret checks)")
 
-    if not gh.workflow_exists(repo.slug, WORKFLOW):
-        _add_wrapper(con, repo)
+    base = _default_branch(repo)
+    pr_url = _stage_install_files(con, repo, base, args.issue_templates == "true")
+    if pr_url is not None:
+        con.note_manual(
+            f"merge {pr_url}, then re-run interns-install (or dispatch {WORKFLOW} "
+            f"from the Actions tab) to sync the label manifest"
+        )
         return
 
-    ref = args.handoff_ref or _default_branch(repo)
+    ref = args.handoff_ref or base
     if not con.confirm(f"Dispatch {WORKFLOW} on {repo.slug}@{ref} now?", default=True):
         con.note_manual(f"run `gh workflow run {WORKFLOW} --repo {repo.slug} --ref {ref}`")
         return
     if con.mutation(f"dispatch {WORKFLOW} on {repo.slug}@{ref}"):
-        gh.dispatch_workflow(repo.slug, WORKFLOW, ref, inputs)
+        gh.dispatch_workflow(repo.slug, WORKFLOW, ref, {})
 
 
-def _add_wrapper(con: Console, repo: gh.Repo) -> None:
-    con.say(f"{WORKFLOW} is not in {repo.slug} yet — it needs a thin caller wrapper "
-            "before it can run")
-    if not con.confirm(f"Open a PR adding .github/workflows/{WORKFLOW}?", default=True):
+def _collect_missing_files(repo: gh.Repo, base: str, issue_templates: bool) -> dict[str, str]:
+    """Destination path -> file content, for every interns install file not
+    already present on `base`. Reads template content from INTERNS_REPO."""
+    wanted: dict[str, str] = {}
+    for src, dest in INSTALL_FILES.items():
+        if not gh.path_exists(repo.slug, dest, base):
+            wanted[dest] = gh.get_file(INTERNS_REPO, src, INTERNS_REF)
+
+    if issue_templates and not gh.path_exists(repo.slug, ".github/ISSUE_TEMPLATE", base):
+        for name in gh.list_dir(INTERNS_REPO, "templates/issue", INTERNS_REF):
+            wanted[f".github/ISSUE_TEMPLATE/{name}"] = gh.get_file(
+                INTERNS_REPO, f"templates/issue/{name}", INTERNS_REF)
+    return wanted
+
+
+def _stage_install_files(con: Console, repo: gh.Repo, base: str,
+                         issue_templates: bool) -> str | None:
+    """Open one PR adding whichever interns install files are missing from the
+    consumer repo. Returns the PR URL, or None when nothing was missing."""
+    if con.dry_run:
+        con.mutation(f"open a PR adding any missing interns install files to {repo.slug}")
+        con.note_manual(f"merge the interns install PR, then re-run interns-install")
+        return "(dry-run)"
+
+    wanted = _collect_missing_files(repo, base, issue_templates)
+    if not wanted:
+        con.say("all interns install files already present")
+        return None
+
+    con.say("missing: " + ", ".join(sorted(wanted)))
+    if not con.confirm(f"Open a PR adding {len(wanted)} file(s) to {repo.slug}?", default=True):
         con.note_manual(
-            f"copy templates/workflows/{WORKFLOW} from {INTERNS_REPO} to "
-            f".github/workflows/{WORKFLOW}, merge it, then re-run interns-install"
+            "add the missing files listed above by hand, then re-run interns-install"
         )
-        return
+        return None
 
-    if not con.mutation(f"open a PR adding .github/workflows/{WORKFLOW} to {repo.slug}"):
-        con.note_manual(f"merge the {WORKFLOW} wrapper PR, then re-run interns-install")
-        return
-
-    wrapper = gh.get_file(INTERNS_REPO, f"templates/workflows/{WORKFLOW}", INTERNS_REF)
-    base = _default_branch(repo)
-    branch = f"interns/install-wrapper-{int(time.time())}"
+    branch = f"interns/install-{int(time.time())}"
     sha = gh.branch_head_sha(repo.slug, base)
+    con.mutation(f"open a PR on {repo.slug} adding: {', '.join(sorted(wanted))}")
     gh.create_branch(repo.slug, branch, sha)
-    gh.put_file(repo.slug, f".github/workflows/{WORKFLOW}", wrapper,
-                "chore: add interns install workflow wrapper", branch)
+    for dest, content in wanted.items():
+        gh.put_file(repo.slug, dest, content,
+                    "chore: install interns pipeline caller stubs", branch)
     url = gh.create_pr(repo.slug, branch, base,
-                       "Add the interns install workflow", WRAPPER_PR_BODY)
+                       "Install the interns pipeline", INSTALL_PR_BODY)
     con.say(f"opened {url}")
-    con.note_manual(
-        f"merge {url}, then re-run interns-install (or `gh workflow run {WORKFLOW} "
-        f"--repo {repo.slug}`) to sync labels and open the caller-stub PR"
-    )
+    return url
 
 
 def _default_branch(repo: gh.Repo) -> str:
