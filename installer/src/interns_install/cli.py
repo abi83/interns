@@ -40,6 +40,11 @@ INTERNS_REPO = "abi83/interns"
 # default matches the pin baked into the templates.
 INTERNS_REF = os.environ.get("INTERNS_REF") or "v0.1.0"
 
+# Templates leave the interns ref as this placeholder so the pin always tracks
+# the installer version -- both in the `uses:` line and in each wrapper's
+# `ref:` fallback (never the consumer's commit SHA, see #73).
+REF_PLACEHOLDER = "__INTERNS_REF__"
+
 # Files interns-install stages into the consumer repo, source path in
 # INTERNS_REPO -> destination path in the consumer. GITHUB_TOKEN cannot push
 # .github/workflows/*, so install.yml can't add these itself (see #74) --
@@ -297,7 +302,8 @@ def _collect_missing_files(repo: gh.Repo, base: str, issue_templates: bool) -> d
     wanted: dict[str, str] = {}
     for src, dest in INSTALL_FILES.items():
         if not gh.path_exists(repo.slug, dest, base):
-            wanted[dest] = gh.get_file(INTERNS_REPO, src, INTERNS_REF)
+            content = gh.get_file(INTERNS_REPO, src, INTERNS_REF)
+            wanted[dest] = content.replace(REF_PLACEHOLDER, INTERNS_REF)
 
     if issue_templates and not gh.path_exists(repo.slug, ".github/ISSUE_TEMPLATE", base):
         for name in gh.list_dir(INTERNS_REPO, "templates/issue", INTERNS_REF):

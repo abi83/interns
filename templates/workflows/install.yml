@@ -19,7 +19,9 @@ permissions:
 
 jobs:
   install:
-    uses: abi83/interns/.github/workflows/install.yml@v0.1.0
+    uses: abi83/interns/.github/workflows/install.yml@__INTERNS_REF__
     secrets: inherit
     with:
-      ref: ${{ inputs.ref }}
+      # Fall back to the exact tag this wrapper is pinned to, never to the
+      # consumer's commit SHA.
+      ref: ${{ inputs.ref || '__INTERNS_REF__' }}

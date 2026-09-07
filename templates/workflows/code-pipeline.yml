@@ -29,7 +29,7 @@ on:
 
 jobs:
   pipeline:
-    uses: abi83/interns/.github/workflows/code-pipeline.yml@v0.1.0
+    uses: abi83/interns/.github/workflows/code-pipeline.yml@__INTERNS_REF__
     secrets: inherit
     with:
       issue_number: ${{ inputs.issue_number }}
