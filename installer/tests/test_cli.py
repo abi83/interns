@@ -50,6 +50,24 @@ class ScopeParseTests(unittest.TestCase):
         self.assertEqual(gh._parse_scopes("Logged in to github.com"), set())
 
 
+class WorkflowScopePreflightTests(unittest.TestCase):
+    def _con(self):
+        return Console(assume_yes=True, dry_run=False)
+
+    def test_classic_token_without_workflow_exits(self):
+        with mock.patch.object(gh, "auth_scopes", return_value={"repo"}):
+            with self.assertRaises(SystemExit):
+                cli._workflow_scope_preflight(self._con())
+
+    def test_classic_token_with_workflow_passes(self):
+        with mock.patch.object(gh, "auth_scopes", return_value={"repo", "workflow"}):
+            cli._workflow_scope_preflight(self._con())
+
+    def test_fine_grained_pat_falls_through(self):
+        with mock.patch.object(gh, "auth_scopes", return_value=set()):
+            cli._workflow_scope_preflight(self._con())
+
+
 CODER = next(s for s in APPS if s.key == "coder")
 
 

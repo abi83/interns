@@ -107,6 +107,24 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     return p.parse_args(argv)
 
 
+def _workflow_scope_preflight(con: Console) -> None:
+    """The handoff unconditionally writes `.github/workflows/install.yml`, which
+    GitHub blocks (with an opaque 404) unless a classic token carries the
+    `workflow` scope. `auth_scopes()` is empty for a fine-grained PAT, whose
+    Workflows: write permission we can't see here -- fall through to the
+    existing best-effort behaviour in that case."""
+    scopes = gh.auth_scopes()
+    if not scopes or "workflow" in scopes:
+        return
+    con.error(
+        "your `gh` token is missing the `workflow` scope, required to add "
+        "`.github/workflows/install.yml`. Run "
+        "`gh auth refresh -h github.com -s workflow` (or regenerate the PAT "
+        "with `workflow` checked) and re-run."
+    )
+    sys.exit(1)
+
+
 def _scope_preflight(con: Console, repo: str) -> list[str] | None:
     existing = gh.list_secret_names(repo)
     if existing is None:
@@ -364,6 +382,8 @@ def main(argv: list[str] | None = None) -> int:
 
     con.say(f"target repo: {repo.slug}" + (" (dry run)" if args.dry_run else ""))
 
+    if not args.skip_handoff:
+        _workflow_scope_preflight(con)
     existing_secrets = _scope_preflight(con, repo.slug)
     existing_vars = gh.list_variable_names(repo.slug)
 
