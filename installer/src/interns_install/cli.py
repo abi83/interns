@@ -38,7 +38,7 @@ INTERNS_REPO = "abi83/interns"
 
 # Ref to copy the install wrapper from. install.sh exports INTERNS_REF; the
 # default matches the pin baked into the templates.
-INTERNS_REF = os.environ.get("INTERNS_REF") or "v0.1.0"
+INTERNS_REF = os.environ.get("INTERNS_REF") or "v0"
 
 # Templates leave the interns ref as this placeholder so the pin always tracks
 # the installer version -- both in the `uses:` line and in each wrapper's
@@ -195,7 +195,7 @@ def _use_existing_app(con: Console, repo: gh.Repo, spec: AppSpec,
         con.note_manual(f"set the {spec.key_secret} secret (a PEM private key for "
                         f"'{slug}')")
     else:
-        pem = con.prompt_secret(
+        pem = con.prompt_multiline_secret(
             f"Paste a private key (PEM) for the '{slug}' App. This repo needs its "
             f"own copy in {spec.key_secret}; GitHub Actions secrets aren't shared "
             f"between repos. Reuse a .pem you saved for another repo, or generate "
