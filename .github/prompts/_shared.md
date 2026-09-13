@@ -1,15 +1,21 @@
-Conventions shared by every pipeline agent prompt. Maintained once here;
-each workflow step inlines this file's content alongside the agent's own
-prompt file (via `load-prompt.sh`), so you never need to fetch it yourself.
-
 ## `gh-safe` scripts
 
 Every script under `.interns/.github/scripts/gh-safe/` resolves its own
 target (the issue or PR bound to the triggering event) automatically, from
-`$GITHUB_EVENT_PATH`. No argument, environment variable, or script internals
-to check first — just write the file the script expects (with the Write
-tool) and run the script with no arguments.
+`$GITHUB_EVENT_PATH`. Never pass issue/PR body, title, comment, or review
+text as a Bash argument — multi-line text breaks shell quoting. Write it to
+the file the script expects (with the Write tool), then run the script with
+no arguments:
 
-Never pass issue/PR body, title, or comment text as a Bash argument —
-multi-line markdown breaks shell quoting. The Write-file-then-run-script
-pattern above is the only supported way to pass that content.
+| Script | Writes to | File |
+|---|---|---|
+| `comment-issue.sh` | issue comment | `./.issue-pipeline-comment.md` |
+| `comment-pr.sh` | PR comment | `./.pr-comment.md` |
+| `edit-issue-body.sh` | issue body | `./.issue-pipeline-body.md` |
+| `edit-issue-title.sh` | issue title | `./.issue-pipeline-title.md` |
+| `open-pr.sh` | PR title + body | `./.pr-title.txt`, `./.pr-body.md` |
+| `submit-pr-review.sh` | review verdict (JSON) | `./.pr-review.json` |
+
+`edit-issue-labels.sh` and `push-branch.sh` take no file — labels are CLI
+flags (`--add-label X --remove-label Y`), and `push-branch.sh` reads the
+already-committed git state.

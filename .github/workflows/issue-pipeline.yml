@@ -65,10 +65,8 @@ jobs:
           ref: ${{ steps.pipeline_ref.outputs.ref }}
           path: .interns
 
-      # Resolved before the app-token step on purpose: if that step (or
-      # anything before it) fails, Flag failure below still needs a real
-      # issue number to report against, not one from a step that got skipped
-      # (same #90 lesson, applied here after it bit this job too).
+      # Resolved before the app-token step so Flag failure has a real issue
+      # number even if that step fails (#90).
       - name: Resolve issue
         id: issue
         uses: ./.interns/.github/actions/resolve-issue
