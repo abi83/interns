@@ -26,6 +26,11 @@ on:
         description: coder | reviewer
         required: false
         type: string
+      debug:
+        description: Show full Claude output in logs
+        required: false
+        type: boolean
+        default: false
 
 # A workflow_call can never grant the reusable workflow more than this caller
 # itself holds -- must cover its top-level needs plus every nested job's
@@ -46,3 +51,4 @@ jobs:
       pr_number: ${{ inputs.pr_number }}
       fix_round: ${{ inputs.fix_round || false }}
       phase: ${{ inputs.phase }}
+      debug: ${{ inputs.debug || false }}

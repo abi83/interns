@@ -15,6 +15,11 @@ on:
         description: refine | estimate
         required: true
         type: string
+      debug:
+        description: Show full Claude output in logs
+        required: false
+        type: boolean
+        default: false
 
 # A workflow_call can never grant the reusable workflow more than this caller
 # itself holds -- must cover its top-level needs plus every nested job's
@@ -31,3 +36,4 @@ jobs:
     with:
       issue_number: ${{ inputs.issue_number }}
       phase: ${{ inputs.phase }}
+      debug: ${{ inputs.debug || false }}
