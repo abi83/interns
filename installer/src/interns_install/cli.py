@@ -209,10 +209,12 @@ def _use_existing_app(con: Console, repo: gh.Repo, spec: AppSpec,
             con.note_manual(f"set the {spec.key_secret} secret (PEM private key)")
         pem = None  # noqa: F841 - drop the only reference to the key
 
-    con.note_manual(
-        f"confirm the {spec.key} App is installed on {repo.slug}: "
-        f"https://github.com/apps/{slug}/installations/new"
-    )
+    install_url = f"https://github.com/apps/{slug}/installations/new"
+    con.note_manual(f"confirm the {spec.key} App is installed on {repo.slug}: {install_url}")
+    if not con.assume_yes:
+        con.say(f"opening your browser to install '{slug}' on {repo.slug} — "
+                "pick the repo and click Install")
+        webbrowser.open(install_url)
 
 
 def _provision_app(con: Console, repo: gh.Repo, spec: AppSpec,
@@ -275,10 +277,12 @@ def _provision_app(con: Console, repo: gh.Repo, spec: AppSpec,
         gh.set_variable(repo.slug, spec.id_var, app_id)
 
     con.say(f"App '{slug}' created (id {app_id})")
-    con.note_manual(
-        f"install the {spec.key} App on {repo.slug}: "
-        f"https://github.com/apps/{slug}/installations/new"
-    )
+    install_url = f"https://github.com/apps/{slug}/installations/new"
+    con.note_manual(f"install the {spec.key} App on {repo.slug}: {install_url}")
+    if not con.assume_yes:
+        con.say(f"opening your browser to install '{slug}' on {repo.slug} — "
+                "pick the repo and click Install")
+        webbrowser.open(install_url)
 
 
 def _write_oauth_token(con: Console, repo: gh.Repo, existing_secrets: list[str] | None) -> None:
