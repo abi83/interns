@@ -58,6 +58,14 @@ class Console:
     def prompt_secret(self, question: str) -> str:
         return getpass.getpass(f"{question} ").strip()
 
+    def prompt_multiline_secret(self, question: str) -> str:
+        """For PEM keys and other multi-line pastes: getpass reads one line
+        only, so a pasted key gets truncated and the remaining lines spill
+        onto stdin. Read to EOF instead."""
+        print(f"{question}")
+        print("  (paste the full value, then press Enter and Ctrl-D to finish; blank to skip)")
+        return sys.stdin.read().strip()
+
     def summary(self) -> None:
         print("\n" + "=" * 60)
         print("Summary")

@@ -219,6 +219,13 @@ App keys and IDs come from the mint above; for `CLAUDE_CODE_OAUTH_TOKEN` the
 installer prompts you to paste a token you obtain separately (see
 `anthropics/claude-code-action`).
 
+**Also install Anthropic's own Claude Code GitHub App:**
+[github.com/apps/claude](https://github.com/apps/claude). This is separate
+from the `interns-coder-*` / `interns-reviewer-*` Apps minted above —
+`CLAUDE_CODE_OAUTH_TOKEN`'s OIDC token exchange fails with `401 Unauthorized`
+until it's installed on the consumer repo. Nothing in the installer checks
+for this yet; it only surfaces as a failed coder/reviewer run.
+
 | Kind | Name | Value |
 |---|---|---|
 | Secret | `CLAUDE_CODE_OAUTH_TOKEN` | OAuth token for `anthropics/claude-code-action` |

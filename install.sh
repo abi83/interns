@@ -15,7 +15,7 @@
 set -eu
 
 # Exported so interns-install copies the install wrapper from the same ref.
-export INTERNS_REF="${INTERNS_REF:-v0.1.0}"
+export INTERNS_REF="${INTERNS_REF:-v0}"
 SPEC="git+https://github.com/abi83/interns.git@${INTERNS_REF}#subdirectory=installer"
 
 if ! command -v uv >/dev/null 2>&1; then

@@ -1,10 +1,14 @@
 # Thin caller for the interns install workflow.
-# interns-install opens the PR that adds this file (alongside the caller stubs),
-# then dispatches it once the PR is merged. Re-run any time from the Actions
-# tab to re-sync label drift.
+# interns-install opens the PR that adds this file (alongside the caller stubs).
+# The push trigger below fires it as soon as that PR merges, so label sync
+# happens without a manual re-run. Re-run any time from the Actions tab to
+# re-sync label drift.
 name: Install interns
 
 on:
+  push:
+    paths:
+      - '.github/workflows/install.yml'
   workflow_dispatch:
     inputs:
       ref:
