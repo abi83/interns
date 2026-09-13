@@ -154,7 +154,7 @@ re-run either any time to fix drift.
 |---|---|---|
 | 1 | Check (and fix) default-branch protection | An agent could ignore its instructions and push straight to the default branch; protection forces every change through a PR. |
 | 2 | Check (and enable) GitHub Pages | Deploy target for the visibility dashboard ([#6](https://github.com/abi83/interns/issues/6)). |
-| 3 | Mint (or reuse) the two GitHub Apps | Separate coder/reviewer identities, so the reviewer can approve the coder's PRs (`claude[bot]` can't approve its own). Reused as-is on further repos under the same account — see [GitHub Apps](#github-apps). |
+| 3 | Mint (or reuse) the three GitHub Apps | Separate coder/reviewer identities, so the reviewer can approve the coder's PRs (`claude[bot]` can't approve its own); a third triage App applies `status:refined` under its own identity so the estimate phase actually triggers (`GITHUB_TOKEN` label edits never fire new workflow runs). Reused as-is on further repos under the same account — see [GitHub Apps](#github-apps). |
 | 4 | Write App secrets/variables + `CLAUDE_CODE_OAUTH_TOKEN` | The workflows need these to authenticate as the Apps and call Claude. |
 | 5 | Hand off to `install.yml` | If no caller for it exists yet, open a one-file PR adding `.github/workflows/install.yml` (a thin wrapper) — merge it and re-run the installer. Once present, dispatch it. |
 | 6 | (`install.yml`) Sync labels | The pipeline routes on `status:*` / `type:*` / `pr:*` and can't run without them. |
@@ -163,7 +163,7 @@ re-run either any time to fix drift.
 #### Default-branch protection
 
 The agents push branches with your repo's own credentials, so no bot identity
-(`github-actions[bot]`, `claude[bot]`, the two Apps) may be on the default
+(`github-actions[bot]`, `claude[bot]`, the three Apps) may be on the default
 branch's push allowlist. By starting state:
 
 | Default branch | Result |
@@ -179,10 +179,10 @@ to skip it.
 
 #### GitHub Apps
 
-`interns-coder-<owner>` and `interns-reviewer-<owner>`, minted via the App
-Manifest flow, one "Create GitHub App" click each. GitHub App names are globally
-unique, so the minted name carries the owning account. Same permission set, no
-webhook:
+`interns-coder-<owner>`, `interns-reviewer-<owner>` and `interns-triage-<owner>`,
+minted via the App Manifest flow, one "Create GitHub App" click each. GitHub App
+names are globally unique, so the minted name carries the owning account.
+Coder and reviewer share one permission set, no webhook:
 
 | Permission | Access | Why |
 |---|---|---|
@@ -192,16 +192,23 @@ webhook:
 | Checks | Read | reviewer reads check results |
 | Metadata | Read | mandatory baseline |
 
+The triage App is scoped down to just what applying `status:refined` needs:
+
+| Permission | Access | Why |
+|---|---|---|
+| Issues | Read and write | apply `status:refined` under a non-`GITHUB_TOKEN` identity |
+| Metadata | Read | mandatory baseline |
+
 Installing each App on the repo is a manual click — the installer prints the
 links.
 
 **One App, many repos.** A GitHub App is per-account (or per-org); only its
 *installation* and the repo's secrets/variables are per-repo. A second consumer
-repo under the same account reuses that account's `interns-*-<owner>` pair
+repo under the same account reuses that account's `interns-*-<owner>` triple
 rather than minting a duplicate:
 
-- Pass `--coder-app-id` / `--reviewer-app-id` to run the App step
-  non-interactively against the existing Apps.
+- Pass `--coder-app-id` / `--reviewer-app-id` / `--triage-app-id` to run the
+  App step non-interactively against the existing Apps.
 - Without the flags, the installer looks up `interns-<role>-<owner>`, confirms
   the account owns it, reads its App ID from the App's public metadata, and
   asks only for a PEM private key instead of minting. If that lookup can't
@@ -231,8 +238,10 @@ for this yet; it only surfaces as a failed coder/reviewer run.
 | Secret | `CLAUDE_CODE_OAUTH_TOKEN` | OAuth token for `anthropics/claude-code-action` |
 | Secret | `INTERNS_CODER_APP_PRIVATE_KEY` | coder App private key (PEM) |
 | Secret | `INTERNS_REVIEWER_APP_PRIVATE_KEY` | reviewer App private key (PEM) |
+| Secret | `INTERNS_TRIAGE_APP_PRIVATE_KEY` | triage App private key (PEM) |
 | Variable | `INTERNS_CODER_APP_ID` | coder App ID |
 | Variable | `INTERNS_REVIEWER_APP_ID` | reviewer App ID |
+| Variable | `INTERNS_TRIAGE_APP_ID` | triage App ID |
 
 The `install.yml` safety check fails the install if a required secret or
 variable is missing; if its token can't list them it warns and leaves

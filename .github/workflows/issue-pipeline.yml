@@ -23,6 +23,9 @@ on:
       CLAUDE_CODE_OAUTH_TOKEN:
         description: OAuth token for anthropics/claude-code-action
         required: true
+      INTERNS_TRIAGE_APP_PRIVATE_KEY:
+        description: Private key for the triage GitHub App (paired with vars.INTERNS_TRIAGE_APP_ID)
+        required: true
 
 permissions:
   issues: write
@@ -61,6 +64,19 @@ jobs:
           repository: abi83/interns
           ref: ${{ steps.pipeline_ref.outputs.ref }}
           path: .interns
+
+      # status:refined must be applied by a distinct App identity, not the
+      # default GITHUB_TOKEN: GitHub never fires new workflow runs from
+      # GITHUB_TOKEN-authored events (its anti-recursion rule), so a
+      # GITHUB_TOKEN label write would silently never trigger the estimate
+      # job (#89). Any App token escapes that restriction -- no self-approval
+      # constraint here like coder/reviewer, so one shared App is enough.
+      - name: Generate triage app token
+        id: triage_token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.INTERNS_TRIAGE_APP_ID }}
+          private-key: ${{ secrets.INTERNS_TRIAGE_APP_PRIVATE_KEY }}
 
       - name: Resolve agent config
         id: cfg
@@ -164,7 +180,10 @@ jobs:
       - name: Apply refinement outcome
         if: success() && steps.claude.outputs.execution_file != ''
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The triage App's token, not GITHUB_TOKEN -- see "Generate triage
+          # app token" above. This is the label write that must trigger the
+          # estimate job.
+          GH_TOKEN: ${{ steps.triage_token.outputs.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           ISSUE: ${{ steps.issue.outputs.number }}
         run: >

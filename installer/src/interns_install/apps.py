@@ -27,14 +27,22 @@ APP_PERMISSIONS = {
     "metadata": "read",
 }
 
+# The triage App only ever edits issue labels (see #89) -- no repo contents or
+# PR access needed.
+TRIAGE_APP_PERMISSIONS = {
+    "issues": "write",
+    "metadata": "read",
+}
+
 
 @dataclass
 class AppSpec:
-    key: str            # "reviewer" / "coder"
-    name_base: str      # "interns-reviewer" / "interns-coder"
+    key: str            # "reviewer" / "coder" / "triage"
+    name_base: str      # "interns-reviewer" / "interns-coder" / "interns-triage"
     id_var: str         # "INTERNS_REVIEWER_APP_ID"
     key_secret: str     # "INTERNS_REVIEWER_APP_PRIVATE_KEY"
     description: str
+    permissions: dict[str, str] | None = None  # None = APP_PERMISSIONS
 
     def name_for(self, owner: str) -> str:
         """GitHub App names are globally unique, so the minted name carries the
@@ -58,10 +66,20 @@ APPS = [
         key_secret="INTERNS_CODER_APP_PRIVATE_KEY",
         description="coder-side pushes, PRs, comments and label edits for the interns pipeline",
     ),
+    AppSpec(
+        key="triage",
+        name_base="interns-triage",
+        id_var="INTERNS_TRIAGE_APP_ID",
+        key_secret="INTERNS_TRIAGE_APP_PRIVATE_KEY",
+        description="applies status:refined so the estimate phase actually triggers "
+                     "(GITHUB_TOKEN-authored label edits never fire new workflow runs)",
+        permissions=TRIAGE_APP_PERMISSIONS,
+    ),
 ]
 
 
-def build_manifest(name: str, redirect_url: str, description: str) -> dict:
+def build_manifest(name: str, redirect_url: str, description: str,
+                    permissions: dict[str, str] | None = None) -> dict:
     return {
         "name": name,
         "url": "https://github.com/abi83/interns",
@@ -69,7 +87,7 @@ def build_manifest(name: str, redirect_url: str, description: str) -> dict:
         "redirect_url": redirect_url,
         "public": False,
         "default_events": [],
-        "default_permissions": APP_PERMISSIONS,
+        "default_permissions": permissions or APP_PERMISSIONS,
     }
 
 

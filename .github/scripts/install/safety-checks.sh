@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Best-effort presence check for the pipeline's secrets and App-id variables
-# (reviewer *and* coder GitHub App identities). Their values can't be set
+# (reviewer, coder *and* triage GitHub App identities). Their values can't be set
 # from here, so a definitively missing one is a hard failure with
 # instructions; if the token can't even list them, that's a warning, not a
 # failure, since GITHUB_TOKEN is never granted the scope to list secrets.
@@ -19,8 +19,8 @@
 
 set -euo pipefail
 
-REQUIRED_SECRETS="${REQUIRED_SECRETS:-CLAUDE_CODE_OAUTH_TOKEN INTERNS_REVIEWER_APP_PRIVATE_KEY INTERNS_CODER_APP_PRIVATE_KEY}"
-REQUIRED_VARS="${REQUIRED_VARS:-INTERNS_REVIEWER_APP_ID INTERNS_CODER_APP_ID}"
+REQUIRED_SECRETS="${REQUIRED_SECRETS:-CLAUDE_CODE_OAUTH_TOKEN INTERNS_REVIEWER_APP_PRIVATE_KEY INTERNS_CODER_APP_PRIVATE_KEY INTERNS_TRIAGE_APP_PRIVATE_KEY}"
+REQUIRED_VARS="${REQUIRED_VARS:-INTERNS_REVIEWER_APP_ID INTERNS_CODER_APP_ID INTERNS_TRIAGE_APP_ID}"
 
 : "${GH_TOKEN:?safety-checks: GH_TOKEN unset}"
 : "${GITHUB_REPOSITORY:?safety-checks: GITHUB_REPOSITORY unset}"
