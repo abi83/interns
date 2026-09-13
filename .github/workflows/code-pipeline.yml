@@ -425,16 +425,18 @@ jobs:
     # (see #132 defect 8):
     #  - fork PRs have no access to secrets, so CLAUDE_CODE_OAUTH_TOKEN /
     #    INTERNS_REVIEWER_APP_PRIVATE_KEY are empty and the run just errors out;
-    #  - bot PRs other than the coder's claude[bot] (Dependabot, etc.) aren't in
-    #    allowed_bots and produce an "Automated review failed" comment.
+    #  - bot PRs other than the coder's own App (Dependabot, etc.) aren't in
+    #    allowed_bots and produce an "Automated review failed" comment. The
+    #    coder's bot login is per-account (interns-coder-<owner>[bot]), not a
+    #    fixed name, so it can't be compared here at job-if time (no steps.*
+    #    yet) -- "Dedup check" below folds this into its existing skip output
+    #    once the coder's identity is resolved as a step.
     # A skipped job posts nothing. workflow_dispatch stays an unconditional
     # manual override.
     if: >
       (github.event_name == 'pull_request' &&
         github.event.action != 'closed' &&
-        github.event.pull_request.head.repo.fork == false &&
-        (github.event.pull_request.user.type != 'Bot' ||
-         github.event.pull_request.user.login == 'claude[bot]')) ||
+        github.event.pull_request.head.repo.fork == false) ||
       (github.event_name == 'workflow_dispatch' && inputs.phase == 'reviewer')
     runs-on: ubuntu-latest
     # GITHUB_TOKEN-authored label edits don't fire new workflow runs (GitHub's
@@ -508,8 +510,8 @@ jobs:
           "${{ steps.checks.outputs.reason }}"
 
       # The reviewer runs under its own GitHub App identity, distinct from the
-      # coder's claude[bot], so it can actually submit an APPROVE review —
-      # GitHub forbids approving a PR authored by the same identity (#119).
+      # coder's, so it can actually submit an APPROVE review — GitHub forbids
+      # approving a PR authored by the same identity (#119).
       - name: Generate reviewer app token
         id: reviewer_token
         uses: actions/create-github-app-token@v3
@@ -525,17 +527,44 @@ jobs:
         id: ident
         run: echo "bot=${{ steps.reviewer_token.outputs.app-slug }}[bot]" >> "$GITHUB_OUTPUT"
 
-      # Dedup only. The round cap lives in "Apply verdict":
-      # the reviewer always runs and submits a verdict (so a second review can
-      # still land on APPROVE), and the escalate-vs-dispatch-coder decision is
-      # made from that verdict — see #132 defect 6.
+      # Needed only to resolve the coder's bot login below (never used to
+      # authenticate anything in this job) -- the PR-author check at job-if
+      # time can't compare against a fixed name since the coder's login is
+      # per-account (interns-coder-<owner>[bot]).
+      - name: Generate coder app token
+        id: coder_token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.INTERNS_CODER_APP_ID }}
+          private-key: ${{ secrets.INTERNS_CODER_APP_PRIVATE_KEY }}
+
+      - name: Resolve coder identity
+        id: coder_ident
+        run: echo "bot=${{ steps.coder_token.outputs.app-slug }}[bot]" >> "$GITHUB_OUTPUT"
+
+      # Dedup, plus the bot-identity check that used to live at job-if (see
+      # above): a bot-authored PR whose author isn't the coder's own App
+      # (Dependabot, etc.) skips the same way a duplicate event does. The
+      # round cap lives in "Apply verdict" -- the reviewer always runs and
+      # submits a verdict (so a second review can still land on APPROVE),
+      # and the escalate-vs-dispatch-coder decision is made from that
+      # verdict — see #132 defect 6.
       - name: Dedup check
         id: check
         if: steps.checks.outputs.ok == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           REVIEWER_BOT: ${{ steps.ident.outputs.bot }}
+          PR_AUTHOR_LOGIN: ${{ github.event.pull_request.user.login }}
+          PR_AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
+          CODER_BOT: ${{ steps.coder_ident.outputs.bot }}
         run: |
+          if [[ "$PR_AUTHOR_TYPE" == "Bot" && "$PR_AUTHOR_LOGIN" != "$CODER_BOT" ]]; then
+            echo "PR author $PR_AUTHOR_LOGIN isn't the coder's own App ($CODER_BOT) — not a pipeline PR, skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           PR="${{ github.event.pull_request.number || inputs.pr_number }}"
           HEAD_SHA=$(gh pr view "$PR" --repo ${{ github.repository }} --json headRefOid --jq .headRefOid)
           LAST_SHA=$(gh api "repos/${{ github.repository }}/pulls/$PR/reviews" \
@@ -577,7 +606,7 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ steps.reviewer_token.outputs.token }}
           show_full_output: ${{ inputs.debug }}
-          allowed_bots: "claude[bot]"
+          allowed_bots: "${{ steps.coder_ident.outputs.bot }}"
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
