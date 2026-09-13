@@ -84,31 +84,6 @@ jobs:
       # The installer's safety check requires vars.INTERNS_CODER_APP_ID +
       # secrets.INTERNS_CODER_APP_PRIVATE_KEY, so this is unconditional like the
       # reviewer's equivalent.
-      #
-      # .interns/ and the issue number are resolved *before* the app-token
-      # step on purpose: neither needs the coder App, and if the App-token
-      # step (or anything before it) fails, Flag failure below still needs
-      # flag-failure.sh on disk and a real issue number to report against (#90).
-      - name: Resolve pipeline ref
-        id: pipeline_ref
-        shell: bash
-        env:
-          JOB_WORKFLOW_REF: ${{ github.job_workflow_ref }}
-        run: echo "ref=${JOB_WORKFLOW_REF##*@}" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout pipeline assets
-        uses: actions/checkout@v5
-        with:
-          repository: abi83/interns
-          ref: ${{ steps.pipeline_ref.outputs.ref }}
-          path: .interns
-
-      - name: Resolve issue
-        id: issue
-        uses: ./.interns/.github/actions/resolve-issue
-        with:
-          issue_number: ${{ github.event.issue.number || inputs.issue_number }}
-
       - name: Generate coder app token
         id: coder_token
         uses: actions/create-github-app-token@v3
@@ -122,10 +97,39 @@ jobs:
           fetch-depth: 0
           # Persisted so the agent's push-branch.sh reaches origin as the coder App.
           token: ${{ steps.coder_token.outputs.token }}
-          # actions/checkout defaults to `git clean -ffdx`, which deletes any
-          # untracked directory in the workspace -- including .interns/,
-          # already checked out above (#90's fix runs it before this step).
-          clean: false
+
+      # .interns/ (path: .interns, a subdirectory) must be checked out *after*
+      # the main repo (path: ., the workspace root): actions/checkout wipes
+      # the entire target directory before initializing a repo that isn't
+      # already a matching checkout there, regardless of `clean` -- doing it
+      # in the other order deletes .interns/ the moment the main checkout runs
+      # (confirmed live on tetris: "Deleting the contents of ...", then Gate
+      # issue type failed with the action missing). `if: always()` below is
+      # what actually fixes #90 instead: if the app-token step (or Checkout)
+      # fails, both are skipped, so there's nothing for this step to conflict
+      # with, and Flag failure still gets .interns/ and a real issue number.
+      - name: Resolve pipeline ref
+        id: pipeline_ref
+        if: always()
+        shell: bash
+        env:
+          JOB_WORKFLOW_REF: ${{ github.job_workflow_ref }}
+        run: echo "ref=${JOB_WORKFLOW_REF##*@}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout pipeline assets
+        if: always()
+        uses: actions/checkout@v5
+        with:
+          repository: abi83/interns
+          ref: ${{ steps.pipeline_ref.outputs.ref }}
+          path: .interns
+
+      - name: Resolve issue
+        id: issue
+        if: always()
+        uses: ./.interns/.github/actions/resolve-issue
+        with:
+          issue_number: ${{ github.event.issue.number || inputs.issue_number }}
 
       # Deterministic type gate: only type:coding-task and type:bug are
       # implementable. status:ready can also land on a spike or (via a manual
