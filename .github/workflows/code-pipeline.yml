@@ -84,20 +84,11 @@ jobs:
       # The installer's safety check requires vars.INTERNS_CODER_APP_ID +
       # secrets.INTERNS_CODER_APP_PRIVATE_KEY, so this is unconditional like the
       # reviewer's equivalent.
-      - name: Generate coder app token
-        id: coder_token
-        uses: actions/create-github-app-token@v3
-        with:
-          app-id: ${{ vars.INTERNS_CODER_APP_ID }}
-          private-key: ${{ secrets.INTERNS_CODER_APP_PRIVATE_KEY }}
-
-      - name: Checkout
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-          # Persisted so the agent's push-branch.sh reaches origin as the coder App.
-          token: ${{ steps.coder_token.outputs.token }}
-
+      #
+      # .interns/ and the issue number are resolved *before* the app-token
+      # step on purpose: neither needs the coder App, and if the App-token
+      # step (or anything before it) fails, Flag failure below still needs
+      # flag-failure.sh on disk and a real issue number to report against (#90).
       - name: Resolve pipeline ref
         id: pipeline_ref
         shell: bash
@@ -117,6 +108,20 @@ jobs:
         uses: ./.interns/.github/actions/resolve-issue
         with:
           issue_number: ${{ github.event.issue.number || inputs.issue_number }}
+
+      - name: Generate coder app token
+        id: coder_token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.INTERNS_CODER_APP_ID }}
+          private-key: ${{ secrets.INTERNS_CODER_APP_PRIVATE_KEY }}
+
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          # Persisted so the agent's push-branch.sh reaches origin as the coder App.
+          token: ${{ steps.coder_token.outputs.token }}
 
       # Deterministic type gate: only type:coding-task and type:bug are
       # implementable. status:ready can also land on a spike or (via a manual
