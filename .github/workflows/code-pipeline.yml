@@ -122,6 +122,10 @@ jobs:
           fetch-depth: 0
           # Persisted so the agent's push-branch.sh reaches origin as the coder App.
           token: ${{ steps.coder_token.outputs.token }}
+          # actions/checkout defaults to `git clean -ffdx`, which deletes any
+          # untracked directory in the workspace -- including .interns/,
+          # already checked out above (#90's fix runs it before this step).
+          clean: false
 
       # Deterministic type gate: only type:coding-task and type:bug are
       # implementable. status:ready can also land on a spike or (via a manual
