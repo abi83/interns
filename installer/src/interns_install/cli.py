@@ -91,6 +91,8 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
                         "(the App is account-wide; only its install + secrets are per-repo)")
     p.add_argument("--reviewer-app-id", metavar="ID",
                    help="reuse the reviewer App with this ID instead of minting one")
+    p.add_argument("--triage-app-id", metavar="ID",
+                   help="reuse the triage App with this ID instead of minting one")
     p.add_argument("--dry-run", action="store_true",
                    help="print every mutation without performing it")
     p.add_argument("--issue-templates", nargs="?", const="true", default="false",
@@ -251,7 +253,7 @@ def _provision_app(con: Console, repo: gh.Repo, spec: AppSpec,
         return
 
     with ManifestServer(action_url, lambda redirect: build_manifest(
-        name, redirect, spec.description)) as server:
+        name, redirect, spec.description, spec.permissions)) as server:
         con.say(f"opening your browser to create '{name}' — "
                 "click 'Create GitHub App'")
         con.say(f"if nothing opened, visit: {server.base_url}")
@@ -398,7 +400,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     try:
-        app_ids = {"coder": args.coder_app_id, "reviewer": args.reviewer_app_id}
+        app_ids = {"coder": args.coder_app_id, "reviewer": args.reviewer_app_id,
+                   "triage": args.triage_app_id}
         for spec in APPS:
             _provision_app(con, repo, spec, app_ids.get(spec.key),
                            existing_secrets, existing_vars)

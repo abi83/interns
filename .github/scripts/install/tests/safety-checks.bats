@@ -32,8 +32,8 @@ EOF
   export GH_TOKEN=x GITHUB_REPOSITORY=owner/repo
 
   # Happy-path defaults; individual tests override.
-  export STUB_SECRETS="CLAUDE_CODE_OAUTH_TOKEN INTERNS_REVIEWER_APP_PRIVATE_KEY INTERNS_CODER_APP_PRIVATE_KEY"
-  export STUB_VARS="INTERNS_REVIEWER_APP_ID INTERNS_CODER_APP_ID"
+  export STUB_SECRETS="CLAUDE_CODE_OAUTH_TOKEN INTERNS_REVIEWER_APP_PRIVATE_KEY INTERNS_CODER_APP_PRIVATE_KEY INTERNS_TRIAGE_APP_PRIVATE_KEY"
+  export STUB_VARS="INTERNS_REVIEWER_APP_ID INTERNS_CODER_APP_ID INTERNS_TRIAGE_APP_ID"
 }
 
 calls() { cat "$STUB_LOG"; }
@@ -48,7 +48,7 @@ calls() { cat "$STUB_LOG"; }
   export STUB_SECRETS="CLAUDE_CODE_OAUTH_TOKEN"
   run "$SCRIPT"
   [ "$status" -ne 0 ]
-  [[ "$output" == *"missing repo secret(s): INTERNS_REVIEWER_APP_PRIVATE_KEY INTERNS_CODER_APP_PRIVATE_KEY"* ]]
+  [[ "$output" == *"missing repo secret(s): INTERNS_REVIEWER_APP_PRIVATE_KEY INTERNS_CODER_APP_PRIVATE_KEY INTERNS_TRIAGE_APP_PRIVATE_KEY"* ]]
 }
 
 @test "warns but does not fail when secrets can't be listed" {
@@ -62,7 +62,7 @@ calls() { cat "$STUB_LOG"; }
   export STUB_VARS="INTERNS_REVIEWER_APP_ID"
   run "$SCRIPT"
   [ "$status" -ne 0 ]
-  [[ "$output" == *"missing repo variable(s): INTERNS_CODER_APP_ID"* ]]
+  [[ "$output" == *"missing repo variable(s): INTERNS_CODER_APP_ID INTERNS_TRIAGE_APP_ID"* ]]
 }
 
 @test "warns but does not fail when variables can't be listed" {
