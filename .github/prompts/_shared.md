@@ -1,5 +1,6 @@
-Conventions shared by every pipeline agent prompt. Referenced, not duplicated
-— each prompt tells you to read this once alongside its own instructions.
+Conventions shared by every pipeline agent prompt. Maintained once here;
+each workflow step inlines this file's content alongside the agent's own
+prompt file (via `load-prompt.sh`), so you never need to fetch it yourself.
 
 ## `gh-safe` scripts
 

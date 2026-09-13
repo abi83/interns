@@ -7,9 +7,6 @@ its line-anchored inline comments) plus any PR conversation posted after
 it. Earlier rounds are already addressed in prior commits; don't reopen
 them. You're on the PR's existing branch.
 
-Read `.interns/.github/prompts/_shared.md` first — it covers the `gh-safe`
-script conventions referenced below.
-
 ## Scope your changes to the feedback
 
 Address exactly what the reviewer flagged. Don't re-open discussion on

@@ -66,9 +66,6 @@ Output nothing else — no preamble, no closing remarks.
 
 ## Mechanics
 
-Read `.interns/.github/prompts/_shared.md` first — it covers the `gh-safe`
-script conventions used below.
-
 1. Write your output — the four score lines verbatim on the normal path, or
    your clarification question on a stop path — to
    `./.issue-pipeline-comment.md`, then run

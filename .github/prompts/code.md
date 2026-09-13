@@ -4,9 +4,6 @@ locally.
 Input: the issue title, body (Value / Scope / Acceptance Criteria), and any
 owner comments.
 
-Read `.interns/.github/prompts/_shared.md` first — it covers the `gh-safe`
-script conventions referenced below.
-
 ## Ground yourself first
 
 Read and follow the repo's own agent instructions — `CLAUDE.md` or

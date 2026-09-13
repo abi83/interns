@@ -246,6 +246,11 @@ jobs:
           .interns/.github/scripts/pipeline/derive-code-hints.sh
           "${{ steps.issue.outputs.number }}"
 
+      - name: Load coder instructions
+        id: instructions
+        if: steps.guard.outputs.skip != 'true' && steps.mode.outputs.fix_round != 'true'
+        run: .interns/.github/scripts/pipeline/load-prompt.sh .interns/.github/prompts/_shared.md .interns/.github/prompts/code.md
+
       - name: Run Claude coder (initial implementation)
         id: claude_initial
         if: steps.guard.outputs.skip != 'true' && steps.mode.outputs.fix_round != 'true'
@@ -270,12 +275,19 @@ jobs:
 
             ${{ steps.issue.outputs.comments }}
 
-            Read .interns/.github/prompts/code.md for the exact implementation and
-            PR-opening rules and apply them to the issue above.
+            INSTRUCTIONS:
+            ${{ steps.instructions.outputs.text }}
+
+            Apply the instructions above to the issue above.
           claude_args: |
             --model ${{ steps.cfg.outputs.model }}
             --max-turns ${{ steps.cfg.outputs.max_turns }}
             --allowedTools "Read,Grep,Glob,Write,Edit,${{ env.ALLOWED_GIT_WRITE }},${{ env.ALLOWED_PUSH_BRANCH }},${{ env.ALLOWED_BUILD_TEST }},${{ env.ALLOWED_OPEN_PR }},${{ env.ALLOWED_COMMENT_ISSUE }}"
+
+      - name: Load coder fix-round instructions
+        id: fix_instructions
+        if: steps.guard.outputs.skip != 'true' && steps.mode.outputs.fix_round == 'true'
+        run: .interns/.github/scripts/pipeline/load-prompt.sh .interns/.github/prompts/_shared.md .interns/.github/prompts/code-fix.md
 
       - name: Run Claude coder (fix round)
         id: claude_fix
@@ -305,8 +317,10 @@ jobs:
             REVIEWER FEEDBACK:
             ${{ steps.feedback.outputs.text }}
 
-            Read .interns/.github/prompts/code-fix.md for the exact rules and
-            apply them to the feedback above.
+            INSTRUCTIONS:
+            ${{ steps.fix_instructions.outputs.text }}
+
+            Apply the instructions above to the feedback above.
           claude_args: |
             --model ${{ steps.cfg.outputs.model }}
             --max-turns ${{ steps.cfg.outputs.max_turns }}
@@ -538,6 +552,11 @@ jobs:
           .interns/.github/scripts/pipeline/check-review-cap.sh
           "${{ github.event.pull_request.number }}"
 
+      - name: Load reviewer instructions
+        id: instructions
+        if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.cap.outputs.capped != 'true'
+        run: .interns/.github/scripts/pipeline/load-prompt.sh .interns/.github/prompts/_shared.md .interns/.github/prompts/review.md
+
       - name: Run Claude reviewer
         id: claude
         if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.cap.outputs.capped != 'true'
@@ -556,9 +575,10 @@ jobs:
             PR NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
             LINKED ISSUE: ${{ steps.linked.outputs.issue_number }}
 
-            Read .interns/.github/prompts/review.md for the exact review rubric
-            and the mechanic for submitting your verdict, and review this
-            PR's diff against the linked issue's Acceptance Criteria.
+            INSTRUCTIONS:
+            ${{ steps.instructions.outputs.text }}
+
+            Review this PR's diff against the linked issue's Acceptance Criteria.
           claude_args: |
             --model ${{ steps.cfg.outputs.model }}
             --max-turns ${{ steps.cfg.outputs.max_turns }}

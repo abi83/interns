@@ -118,9 +118,6 @@ Rules for the comment:
 
 ## Mechanics
 
-Read `.interns/.github/prompts/_shared.md` first — it covers the `gh-safe`
-script conventions used below.
-
 On the normal path, in order:
 
 1. Apply the type you picked (Step 1):
