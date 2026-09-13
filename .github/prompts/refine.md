@@ -118,10 +118,6 @@ Rules for the comment:
 
 ## Mechanics
 
-Never pass body, title, or comment text as a Bash argument — write it to the
-file named below with the Write tool, then run the script with no arguments so
-it reads that file.
-
 On the normal path, in order:
 
 1. Apply the type you picked (Step 1):
