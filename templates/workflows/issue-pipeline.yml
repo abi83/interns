@@ -16,6 +16,14 @@ on:
         required: true
         type: string
 
+# A workflow_call can never grant the reusable workflow more than this caller
+# itself holds -- must cover its top-level needs plus every nested job's
+# (the metrics-append job wants contents: write).
+permissions:
+  contents: write
+  issues: write
+  id-token: write
+
 jobs:
   pipeline:
     uses: abi83/interns/.github/workflows/issue-pipeline.yml@__INTERNS_REF__
