@@ -117,13 +117,17 @@ def list_variable_names(repo: str) -> list[str] | None:
 
 
 def set_secret(repo: str, name: str, value: str) -> None:
-    _run(["secret", "set", name, "--repo", repo, "--body", "-"], input_text=value)
+    # `--body` takes its argument as the literal value -- "-" is not a stdin
+    # sentinel to gh, so passing it wrote the literal string "-" every time
+    # and silently dropped `value`. Omit `--body` entirely; gh then reads
+    # stdin, which is what `input_text` actually provides (#94).
+    _run(["secret", "set", name, "--repo", repo], input_text=value)
 
 
 def set_variable(repo: str, name: str, value: str) -> None:
     # `variable set` refuses to overwrite silently on some versions; delete-then-set is idempotent.
     _run(["variable", "delete", name, "--repo", repo], check=False)
-    _run(["variable", "set", name, "--repo", repo, "--body", "-"], input_text=value)
+    _run(["variable", "set", name, "--repo", repo], input_text=value)
 
 
 def app_public(slug: str) -> dict | None:
@@ -136,7 +140,12 @@ def app_public(slug: str) -> dict | None:
 
 
 def convert_manifest(code: str) -> dict:
-    data = api(f"app-manifest/{code}/conversions", method="POST")
+    # Plural "app-manifests", not "app-manifest" -- the singular path 404s on
+    # every call (a generic catch-all, not the real route: confirmed via its
+    # generic core rate-limit bucket and docs link, vs. the plural path's
+    # dedicated integration_manifest bucket and the actual manifest-conversion
+    # docs page). This was the entire root cause of #70 (#94).
+    data = api(f"app-manifests/{code}/conversions", method="POST")
     if not isinstance(data, dict) or "pem" not in data:
         raise GhError("manifest conversion did not return a private key")
     return data
