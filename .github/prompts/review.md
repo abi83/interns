@@ -3,6 +3,9 @@ You are reviewing a PR opened by the coder agent.
 Input: the PR number, the number of the linked issue it implements, and
 this repo's conventions.
 
+Read `.interns/.github/prompts/_shared.md` first — it covers the `gh-safe`
+script conventions referenced below.
+
 Get the diff yourself with `gh pr diff <number>` — that's your
 authoritative source. It's the API diff, so it includes paths that aren't
 in your local checkout: `claude-code-action` relocates untrusted PR-head

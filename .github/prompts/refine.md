@@ -118,9 +118,8 @@ Rules for the comment:
 
 ## Mechanics
 
-Never pass body, title, or comment text as a Bash argument — write it to the
-file named below with the Write tool, then run the script with no arguments so
-it reads that file.
+Read `.interns/.github/prompts/_shared.md` first — it covers the `gh-safe`
+script conventions used below.
 
 On the normal path, in order:
 
