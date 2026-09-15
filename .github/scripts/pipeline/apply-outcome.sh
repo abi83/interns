@@ -57,7 +57,10 @@ roll_up_size() {
 
 case "$phase:$outcome" in
   refinement:refined)
-    edit --remove-label status:needs-refinement --add-label status:refined
+    # --remove-label on a label the issue doesn't carry is a harmless no-op --
+    # clears a status:needs-attention a prior failed attempt may have left
+    # behind, so a successful re-run doesn't leave both labels on at once.
+    edit --remove-label status:needs-refinement --remove-label status:needs-attention --add-label status:refined
     ;;
   refinement:needs-attention)
     edit --remove-label status:needs-refinement --add-label status:needs-attention
@@ -68,7 +71,7 @@ case "$phase:$outcome" in
       exit 1
     fi
     size=$(roll_up_size)
-    edit --remove-label status:refined --add-label status:estimated --add-label "size:$size"
+    edit --remove-label status:refined --remove-label status:needs-attention --add-label status:estimated --add-label "size:$size"
     ;;
   estimation:needs-attention)
     edit --remove-label status:refined --add-label status:needs-attention

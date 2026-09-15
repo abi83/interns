@@ -19,7 +19,7 @@ write_scores() {
   marker refined
   run "$PIPELINE_DIR/apply-outcome.sh" refinement "$MARKER"
   [ "$status" -eq 0 ]
-  grep -q 'gh issue edit 34 --repo owner/repo --remove-label status:needs-refinement --add-label status:refined' "$STUB_LOG"
+  grep -q 'gh issue edit 34 --repo owner/repo --remove-label status:needs-refinement --remove-label status:needs-attention --add-label status:refined' "$STUB_LOG"
   grep -q '^outcome=refined$' "$GITHUB_OUTPUT"
 }
 
@@ -35,7 +35,7 @@ write_scores() {
   write_scores
   run "$PIPELINE_DIR/apply-outcome.sh" estimation "$MARKER" "$COMMENT"
   [ "$status" -eq 0 ]
-  grep -q 'gh issue edit 34 --repo owner/repo --remove-label status:refined --add-label status:estimated --add-label size:S' "$STUB_LOG"
+  grep -q 'gh issue edit 34 --repo owner/repo --remove-label status:refined --remove-label status:needs-attention --add-label status:estimated --add-label size:S' "$STUB_LOG"
 }
 
 @test "estimation/needs-attention swaps refined -> needs-attention" {
