@@ -56,7 +56,12 @@ jobs:
         shell: bash
         env:
           JOB_WORKFLOW_REF: ${{ github.job_workflow_ref }}
-        run: echo "ref=${JOB_WORKFLOW_REF##*@}" >> "$GITHUB_OUTPUT"
+        run: |
+          if [[ -z "$JOB_WORKFLOW_REF" ]]; then
+            echo "::error::github.job_workflow_ref came back empty -- can't tell which abi83/interns ref to check out. Refusing to silently fall back to the default branch (see #101)." >&2
+            exit 1
+          fi
+          echo "ref=${JOB_WORKFLOW_REF##*@}" >> "$GITHUB_OUTPUT"
 
       - name: Checkout pipeline assets
         uses: actions/checkout@v5
@@ -227,7 +232,12 @@ jobs:
         shell: bash
         env:
           JOB_WORKFLOW_REF: ${{ github.job_workflow_ref }}
-        run: echo "ref=${JOB_WORKFLOW_REF##*@}" >> "$GITHUB_OUTPUT"
+        run: |
+          if [[ -z "$JOB_WORKFLOW_REF" ]]; then
+            echo "::error::github.job_workflow_ref came back empty -- can't tell which abi83/interns ref to check out. Refusing to silently fall back to the default branch (see #101)." >&2
+            exit 1
+          fi
+          echo "ref=${JOB_WORKFLOW_REF##*@}" >> "$GITHUB_OUTPUT"
 
       - name: Checkout pipeline assets
         uses: actions/checkout@v5
@@ -404,7 +414,12 @@ jobs:
         shell: bash
         env:
           JOB_WORKFLOW_REF: ${{ github.job_workflow_ref }}
-        run: echo "ref=${JOB_WORKFLOW_REF##*@}" >> "$GITHUB_OUTPUT"
+        run: |
+          if [[ -z "$JOB_WORKFLOW_REF" ]]; then
+            echo "::error::github.job_workflow_ref came back empty -- can't tell which abi83/interns ref to check out. Refusing to silently fall back to the default branch (see #101)." >&2
+            exit 1
+          fi
+          echo "ref=${JOB_WORKFLOW_REF##*@}" >> "$GITHUB_OUTPUT"
 
       - name: Checkout pipeline assets
         uses: actions/checkout@v5

@@ -262,6 +262,14 @@ which carries the `workflow` scope that `GITHUB_TOKEN` is never granted, so the
   same version.
 - [`.github/interns.yml`](templates/config/interns.yml) — starter config.
 
+The `@version` those wrapper files pin to is `v0`: a floating tag that always
+points at the latest non-breaking release (`v0.1.x`, ...), the same
+convention `actions/checkout@v4` and friends use. A patch or minor release
+reaches every consumer with zero file edits on their side — moving `v0`
+forward is enough. A future breaking change would ship as `v1`; existing
+consumers stay on `v0` until they choose to re-pin. The only time a consumer
+touches this pin is to opt into that kind of major bump.
+
 Only missing files are added — a hand-edited one is left untouched. Merge the
 PR (branch protection is already on, so it can't be a direct push), then re-run
 `interns-install`, which dispatches `install.yml` to sync the label manifest.
