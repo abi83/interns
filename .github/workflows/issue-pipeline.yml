@@ -236,6 +236,22 @@ jobs:
           ref: ${{ steps.pipeline_ref.outputs.ref }}
           path: .interns
 
+      # The status:refined label that triggers this job is written by the
+      # triage App (see "Generate triage app token" in the refine job above),
+      # so claude-code-action's non-human-actor check rejects the run unless
+      # that App's login is in allowed_bots. Resolved here rather than
+      # hardcoded -- same lesson as the reviewer's #103 fix.
+      - name: Generate triage app token
+        id: triage_token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.INTERNS_TRIAGE_APP_ID }}
+          private-key: ${{ secrets.INTERNS_TRIAGE_APP_PRIVATE_KEY }}
+
+      - name: Resolve triage identity
+        id: triage_ident
+        run: echo "bot=${{ steps.triage_token.outputs.app-slug }}[bot]" >> "$GITHUB_OUTPUT"
+
       - name: Resolve agent config
         id: cfg
         uses: ./.interns/.github/actions/resolve-agent-config
@@ -285,7 +301,7 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           show_full_output: ${{ inputs.debug }}
-          allowed_bots: "claude[bot]"
+          allowed_bots: "${{ steps.triage_ident.outputs.bot }}"
           prompt: |
             REPO: ${{ github.repository }}
             ISSUE NUMBER: ${{ steps.issue.outputs.number }}
