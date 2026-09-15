@@ -40,18 +40,34 @@ fi
 VALID_LABELS=$(gh label list --limit 500 --json name --jq '.[].name')
 
 FILTERED_ADD=()
+UNKNOWN_ADD=()
 for label in "${ADD_LABELS[@]}"; do
   if echo "$VALID_LABELS" | grep -qxF "$label"; then
     FILTERED_ADD+=("$label")
+  else
+    UNKNOWN_ADD+=("$label")
   fi
 done
 
 FILTERED_REMOVE=()
+UNKNOWN_REMOVE=()
 for label in "${REMOVE_LABELS[@]}"; do
   if echo "$VALID_LABELS" | grep -qxF "$label"; then
     FILTERED_REMOVE+=("$label")
+  else
+    UNKNOWN_REMOVE+=("$label")
   fi
 done
+
+if [[ ${#UNKNOWN_ADD[@]} -gt 0 ]]; then
+  echo "Error: label(s) don't exist on this repo, not added: ${UNKNOWN_ADD[*]}" >&2
+fi
+if [[ ${#UNKNOWN_REMOVE[@]} -gt 0 ]]; then
+  echo "Error: label(s) don't exist on this repo, not removed: ${UNKNOWN_REMOVE[*]}" >&2
+fi
+if [[ ${#UNKNOWN_ADD[@]} -gt 0 || ${#UNKNOWN_REMOVE[@]} -gt 0 ]]; then
+  exit 1
+fi
 
 if [[ ${#FILTERED_ADD[@]} -eq 0 && ${#FILTERED_REMOVE[@]} -eq 0 ]]; then
   exit 0

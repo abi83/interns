@@ -108,6 +108,10 @@ jobs:
       # what actually fixes #90 instead: if the app-token step (or Checkout)
       # fails, both are skipped, so there's nothing for this step to conflict
       # with, and Flag failure still gets .interns/ and a real issue number.
+      # No hard-fail on an empty ref here (unlike the other "Resolve pipeline
+      # ref" steps, see #101) -- this step must stay unconditionally
+      # successful, or the #90 fix above breaks: Flag failure needs
+      # .interns/ checked out even when the ref can't be resolved.
       - name: Resolve pipeline ref
         id: pipeline_ref
         if: always()
@@ -465,7 +469,12 @@ jobs:
         shell: bash
         env:
           JOB_WORKFLOW_REF: ${{ github.job_workflow_ref }}
-        run: echo "ref=${JOB_WORKFLOW_REF##*@}" >> "$GITHUB_OUTPUT"
+        run: |
+          if [[ -z "$JOB_WORKFLOW_REF" ]]; then
+            echo "::error::github.job_workflow_ref came back empty -- can't tell which abi83/interns ref to check out. Refusing to silently fall back to the default branch (see #101)." >&2
+            exit 1
+          fi
+          echo "ref=${JOB_WORKFLOW_REF##*@}" >> "$GITHUB_OUTPUT"
 
       - name: Checkout pipeline assets
         uses: actions/checkout@v5
@@ -710,7 +719,12 @@ jobs:
         shell: bash
         env:
           JOB_WORKFLOW_REF: ${{ github.job_workflow_ref }}
-        run: echo "ref=${JOB_WORKFLOW_REF##*@}" >> "$GITHUB_OUTPUT"
+        run: |
+          if [[ -z "$JOB_WORKFLOW_REF" ]]; then
+            echo "::error::github.job_workflow_ref came back empty -- can't tell which abi83/interns ref to check out. Refusing to silently fall back to the default branch (see #101)." >&2
+            exit 1
+          fi
+          echo "ref=${JOB_WORKFLOW_REF##*@}" >> "$GITHUB_OUTPUT"
 
       - name: Checkout pipeline assets
         uses: actions/checkout@v5
@@ -750,7 +764,12 @@ jobs:
         shell: bash
         env:
           JOB_WORKFLOW_REF: ${{ github.job_workflow_ref }}
-        run: echo "ref=${JOB_WORKFLOW_REF##*@}" >> "$GITHUB_OUTPUT"
+        run: |
+          if [[ -z "$JOB_WORKFLOW_REF" ]]; then
+            echo "::error::github.job_workflow_ref came back empty -- can't tell which abi83/interns ref to check out. Refusing to silently fall back to the default branch (see #101)." >&2
+            exit 1
+          fi
+          echo "ref=${JOB_WORKFLOW_REF##*@}" >> "$GITHUB_OUTPUT"
 
       - name: Checkout pipeline assets
         uses: actions/checkout@v5
