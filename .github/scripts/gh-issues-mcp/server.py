@@ -56,16 +56,42 @@ def list_issues(
     return result.stdout
 
 
+_VIEW_QUERY = """
+query($owner: String!, $repo: String!, $number: Int!) {
+  repository(owner: $owner, name: $repo) {
+    issue(number: $number) {
+      number
+      title
+      body
+      state
+      labels(first: 20) { nodes { name } }
+      comments(first: 50) {
+        nodes { author { login } createdAt body }
+      }
+      parent          { number title state }
+      subIssues(first: 20) { nodes { number title state } }
+      blockedBy(first: 20) { nodes { number title state } }
+      blocking(first: 20)  { nodes { number title state } }
+    }
+  }
+}
+"""
+
+
 @mcp.tool()
 def view_issue(
     issue_number: Annotated[int, Field(description="Issue number to fetch.")],
 ) -> str:
-    """Get full details of one issue: number, title, body, labels, state, and comments."""
+    """Get full details of one issue: number, title, body, labels, state, comments,
+    and GitHub relationships (parent, sub-issues, blockedBy, blocking)."""
+    owner, repo = _REPO.split("/", 1)
     result = subprocess.run(
         [
-            "gh", "issue", "view", str(issue_number),
-            "--repo", _REPO,
-            "--json", "number,title,body,labels,state,comments",
+            "gh", "api", "graphql",
+            "-f", f"query={_VIEW_QUERY}",
+            "-F", f"owner={owner}",
+            "-F", f"repo={repo}",
+            "-F", f"number={issue_number}",
         ],
         capture_output=True, text=True, check=True,
     )
