@@ -71,10 +71,9 @@ title is vague, mislabeled, or no longer matches what the refined body
 describes, rewrite it into a short, specific summary of the corrected body.
 Leave it untouched if it's already accurate — don't reword a fine title.
 
-The rewritten description must be **concise and specific**: the rewritten
-body must not exceed the original body's length. Cut restatement, hedging,
-and background the owner already knows. A refined Scope is a short list of
-concrete changes, each pointing at where it lands.
+The rewritten description must be **concise and specific**. Cut restatement,
+hedging, and background the owner already knows. A refined Scope is a short
+list of concrete changes, each pointing at where it lands.
 
 Rules:
 
