@@ -20,6 +20,10 @@ outputs:
 runs:
   using: composite
   steps:
+    - name: Install uv
+      shell: bash
+      run: pip install uv
+
     - name: Resolve issue
       id: resolve
       shell: bash
@@ -27,5 +31,5 @@ runs:
         GH_TOKEN: ${{ github.token }}
         GITHUB_REPOSITORY: ${{ github.repository }}
       run: |
-        python3 "${{ github.workspace }}/.interns/.github/scripts/pipeline/fetch-issue.py" \
-          "${{ inputs.issue_number }}"
+        uv run "${{ github.workspace }}/.interns/.github/scripts/gh-issues-mcp/server.py" \
+          --fetch "${{ inputs.issue_number }}"

@@ -123,9 +123,6 @@ jobs:
         id: instructions
         run: .interns/.github/scripts/pipeline/load-prompt.sh .interns/.github/prompts/_shared.md .interns/.github/prompts/refine.md
 
-      - name: Install uv
-        run: pip install uv
-
       - name: Create MCP config for gh-issues server
         env:
           GH_TOKEN_VALUE: ${{ secrets.GITHUB_TOKEN }}
