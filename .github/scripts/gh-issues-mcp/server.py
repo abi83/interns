@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["mcp>=1.0.0"]
+# dependencies = ["mcp==2.2.0"]
 # ///
 
 import json
@@ -9,10 +9,10 @@ import pathlib
 import subprocess
 from typing import Annotated
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from pydantic import Field
 
-mcp = FastMCP("gh-issues")
+mcp = MCPServer("gh-issues")
 
 _REPO = os.environ.get("GITHUB_REPOSITORY", "")
 
