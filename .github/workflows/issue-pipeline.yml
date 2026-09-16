@@ -123,9 +123,6 @@ jobs:
         id: instructions
         run: .interns/.github/scripts/pipeline/load-prompt.sh .interns/.github/prompts/_shared.md .interns/.github/prompts/refine.md
 
-      - name: Install uv
-        run: pip install uv
-
       - name: Create MCP config for gh-issues server
         env:
           GH_TOKEN_VALUE: ${{ secrets.GITHUB_TOKEN }}
@@ -169,6 +166,7 @@ jobs:
             ISSUE NUMBER: ${{ steps.issue.outputs.number }}
             TITLE: ${{ steps.issue.outputs.title }}
             OWNER: @${{ github.repository_owner }}
+            LABELS: ${{ steps.issue.outputs.labels }}
             BODY:
             ${{ steps.issue.outputs.body }}
 
@@ -339,6 +337,7 @@ jobs:
             ISSUE NUMBER: ${{ steps.issue.outputs.number }}
             TITLE: ${{ steps.issue.outputs.title }}
             OWNER: @${{ github.repository_owner }}
+            LABELS: ${{ steps.issue.outputs.labels }}
             BODY:
             ${{ steps.issue.outputs.body }}
 

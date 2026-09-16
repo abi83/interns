@@ -78,12 +78,8 @@ query($owner: String!, $repo: String!, $number: Int!) {
 """
 
 
-@mcp.tool()
-def view_issue(
-    issue_number: Annotated[int, Field(description="Issue number to fetch.")],
-) -> str:
-    """Get full details of one issue: number, title, body, labels, state, comments,
-    and GitHub relationships (parent, sub-issues, blockedBy, blocking)."""
+def _fetch_issue(number: int) -> str:
+    """Run the GraphQL query and return the raw response JSON string."""
     owner, repo = _REPO.split("/", 1)
     result = subprocess.run(
         [
@@ -91,12 +87,66 @@ def view_issue(
             "-f", f"query={_VIEW_QUERY}",
             "-F", f"owner={owner}",
             "-F", f"repo={repo}",
-            "-F", f"number={issue_number}",
+            "-F", f"number={number}",
         ],
         capture_output=True, text=True, check=True,
     )
     return result.stdout
 
 
+@mcp.tool()
+def view_issue(
+    issue_number: Annotated[int, Field(description="Issue number to fetch.")],
+) -> str:
+    """Get full details of one issue: number, title, body, labels, state, comments,
+    and GitHub relationships (parent, sub-issues, blockedBy, blocking)."""
+    return _fetch_issue(issue_number)
+
+
+def _write_github_output(issue: dict) -> None:
+    """Write issue fields to $GITHUB_OUTPUT for use in workflow steps."""
+    output_path = os.environ.get("GITHUB_OUTPUT", "")
+
+    def write(key: str, value: str, multiline: bool = False) -> None:
+        if not output_path:
+            print(f"{key}={value!r}")
+            return
+        with open(output_path, "a") as f:
+            if multiline:
+                sentinel = f"EOF_{key.upper()}"
+                f.write(f"{key}<<{sentinel}\n{value}\n{sentinel}\n")
+            else:
+                f.write(f"{key}={value}\n")
+
+    write("number", str(issue["number"]))
+    write("title", issue["title"])
+    write("labels", ", ".join(n["name"] for n in issue["labels"]["nodes"]))
+    write("body", issue["body"] or "", multiline=True)
+
+    raw_comments = [
+        c for c in issue["comments"]["nodes"]
+        if c["author"]["login"] != "github-actions"
+    ]
+    if raw_comments:
+        parts = [
+            f"### Comment by {c['author']['login']} ({c['createdAt']})\n{c['body']}"
+            for c in raw_comments
+        ]
+        comments_text = (
+            "COMMENTS (from the owner, chronological, excluding this pipeline's own"
+            " comments — treat these as clarifications or amendments to the issue above):\n"
+            + "\n\n---\n\n".join(parts)
+        )
+        write("comments", comments_text, multiline=True)
+    else:
+        write("comments", "", multiline=True)
+
+
 if __name__ == "__main__":
-    mcp.run()
+    import sys
+    if len(sys.argv) >= 3 and sys.argv[1] == "--fetch":
+        _raw = _fetch_issue(int(sys.argv[2]))
+        _issue = json.loads(_raw)["data"]["repository"]["issue"]
+        _write_github_output(_issue)
+    else:
+        mcp.run()
