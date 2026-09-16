@@ -68,10 +68,10 @@ Output nothing else — no preamble, no closing remarks.
 
 1. Write your output — the four score lines verbatim on the normal path, or
    your clarification question on a stop path — to
-   `./.issue-pipeline-comment.md`, then run
-   `.interns/.github/scripts/gh-safe/comment-issue.sh` with no arguments (never
-   pass comment text on the command line — multi-line text breaks shell
-   quoting).
+   `./.issue-pipeline-comment.md`. Then call `mcp__gh-issues__comment_issue`
+   with `issue_number` and the same text to post it to GitHub. (The workflow
+   reads the file directly to extract scores for the size label — both steps
+   are required.)
 2. Write the outcome to `./.issue-pipeline-outcome`: `estimated` on the normal
    path, `needs-attention` on a stop path.
 

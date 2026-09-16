@@ -31,5 +31,6 @@ runs:
         GH_TOKEN: ${{ github.token }}
         GITHUB_REPOSITORY: ${{ github.repository }}
       run: |
-        uv run "${{ github.workspace }}/.interns/.github/scripts/gh-issues-mcp/server.py" \
-          --fetch "${{ inputs.issue_number }}"
+        uv run \
+          --directory "${{ github.workspace }}/.interns/.github/scripts/gh-issues-mcp" \
+          server.py --fetch "${{ inputs.issue_number }}"

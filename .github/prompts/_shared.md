@@ -1,32 +1,28 @@
 ## Reading issue data
 
 The current issue's number, title, labels, body, and comments are already in
-your prompt — use those directly. Do not call `gh` CLI or read
-`$GITHUB_EVENT_PATH` to re-fetch them.
+your prompt — use those directly.
 
 To look up *other* issues (blockers, cross-references), use
-`mcp__gh-issues__view_issue` or `mcp__gh-issues__list_issues`. These are the
-only sanctioned paths for reading issue data. Direct `gh` CLI calls are not in
-the allowlist and will fail.
+`mcp__gh-issues__view_issue` or `mcp__gh-issues__list_issues`.
 
-## `gh-safe` scripts
+## MCP tools for writing
 
-Every script under `.interns/.github/scripts/gh-safe/` resolves its own
-target (the issue or PR bound to the triggering event) automatically, from
-`$GITHUB_EVENT_PATH`. Never pass issue/PR body, title, comment, or review
-text as a Bash argument — multi-line text breaks shell quoting. Write it to
-the file the script expects (with the Write tool), then run the script with
-no arguments:
+All GitHub writes go through the `gh-issues` MCP server. Pass text directly
+as tool parameters — no file-writing step required.
 
-| Script | Writes to | File |
-|---|---|---|
-| `comment-issue.sh` | issue comment | `./.issue-pipeline-comment.md` |
-| `comment-pr.sh` | PR comment | `./.pr-comment.md` |
-| `edit-issue-body.sh` | issue body | `./.issue-pipeline-body.md` |
-| `edit-issue-title.sh` | issue title | `./.issue-pipeline-title.md` |
-| `open-pr.sh` | PR title + body | `./.pr-title.txt`, `./.pr-body.md` |
-| `submit-pr-review.sh` | review verdict (JSON) | `./.pr-review.json` |
+| Tool | What it does |
+|---|---|
+| `mcp__gh-issues__comment_issue` | Post a comment on an issue |
+| `mcp__gh-issues__edit_issue_body` | Set the body of an issue |
+| `mcp__gh-issues__edit_issue_title` | Set the title of an issue |
+| `mcp__gh-issues__edit_issue_labels` | Add or remove labels on an issue |
+| `mcp__gh-issues__comment_pr` | Post a comment on a PR |
+| `mcp__gh-issues__open_pr` | Open a PR from the current branch |
+| `mcp__gh-issues__submit_pr_review` | Submit a formal PR review (APPROVE / REQUEST_CHANGES) |
+| `mcp__gh-issues__push_branch` | Squash the branch to one commit and push to origin |
 
-`edit-issue-labels.sh` and `push-branch.sh` take no file — labels are CLI
-flags (`--add-label X --remove-label Y`), and `push-branch.sh` reads the
-already-committed git state.
+All tools take explicit `issue_number` or `pr_number` parameters — the
+numbers are in your prompt. `open_pr` appends `Closes #N` automatically; do
+not add it yourself. `push_branch` takes no arguments — it reads the current
+git state. Direct `gh` CLI calls are not in the allowlist and will fail.

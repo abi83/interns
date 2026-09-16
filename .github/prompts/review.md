@@ -12,12 +12,12 @@ full contents rather than just the hunks, read it from `.claude-pr/` if
 it's there, otherwise from its normal path. Use `gh pr view <number>` for
 the PR description and conversation.
 
-You're only given the linked issue's *number* — run `gh issue view
-<number>` yourself to read its Value/Scope/Acceptance Criteria before
-judging anything against them. If that issue references
+You're only given the linked issue's *number* — call
+`mcp__gh-issues__view_issue` yourself to read its Value/Scope/Acceptance
+Criteria before judging anything against them. If that issue references
 other tickets that matter for context — a parent epic, a sub-issue, a
-ticket it says it depends on or supersedes — run `gh issue view` on those
-too rather than reviewing off the one issue in isolation.
+ticket it says it depends on or supersedes — call `view_issue` on those too
+rather than reviewing off the one issue in isolation.
 
 ## What to check
 
@@ -78,31 +78,22 @@ you're explicitly not blocking on.
 If something genuinely blocks you from forming a real verdict — a check you
 can't interpret even after reading its log, a tool you need but don't have,
 context that's missing from the issue or PR — don't force an APPROVE to get
-unstuck, and don't guess at REQUEST_CHANGES either. Write what specifically
-blocked you to `./.pr-comment.md` and run
-`.interns/.github/scripts/gh-safe/comment-pr.sh` (no arguments), then stop
+unstuck, and don't guess at REQUEST_CHANGES either. Call
+`mcp__gh-issues__comment_pr` with what specifically blocked you, then stop
 without submitting a review. The workflow's own fallback flags the issue
 for a human — your comment is what tells them why, instead of just "stopped
 partway through."
 
 ## Submitting
 
-Write your review to `./.pr-review.json`:
+Call `mcp__gh-issues__submit_pr_review` with:
+- `pr_number`: the PR number
+- `event`: `"APPROVE"` or `"REQUEST_CHANGES"`
+- `body`: overall summary of the review
+- `comments`: list of `{"path": "...", "line": 123, "body": "..."}` entries
+  (empty for a clean `APPROVE`; one entry per requested change otherwise)
 
-```json
-{
-  "event": "APPROVE" | "REQUEST_CHANGES",
-  "body": "overall summary of the review",
-  "comments": [
-    {"path": "src/foo.ts", "line": 42, "body": "specific, actionable comment"}
-  ]
-}
-```
-
-`comments` is empty only for a clean `APPROVE`; a `REQUEST_CHANGES` verdict
-carries one entry per change you're asking for. Then run
-`.interns/.github/scripts/gh-safe/submit-pr-review.sh` (no arguments) —
-this is the only way to submit the review; do not call `gh pr review` or
+This is the only way to submit the review; do not call `gh pr review` or
 the GitHub API directly.
 
 Do nothing else: never merge the PR, never edit labels, never comment
