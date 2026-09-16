@@ -34,6 +34,7 @@ jobs:
     uses: abi83/interns/.github/workflows/issue-pipeline.yml@__INTERNS_REF__
     secrets: inherit
     with:
+      pipeline_ref: __INTERNS_REF__
       issue_number: ${{ inputs.issue_number }}
       phase: ${{ inputs.phase }}
       debug: ${{ inputs.debug || false }}

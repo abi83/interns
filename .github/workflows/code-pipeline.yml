@@ -6,6 +6,10 @@ name: Coding agents (reusable)
 on:
   workflow_call:
     inputs:
+      pipeline_ref:
+        description: Ref of abi83/interns to check out for pipeline assets (e.g. refs/tags/v0)
+        required: true
+        type: string
       issue_number:
         description: Issue number (coder phase, workflow_dispatch only)
         required: false
@@ -115,10 +119,7 @@ jobs:
       - name: Resolve pipeline ref
         id: pipeline_ref
         if: always()
-        shell: bash
-        env:
-          JOB_WORKFLOW_REF: ${{ github.job_workflow_ref }}
-        run: echo "ref=${JOB_WORKFLOW_REF##*@}" >> "$GITHUB_OUTPUT"
+        run: echo "ref=${{ inputs.pipeline_ref }}" >> "$GITHUB_OUTPUT"
 
       - name: Checkout pipeline assets
         if: always()
@@ -466,15 +467,7 @@ jobs:
 
       - name: Resolve pipeline ref
         id: pipeline_ref
-        shell: bash
-        env:
-          JOB_WORKFLOW_REF: ${{ github.job_workflow_ref }}
-        run: |
-          if [[ -z "$JOB_WORKFLOW_REF" ]]; then
-            echo "::error::github.job_workflow_ref came back empty -- can't tell which abi83/interns ref to check out. Refusing to silently fall back to the default branch (see #101)." >&2
-            exit 1
-          fi
-          echo "ref=${JOB_WORKFLOW_REF##*@}" >> "$GITHUB_OUTPUT"
+        run: echo "ref=${{ inputs.pipeline_ref }}" >> "$GITHUB_OUTPUT"
 
       - name: Checkout pipeline assets
         uses: actions/checkout@v5
@@ -716,15 +709,7 @@ jobs:
     steps:
       - name: Resolve pipeline ref
         id: pipeline_ref
-        shell: bash
-        env:
-          JOB_WORKFLOW_REF: ${{ github.job_workflow_ref }}
-        run: |
-          if [[ -z "$JOB_WORKFLOW_REF" ]]; then
-            echo "::error::github.job_workflow_ref came back empty -- can't tell which abi83/interns ref to check out. Refusing to silently fall back to the default branch (see #101)." >&2
-            exit 1
-          fi
-          echo "ref=${JOB_WORKFLOW_REF##*@}" >> "$GITHUB_OUTPUT"
+        run: echo "ref=${{ inputs.pipeline_ref }}" >> "$GITHUB_OUTPUT"
 
       - name: Checkout pipeline assets
         uses: actions/checkout@v5
@@ -761,15 +746,7 @@ jobs:
     steps:
       - name: Resolve pipeline ref
         id: pipeline_ref
-        shell: bash
-        env:
-          JOB_WORKFLOW_REF: ${{ github.job_workflow_ref }}
-        run: |
-          if [[ -z "$JOB_WORKFLOW_REF" ]]; then
-            echo "::error::github.job_workflow_ref came back empty -- can't tell which abi83/interns ref to check out. Refusing to silently fall back to the default branch (see #101)." >&2
-            exit 1
-          fi
-          echo "ref=${JOB_WORKFLOW_REF##*@}" >> "$GITHUB_OUTPUT"
+        run: echo "ref=${{ inputs.pipeline_ref }}" >> "$GITHUB_OUTPUT"
 
       - name: Checkout pipeline assets
         uses: actions/checkout@v5

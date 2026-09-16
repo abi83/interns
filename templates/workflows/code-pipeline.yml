@@ -47,6 +47,7 @@ jobs:
     uses: abi83/interns/.github/workflows/code-pipeline.yml@__INTERNS_REF__
     secrets: inherit
     with:
+      pipeline_ref: __INTERNS_REF__
       issue_number: ${{ inputs.issue_number }}
       pr_number: ${{ inputs.pr_number }}
       fix_round: ${{ inputs.fix_round || false }}
