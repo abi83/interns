@@ -40,6 +40,8 @@ env:
   ALLOWED_EDIT_TITLE: "Bash(./.interns/.github/scripts/gh-safe/edit-issue-title.sh:*),Bash(.interns/.github/scripts/gh-safe/edit-issue-title.sh:*),Bash(${{ github.workspace }}/.interns/.github/scripts/gh-safe/edit-issue-title.sh:*)"
   ALLOWED_EDIT_LABELS: "Bash(./.interns/.github/scripts/gh-safe/edit-issue-labels.sh:*),Bash(.interns/.github/scripts/gh-safe/edit-issue-labels.sh:*),Bash(${{ github.workspace }}/.interns/.github/scripts/gh-safe/edit-issue-labels.sh:*)"
   ALLOWED_COMMENT: "Bash(./.interns/.github/scripts/gh-safe/comment-issue.sh:*),Bash(.interns/.github/scripts/gh-safe/comment-issue.sh:*),Bash(${{ github.workspace }}/.interns/.github/scripts/gh-safe/comment-issue.sh:*)"
+  ALLOWED_LIST_ISSUES: "mcp__gh-issues__list_issues"
+  ALLOWED_VIEW_ISSUE: "mcp__gh-issues__view_issue"
 
 jobs:
   refine:
@@ -125,6 +127,34 @@ jobs:
         id: instructions
         run: .interns/.github/scripts/pipeline/load-prompt.sh .interns/.github/prompts/_shared.md .interns/.github/prompts/refine.md
 
+      - name: Create MCP config for gh-issues server
+        env:
+          GH_TOKEN_VALUE: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 << 'PYEOF'
+          import json, os
+          config = {
+            "mcpServers": {
+              "gh-issues": {
+                "type": "stdio",
+                "command": "uv",
+                "args": [
+                  "--directory",
+                  "${{ github.workspace }}/.interns/.github/scripts/gh-issues-mcp/",
+                  "run",
+                  "server.py",
+                ],
+                "env": {
+                  "GH_TOKEN": os.environ["GH_TOKEN_VALUE"],
+                  "GITHUB_REPOSITORY": "${{ github.repository }}",
+                },
+              }
+            }
+          }
+          with open("/tmp/mcp-config-gh-issues.json", "w") as f:
+            json.dump(config, f)
+          PYEOF
+
       - name: Run Claude refinement
         id: claude
         timeout-minutes: ${{ fromJSON(steps.cfg.outputs.timeout_minutes) }}
@@ -156,7 +186,8 @@ jobs:
           claude_args: |
             --model ${{ steps.cfg.outputs.model }}
             --max-turns ${{ steps.cfg.outputs.max_turns }}
-            --allowedTools "Read,Grep,Glob,Write,${{ env.ALLOWED_EDIT_BODY }},${{ env.ALLOWED_EDIT_TITLE }},${{ env.ALLOWED_EDIT_LABELS }},${{ env.ALLOWED_COMMENT }}"
+            --mcp-config /tmp/mcp-config-gh-issues.json
+            --allowedTools "Read,Grep,Glob,Write,${{ env.ALLOWED_EDIT_BODY }},${{ env.ALLOWED_EDIT_TITLE }},${{ env.ALLOWED_EDIT_LABELS }},${{ env.ALLOWED_COMMENT }},${{ env.ALLOWED_LIST_ISSUES }},${{ env.ALLOWED_VIEW_ISSUE }}"
 
       - name: Report run cost
         if: always() && steps.claude.outputs.execution_file != ''

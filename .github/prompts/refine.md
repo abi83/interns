@@ -91,6 +91,11 @@ Rules:
 
 ## Step 4: post the analysis comment
 
+Before writing the comment, call `list_issues` (optionally filtered by label)
+to get the current open issue set. Use the results to identify real open issues
+this ticket depends on or that must land first. Call `view_issue` on any
+candidates to confirm the dependency before citing them.
+
 After the body is edited, post exactly one comment on the issue recording
 what the investigation turned up about **blockers and dependencies** —
 things that decide whether this ticket can be picked up now or has to wait:
@@ -103,9 +108,9 @@ things that decide whether this ticket can be picked up now or has to wait:
 
 Rules for the comment:
 
-- Ground every point in what you actually checked. Cite the specific files
-  and wiki pages — "no rate-limit helper under `.github/scripts/pipeline/`",
-  not "there may not be a helper".
+- Ground every point in what you actually checked. Cite the specific files,
+  wiki pages, and issue numbers — "no rate-limit helper under
+  `.github/scripts/pipeline/`", not "there may not be a helper".
 - If the investigation found no blockers, say that in one line — still
   naming what you checked to be sure.
 - **No risk assessment.** Blast radius, review cost, and effort are the
@@ -129,8 +134,10 @@ On the normal path, in order:
 3. If the title needs correcting (Step 3), write it to
    `./.issue-pipeline-title.md` and run
    `.interns/.github/scripts/gh-safe/edit-issue-title.sh`. Otherwise leave it.
-4. Write the analysis comment (Step 4) to `./.issue-pipeline-comment.md`, then
-   run `.interns/.github/scripts/gh-safe/comment-issue.sh`.
+4. Call `list_issues` to get the current open issue set; call `view_issue` on
+   any candidates to confirm dependencies. Then write the analysis comment
+   (Step 4) to `./.issue-pipeline-comment.md` and run
+   `.interns/.github/scripts/gh-safe/comment-issue.sh`.
 5. Write `refined` to `./.issue-pipeline-outcome`.
 
 On the stop-and-comment path (below): write only the clarification comment
