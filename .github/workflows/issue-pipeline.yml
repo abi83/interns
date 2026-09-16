@@ -169,6 +169,7 @@ jobs:
             ISSUE NUMBER: ${{ steps.issue.outputs.number }}
             TITLE: ${{ steps.issue.outputs.title }}
             OWNER: @${{ github.repository_owner }}
+            LABELS: ${{ steps.issue.outputs.labels }}
             BODY:
             ${{ steps.issue.outputs.body }}
 
@@ -339,6 +340,7 @@ jobs:
             ISSUE NUMBER: ${{ steps.issue.outputs.number }}
             TITLE: ${{ steps.issue.outputs.title }}
             OWNER: @${{ github.repository_owner }}
+            LABELS: ${{ steps.issue.outputs.labels }}
             BODY:
             ${{ steps.issue.outputs.body }}
 

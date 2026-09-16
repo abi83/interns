@@ -1,3 +1,14 @@
+## Reading issue data
+
+The current issue's number, title, labels, body, and comments are already in
+your prompt — use those directly. Do not call `gh` CLI or read
+`$GITHUB_EVENT_PATH` to re-fetch them.
+
+To look up *other* issues (blockers, cross-references), use
+`mcp__gh-issues__view_issue` or `mcp__gh-issues__list_issues`. These are the
+only sanctioned paths for reading issue data. Direct `gh` CLI calls are not in
+the allowlist and will fail.
+
 ## `gh-safe` scripts
 
 Every script under `.interns/.github/scripts/gh-safe/` resolves its own
