@@ -107,11 +107,11 @@ Rules for the comment:
   call `view_issue` on referenced issues and/or `list_issues` to confirm.
   Skip these calls if investigation gave you no reason to suspect a
   dependency — "no cross-cutting concerns found" is a valid one-line answer.
-- Ground every point in what you actually checked. Cite the specific files,
-  wiki pages, and issue numbers — "no rate-limit helper under
-  `.github/scripts/pipeline/`", not "there may not be a helper".
-- If the investigation found no blockers, say that in one line — still
-  naming what you checked to be sure.
+- For each blocker or dependency you name, cite the specific file, wiki page,
+  or issue number that grounds it. Only cite sources when there is a finding
+  to attach them to.
+- If the investigation found no blockers, say so in one line. Do not
+  enumerate what you checked.
 - **No risk assessment.** Blast radius, review cost, and effort are the
   estimator's job, not yours. Stick to what blocks the work, not how hard
   or dangerous it is.
