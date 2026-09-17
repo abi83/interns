@@ -415,7 +415,7 @@ jobs:
 
       - name: Upload run metrics
         if: steps.guard.outputs.skip != 'true' && steps.metrics.outcome == 'success'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pipeline-metrics-coder
           path: ${{ runner.temp }}/metrics-coder.json
@@ -709,7 +709,7 @@ jobs:
 
       - name: Upload run metrics
         if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.cap.outputs.capped != 'true' && steps.metrics.outcome == 'success'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pipeline-metrics-reviewer
           path: ${{ runner.temp }}/metrics-reviewer.json
@@ -818,7 +818,7 @@ jobs:
           path: .interns
 
       - name: Download run metrics records
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         continue-on-error: true
         with:
           pattern: pipeline-metrics-*
