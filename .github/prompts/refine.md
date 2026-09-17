@@ -77,9 +77,7 @@ list of concrete changes, each pointing at where it lands.
 
 Rules:
 
-- Follow this repo's `CLAUDE.md` prose rules when writing the body — the
-  same convention Step 4 applies to the analysis comment: state facts
-  rather than claiming authority, make each point once.
+- Follow this repo's `CLAUDE.md` prose rules (see Step 4).
 - If the issue references other issues (#NN) or a parent epic, keep those
   references intact, in their original position if reasonable.
 - If a section can't be filled from the original text, write the section
