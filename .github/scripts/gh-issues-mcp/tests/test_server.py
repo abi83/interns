@@ -490,6 +490,14 @@ def test_roll_up_size_three_high():
     assert _roll_up_size("High", "High", "High", "Low") == "XL"
 
 
+def test_roll_up_size_two_high():
+    assert _roll_up_size("High", "High", "Low", "Low") == "L"
+
+
+def test_roll_up_size_case_insensitive():
+    assert _roll_up_size("low", "MID", "HIGH", "Low") == "M"
+
+
 def test_roll_up_size_invalid_score():
     with pytest.raises(ValueError, match="Not a Low|Mid|High score"):
         _roll_up_size("Low", "Medium", "Low", "Low")
@@ -574,6 +582,11 @@ def test_apply_estimation_outcome_needs_attention():
     assert "--remove-label" in cmd
     assert "status:refined" in cmd
     assert "needs-attention" in result
+
+
+def test_apply_estimation_outcome_missing_scores():
+    with pytest.raises(ValueError):
+        apply_estimation_outcome(issue_number=7, outcome="estimated")
 
 
 def test_apply_estimation_outcome_invalid():
