@@ -24,4 +24,4 @@ as tool parameters — no file-writing step required.
 All tools take explicit `issue_number` or `pr_number` parameters — the
 numbers are in your prompt. `open_pr` appends `Closes #N` automatically; do
 not add it yourself. `push_branch` takes no arguments — it reads the current
-git state. Direct `gh` CLI calls are not in the allowlist and will fail.
+git state.
