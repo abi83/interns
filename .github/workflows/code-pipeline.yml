@@ -328,12 +328,10 @@ jobs:
 
       - name: Upload coder-initial execution log (debug)
         if: steps.guard.outputs.skip != 'true' && inputs.debug == 'true' && always() && steps.claude_initial.outputs.execution_file != ''
-        uses: actions/upload-artifact@v7
+        uses: ./.interns/.github/actions/upload-execution-log
         with:
           name: execution-log-coder-initial-issue-${{ steps.issue.outputs.number }}
           path: ${{ steps.claude_initial.outputs.execution_file }}
-          if-no-files-found: ignore
-          retention-days: 2
 
       - name: Load coder fix-round instructions
         id: fix_instructions
@@ -380,12 +378,10 @@ jobs:
 
       - name: Upload coder-fix execution log (debug)
         if: steps.guard.outputs.skip != 'true' && inputs.debug == 'true' && always() && steps.claude_fix.outputs.execution_file != ''
-        uses: actions/upload-artifact@v7
+        uses: ./.interns/.github/actions/upload-execution-log
         with:
           name: execution-log-coder-fix-issue-${{ steps.issue.outputs.number }}
           path: ${{ steps.claude_fix.outputs.execution_file }}
-          if-no-files-found: ignore
-          retention-days: 2
 
       # Deterministic, independent of what the coder did or said this run --
       # greps the Makefile on disk rather than trusting the agent's word for
@@ -693,12 +689,10 @@ jobs:
 
       - name: Upload reviewer execution log (debug)
         if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.cap.outputs.capped != 'true' && inputs.debug == 'true' && always() && steps.claude.outputs.execution_file != ''
-        uses: actions/upload-artifact@v7
+        uses: ./.interns/.github/actions/upload-execution-log
         with:
           name: execution-log-reviewer-pr-${{ github.event.pull_request.number || inputs.pr_number }}
           path: ${{ steps.claude.outputs.execution_file }}
-          if-no-files-found: ignore
-          retention-days: 2
 
       - name: Report run cost
         if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.cap.outputs.capped != 'true' && always() && steps.claude.outputs.execution_file != ''
