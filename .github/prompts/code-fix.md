@@ -27,10 +27,11 @@ feedback requires such a change, decline the task (see below).
 
 Re-check the repo's own conventions (`CLAUDE.md` / `AGENTS.md`, any
 contributor guide, or the existing code) if you need a refresher. Re-run
-the project's build and test commands before pushing and keep them green —
-the same bar applies to a fix commit as to the original implementation, and
-a red check sends the issue to a human rather than back to you for another
-round.
+`make test` and `make build` before pushing and keep them green — the same
+bar applies to a fix commit as to the original implementation, and a red
+check sends the issue to a human rather than back to you for another round.
+If the repo has no `Makefile`, testing isn't configured for it yet — skip
+this step rather than inventing a test command yourself.
 
 ## If you can't complete the fix
 

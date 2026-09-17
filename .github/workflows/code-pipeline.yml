@@ -57,9 +57,14 @@ env:
   ALLOWED_PUSH_BRANCH: "mcp__gh-issues__push_branch"
   ALLOWED_VIEW_ISSUE: "mcp__gh-issues__view_issue"
   # In-sandbox git only. git push is deliberately absent — reaching the shared remote goes through mcp__gh-issues__push_branch.
-  ALLOWED_GIT_WRITE: "Bash(git checkout:*),Bash(git switch:*),Bash(git add:*),Bash(git commit:*),Bash(git rm:*)"
+  # Branch checkout is a workflow step now (Create coder branch / Checkout PR
+  # branch below), not something the coder does itself, so checkout/switch
+  # aren't in this list.
+  ALLOWED_GIT_WRITE: "Bash(git add:*),Bash(git commit:*),Bash(git rm:*)"
   ALLOWED_GIT_READ: "Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git status:*)"
-  ALLOWED_BUILD_TEST: "Bash(npm install:*),Bash(npm ci:*),Bash(npm test:*),Bash(npm run build:*)"
+  # `make` targets, not a package-manager-specific command, so this stays the
+  # same regardless of the consumer repo's language. See templates/config/Makefile.
+  ALLOWED_BUILD_TEST: "Bash(make test:*),Bash(make build:*)"
   ALLOWED_CI_READ: "Bash(gh pr checks:*),Bash(gh run view:*)"
   # The reviewer's sanctioned diff source. `gh pr diff` returns the API diff,
   # which includes paths (e.g. .github/workflows/**) that claude-code-action
@@ -225,6 +230,17 @@ jobs:
         with:
           issue_number: ${{ steps.issue.outputs.number }}
 
+      # find-pr-for-issue only resolves head_ref via the API -- it doesn't
+      # check anything out, and the fix round is dispatched via `gh workflow
+      # run` with no --ref, so Checkout above left us on the default branch.
+      # Without this the coder starts on the default branch too, despite the
+      # prompt below telling it the branch is already checked out.
+      - name: Checkout PR branch (fix round)
+        if: steps.guard.outputs.skip != 'true' && steps.mode.outputs.fix_round == 'true' && steps.pr.outputs.head_ref != ''
+        run: |
+          git fetch origin "${{ steps.pr.outputs.head_ref }}"
+          git checkout "${{ steps.pr.outputs.head_ref }}"
+
       - name: Mark PR pr:coding (fix round)
         if: steps.guard.outputs.skip != 'true' && steps.mode.outputs.fix_round == 'true' && steps.pr.outputs.pr_number != ''
         env:
@@ -257,6 +273,13 @@ jobs:
         run: >
           .interns/.github/scripts/pipeline/derive-code-hints.sh
           "${{ steps.issue.outputs.number }}"
+
+      # Creating the branch is as mechanical as naming it -- do it here rather
+      # than have the coder spend a tool call discovering it's still on the
+      # checked-out default branch and switching itself.
+      - name: Create coder branch
+        if: steps.guard.outputs.skip != 'true' && steps.mode.outputs.fix_round != 'true'
+        run: git checkout -b "${{ steps.hints.outputs.branch }}"
 
       - name: Load coder instructions
         id: instructions
