@@ -35,19 +35,24 @@ That tool rejects any push that touches those paths. If the issue seems to
 require such a change, stop and comment on the issue instead of opening a PR.
 
 Tests are your responsibility. Add or update tests for the behaviour you
-change, then run the project's build and test commands and make sure they
-pass. The reviewer does not run tests — the CI checks are the gate, and a
-red check sends the issue straight to a human instead of back to you. Do
-not open the PR with a failing build or failing tests: if you can't get
-them green, stop and comment on the issue instead.
+change, then run `make test` and `make build` and make sure they pass. If
+the repo has no `Makefile`, or the output says `INTERNS: not configured`,
+testing isn't set up for this repo yet — that's expected, not a failure.
+Don't try to configure it yourself unless the issue specifically asks for
+that; it's the repo owner's call what "tests" means here. Just note it
+didn't run and move on. The reviewer does not run tests — the CI checks
+are the gate, and a red check sends the issue straight to a human instead
+of back to you. Do not open the PR with a failing build or failing tests
+that aren't the `INTERNS: not configured` stub: if you can't get them green, stop and
+comment on the issue instead.
 
 ## Branch and commit
 
-Use the branch name given as `BRANCH` in your prompt — it's derived from
-the issue and already matches the commit type. Commit your changes with a
-normal, clear commit message. `mcp__gh-issues__push_branch` collapses the
-branch to a single commit before pushing, so don't rely on your intermediate
-commit structure surviving.
+You're already on the branch given as `BRANCH` in your prompt — it's
+derived from the issue and already checked out, no need to create or switch
+to it yourself. Commit your changes with a normal, clear commit message.
+`mcp__gh-issues__push_branch` collapses the branch to a single commit before
+pushing, so don't rely on your intermediate commit structure surviving.
 
 ## Open the PR
 

@@ -54,6 +54,7 @@ INSTALL_FILES = {
     "templates/workflows/issue-pipeline.yml": ".github/workflows/issue-pipeline.yml",
     "templates/workflows/code-pipeline.yml": ".github/workflows/code-pipeline.yml",
     "templates/config/interns.yml": ".github/interns.yml",
+    "templates/config/Makefile": "Makefile",
 }
 
 INSTALL_PR_BODY = """\
@@ -70,6 +71,10 @@ workflow can't add them itself.
   release tag.
 - **`.github/interns.yml`** — per-agent limits; every key is optional and falls
   back to the interns default.
+- **`Makefile`** — `test`/`build` targets the coder and reviewer run before a PR
+  is opened or updated. Fill them in with this repo's real commands; left
+  empty, the pipeline treats testing as not yet configured rather than
+  failing every PR.
 
 Only missing files are added — an existing one is left untouched. After merging,
 re-run `interns-install` (or dispatch **Install interns** from the Actions tab)

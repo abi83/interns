@@ -27,10 +27,13 @@ feedback requires such a change, decline the task (see below).
 
 Re-check the repo's own conventions (`CLAUDE.md` / `AGENTS.md`, any
 contributor guide, or the existing code) if you need a refresher. Re-run
-the project's build and test commands before pushing and keep them green —
-the same bar applies to a fix commit as to the original implementation, and
-a red check sends the issue to a human rather than back to you for another
-round.
+`make test` and `make build` before pushing and keep them green — the same
+bar applies to a fix commit as to the original implementation, and a red
+check sends the issue to a human rather than back to you for another round.
+If the repo has no `Makefile`, or the output says `INTERNS: not configured`,
+testing isn't set up for this repo yet — that's expected, not a failure.
+Don't try to configure it yourself unless the feedback specifically asks
+for that; just note it didn't run and move on.
 
 ## If you can't complete the fix
 

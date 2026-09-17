@@ -146,7 +146,7 @@ class StageInstallFilesTests(unittest.TestCase):
         return gh.Repo(owner="acme", name="widgets", is_org=False)
 
     def test_collect_only_missing_files(self):
-        present = {".github/workflows/issue-pipeline.yml", ".github/interns.yml"}
+        present = {".github/workflows/issue-pipeline.yml", ".github/interns.yml", "Makefile"}
         with mock.patch.object(cli.gh, "path_exists",
                                side_effect=lambda r, p, ref: p in present), \
              mock.patch.object(cli.gh, "get_file", side_effect=lambda r, p, ref: f"body:{p}"):
