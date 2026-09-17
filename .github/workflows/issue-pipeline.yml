@@ -120,37 +120,13 @@ jobs:
         id: instructions
         run: .interns/.github/scripts/pipeline/load-prompt.sh .interns/.github/prompts/_shared.md .interns/.github/prompts/refine.md
 
-      - name: Create MCP config for gh-issues server
-        env:
-          # Triage App token, not GITHUB_TOKEN: the apply_refinement_outcome
-          # tool writes status:refined, which must trigger the estimate job.
-          # GitHub's anti-recursion rule silences GITHUB_TOKEN-authored events.
-          GH_TOKEN_VALUE: ${{ steps.triage_token.outputs.token }}
-        run: |
-          python3 << 'PYEOF'
-          import json, os
-          config = {
-            "mcpServers": {
-              "gh-issues": {
-                "type": "stdio",
-                "command": "uv",
-                "args": [
-                  "--directory",
-                  "${{ github.workspace }}/.interns/.github/scripts/gh-issues-mcp",
-                  "run",
-                  "server.py",
-                ],
-                "env": {
-                  "GH_TOKEN": os.environ["GH_TOKEN_VALUE"],
-                  "GITHUB_REPOSITORY": "${{ github.repository }}",
-                  "GITHUB_WORKSPACE": "${{ github.workspace }}",
-                },
-              }
-            }
-          }
-          with open("/tmp/mcp-config-gh-issues.json", "w") as f:
-            json.dump(config, f)
-          PYEOF
+      # Triage App token, not GITHUB_TOKEN: the apply_refinement_outcome tool
+      # writes status:refined, which must trigger the estimate job. GitHub's
+      # anti-recursion rule silences GITHUB_TOKEN-authored events.
+      - name: Set up gh-issues MCP server
+        uses: ./.interns/.github/actions/setup-gh-issues-mcp
+        with:
+          gh_token: ${{ steps.triage_token.outputs.token }}
 
       - name: Run Claude refinement
         id: claude
@@ -309,35 +285,11 @@ jobs:
         if: steps.gate.outputs.skip != 'true'
         run: .interns/.github/scripts/pipeline/load-prompt.sh .interns/.github/prompts/_shared.md .interns/.github/prompts/estimate.md
 
-      - name: Create MCP config for gh-issues server
+      - name: Set up gh-issues MCP server
         if: steps.gate.outputs.skip != 'true'
-        env:
-          GH_TOKEN_VALUE: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          python3 << 'PYEOF'
-          import json, os
-          config = {
-            "mcpServers": {
-              "gh-issues": {
-                "type": "stdio",
-                "command": "uv",
-                "args": [
-                  "--directory",
-                  "${{ github.workspace }}/.interns/.github/scripts/gh-issues-mcp",
-                  "run",
-                  "server.py",
-                ],
-                "env": {
-                  "GH_TOKEN": os.environ["GH_TOKEN_VALUE"],
-                  "GITHUB_REPOSITORY": "${{ github.repository }}",
-                  "GITHUB_WORKSPACE": "${{ github.workspace }}",
-                },
-              }
-            }
-          }
-          with open("/tmp/mcp-config-gh-issues.json", "w") as f:
-            json.dump(config, f)
-          PYEOF
+        uses: ./.interns/.github/actions/setup-gh-issues-mcp
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run Claude estimation
         id: claude
