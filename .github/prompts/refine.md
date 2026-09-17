@@ -79,9 +79,7 @@ Rules:
 
 - Follow this repo's `CLAUDE.md` prose rules when writing the body — the
   same convention Step 4 applies to the analysis comment: state facts
-  rather than claiming authority, prefer a table over prose for a genuine
-  side-by-side comparison (the spike template's alternatives/criteria
-  matrix is the case this comes up), and make each point once.
+  rather than claiming authority, make each point once.
 - If the issue references other issues (#NN) or a parent epic, keep those
   references intact, in their original position if reasonable.
 - If a section can't be filled from the original text, write the section
@@ -121,8 +119,7 @@ Rules for the comment:
   estimator's job, not yours. Stick to what blocks the work, not how hard
   or dangerous it is.
 - Follow this repo's `CLAUDE.md` prose rules: state facts rather than
-  claiming authority, prefer a table over prose for a genuine side-by-side
-  comparison, make each point once.
+  claiming authority, make each point once.
 - Keep it short. This is a triage note, not a report.
 
 ## Mechanics
