@@ -225,12 +225,27 @@ def create_commit(repo: str, message: str, tree: str, parents: list[str]) -> str
     return data["sha"]
 
 
-def put_file(repo: str, path: str, content: str, message: str, branch: str) -> None:
-    api(f"repos/{repo}/contents/{path}", method="PUT", fields={
+def get_existing_file(repo: str, path: str, ref: str) -> tuple[str, str] | None:
+    """(content, sha) for `path` in `repo` at `ref`, or None if absent."""
+    status, data = api_status(f"repos/{repo}/contents/{path}?ref={ref}")
+    if status == "missing":
+        return None
+    if status == "blocked" or not isinstance(data, dict) or "content" not in data:
+        raise GhError(f"could not read {path} from {repo}@{ref}")
+    return base64.b64decode(data["content"]).decode(), data["sha"]
+
+
+def put_file(repo: str, path: str, content: str, message: str, branch: str,
+             sha: str | None = None) -> None:
+    """Create `path` on `branch`, or update it when `sha` is given."""
+    fields = {
         "message": message,
         "content": base64.b64encode(content.encode()).decode(),
         "branch": branch,
-    })
+    }
+    if sha is not None:
+        fields["sha"] = sha
+    api(f"repos/{repo}/contents/{path}", method="PUT", fields=fields)
 
 
 def create_pr(repo: str, head: str, base: str, title: str, body: str) -> str:

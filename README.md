@@ -270,9 +270,12 @@ forward is enough. A future breaking change would ship as `v1`; existing
 consumers stay on `v0` until they choose to re-pin. The only time a consumer
 touches this pin is to opt into that kind of major bump.
 
-Only missing files are added — a hand-edited one is left untouched. Merge the
-PR (branch protection is already on, so it can't be a direct push), then re-run
-`interns-install`, which dispatches `install.yml` to sync the label manifest.
+Missing files are added; the three wrapper files above are also re-synced if
+an earlier install's copy has drifted from the current template. `interns.yml`
+is only added when absent, since it's expected to carry consumer-local edits.
+Merge the PR (branch protection is already on, so it can't be a direct push),
+then re-run `interns-install`, which dispatches `install.yml` to sync the
+label manifest.
 
 Pass `--issue-templates` to also add the default issue templates
 ([`templates/issue/`](templates/issue)) when the repo has none.

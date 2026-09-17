@@ -45,17 +45,24 @@ INTERNS_REF = os.environ.get("INTERNS_REF") or "v0"
 # `ref:` fallback (never the consumer's commit SHA, see #73).
 REF_PLACEHOLDER = "__INTERNS_REF__"
 
-# Files interns-install stages into the consumer repo, source path in
-# INTERNS_REPO -> destination path in the consumer. GITHUB_TOKEN cannot push
-# .github/workflows/*, so install.yml can't add these itself (see #74) --
-# interns-install commits them with the operator's own workflow-scoped session.
-INSTALL_FILES = {
+# Caller stubs, source path in INTERNS_REPO -> destination path in the
+# consumer (GITHUB_TOKEN can't push .github/workflows/*, see #74). Meant to
+# stay identical to the template, so a drifted copy is re-synced, not just
+# added when absent (#88).
+WRAPPER_FILES = {
     f"templates/workflows/{WORKFLOW}": f".github/workflows/{WORKFLOW}",
     "templates/workflows/issue-pipeline.yml": ".github/workflows/issue-pipeline.yml",
     "templates/workflows/code-pipeline.yml": ".github/workflows/code-pipeline.yml",
+}
+
+# Seeded once, then expected to carry consumer-local edits -- added when
+# missing, never overwritten.
+CONFIG_FILES = {
     "templates/config/interns.yml": ".github/interns.yml",
     "templates/config/Makefile": "Makefile",
 }
+
+INSTALL_FILES = {**WRAPPER_FILES, **CONFIG_FILES}
 
 INSTALL_PR_BODY = """\
 ## Install the interns pipeline
@@ -76,7 +83,13 @@ workflow can't add them itself.
   empty, the pipeline treats testing as not yet configured rather than
   failing every PR.
 
-Only missing files are added — an existing one is left untouched. After merging,
+Missing files are added; a wrapper file (`install.yml`, `issue-pipeline.yml`,
+`code-pipeline.yml`) that's already present but out of date with the current
+template is re-synced too. `.github/interns.yml` and `Makefile` are only
+added when absent — an existing one is left untouched, since it's expected to
+carry consumer-local edits.
+
+After merging,
 re-run `interns-install` (or dispatch **Install interns** from the Actions tab)
 to sync the label manifest.
 """
@@ -325,50 +338,67 @@ def _handoff(con: Console, repo: gh.Repo, args: argparse.Namespace) -> None:
         gh.dispatch_workflow(repo.slug, WORKFLOW, ref, {})
 
 
-def _collect_missing_files(repo: gh.Repo, base: str, issue_templates: bool) -> dict[str, str]:
-    """Destination path -> file content, for every interns install file not
-    already present on `base`. Reads template content from INTERNS_REPO."""
-    wanted: dict[str, str] = {}
-    for src, dest in INSTALL_FILES.items():
+def _collect_missing_files(repo: gh.Repo, base: str,
+                           issue_templates: bool) -> dict[str, tuple[str, str | None]]:
+    """Destination path -> (new content, current sha or None) for every file
+    that needs adding or re-syncing. The sha, when present, tells `put_file`
+    to update rather than create."""
+    wanted: dict[str, tuple[str, str | None]] = {}
+
+    for src, dest in WRAPPER_FILES.items():
+        content = gh.get_file(INTERNS_REPO, src, INTERNS_REF).replace(REF_PLACEHOLDER, INTERNS_REF)
+        existing = gh.get_existing_file(repo.slug, dest, base)
+        if existing is None:
+            wanted[dest] = (content, None)
+        elif existing[0] != content:
+            wanted[dest] = (content, existing[1])
+
+    for src, dest in CONFIG_FILES.items():
         if not gh.path_exists(repo.slug, dest, base):
-            content = gh.get_file(INTERNS_REPO, src, INTERNS_REF)
-            wanted[dest] = content.replace(REF_PLACEHOLDER, INTERNS_REF)
+            content = gh.get_file(INTERNS_REPO, src, INTERNS_REF).replace(REF_PLACEHOLDER, INTERNS_REF)
+            wanted[dest] = (content, None)
 
     if issue_templates and not gh.path_exists(repo.slug, ".github/ISSUE_TEMPLATE", base):
         for name in gh.list_dir(INTERNS_REPO, "templates/issue", INTERNS_REF):
-            wanted[f".github/ISSUE_TEMPLATE/{name}"] = gh.get_file(
-                INTERNS_REPO, f"templates/issue/{name}", INTERNS_REF)
+            content = gh.get_file(INTERNS_REPO, f"templates/issue/{name}", INTERNS_REF)
+            wanted[f".github/ISSUE_TEMPLATE/{name}"] = (content, None)
     return wanted
 
 
 def _stage_install_files(con: Console, repo: gh.Repo, base: str,
                          issue_templates: bool) -> str | None:
-    """Open one PR adding whichever interns install files are missing from the
-    consumer repo. Returns the PR URL, or None when nothing was missing."""
+    """Open one PR adding missing files and re-syncing drifted ones. Returns
+    the PR URL, or None when nothing needed changing."""
     if con.dry_run:
-        con.mutation(f"open a PR adding any missing interns install files to {repo.slug}")
+        con.mutation(f"open a PR adding/syncing any missing or stale interns install files to {repo.slug}")
         con.note_manual(f"merge the interns install PR, then re-run interns-install")
         return "(dry-run)"
 
     wanted = _collect_missing_files(repo, base, issue_templates)
     if not wanted:
-        con.say("all interns install files already present")
+        con.say("all interns install files already present and up to date")
         return None
 
-    con.say("missing: " + ", ".join(sorted(wanted)))
-    if not con.confirm(f"Open a PR adding {len(wanted)} file(s) to {repo.slug}?", default=True):
+    added = sorted(dest for dest, (_, sha) in wanted.items() if sha is None)
+    stale = sorted(dest for dest, (_, sha) in wanted.items() if sha is not None)
+    if added:
+        con.say("missing: " + ", ".join(added))
+    if stale:
+        con.say("out of date: " + ", ".join(stale))
+    if not con.confirm(f"Open a PR adding/updating {len(wanted)} file(s) on {repo.slug}?", default=True):
         con.note_manual(
-            "add the missing files listed above by hand, then re-run interns-install"
+            "add/update the files listed above by hand, then re-run interns-install"
         )
         return None
 
     branch = f"interns/install-{int(time.time())}"
-    sha = gh.branch_head_sha(repo.slug, base)
-    con.mutation(f"open a PR on {repo.slug} adding: {', '.join(sorted(wanted))}")
-    gh.create_branch(repo.slug, branch, sha)
-    for dest, content in wanted.items():
+    base_sha = gh.branch_head_sha(repo.slug, base)
+    con.mutation(f"open a PR on {repo.slug} adding/updating: {', '.join(sorted(wanted))}")
+    gh.create_branch(repo.slug, branch, base_sha)
+    for dest, (content, file_sha) in wanted.items():
         gh.put_file(repo.slug, dest, content,
-                    "chore: install interns pipeline caller stubs", branch)
+                    "chore: install interns pipeline caller stubs", branch,
+                    sha=file_sha)
     url = gh.create_pr(repo.slug, branch, base,
                        "Install the interns pipeline", INSTALL_PR_BODY)
     con.say(f"opened {url}")
