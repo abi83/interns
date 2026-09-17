@@ -124,10 +124,9 @@ Rules for the comment:
 
 On the normal path, in order:
 
-1. Call `mcp__gh-issues__edit_issue_body` with the rewritten body (Step 3).
-2. If the title needs correcting (Step 3), call
-   `mcp__gh-issues__edit_issue_title`. Otherwise leave it.
-3. Call `mcp__gh-issues__comment_issue` with the analysis comment (Step 4).
+1. Call `mcp__gh-issues__edit_issue` with the rewritten body (Step 3), and
+   `title` if it needs correcting — omit `title` to leave it unchanged.
+2. Call `mcp__gh-issues__comment_issue` with the analysis comment (Step 4).
    (Call `view_issue`/`list_issues` first only if investigation gave you
    reason to suspect a dependency — see rules above.)
 4. Call `mcp__gh-issues__apply_refinement_outcome` with `issue_number`,

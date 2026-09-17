@@ -14,8 +14,7 @@ as tool parameters — no file-writing step required.
 | Tool | What it does |
 |---|---|
 | `mcp__gh-issues__comment_issue` | Post a comment on an issue |
-| `mcp__gh-issues__edit_issue_body` | Set the body of an issue |
-| `mcp__gh-issues__edit_issue_title` | Set the title of an issue |
+| `mcp__gh-issues__edit_issue` | Set the body (and optionally title) of an issue |
 | `mcp__gh-issues__edit_issue_labels` | Add or remove labels on an issue |
 | `mcp__gh-issues__comment_pr` | Post a comment on a PR |
 | `mcp__gh-issues__open_pr` | Open a PR from the current branch |

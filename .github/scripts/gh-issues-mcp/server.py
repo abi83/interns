@@ -55,7 +55,7 @@ class Issue(BaseModel):
 class InlineComment(BaseModel):
     path: str = Field(description="File path relative to repo root.")
     line: int = Field(description="Line number in the file.", ge=1)
-    body: str = Field(description="Comment text.", min_length=1, max_length=65536)
+    body: str = Field(description="Comment text.", min_length=1, max_length=10000)
 
 
 # ---------------------------------------------------------------------------
@@ -217,7 +217,7 @@ def view_issue(
 @mcp.tool()
 def comment_issue(
     issue_number: Annotated[int, Field(description="Issue number to comment on.")],
-    body: Annotated[str, Field(description="Comment body (markdown).", min_length=1, max_length=65536)],
+    body: Annotated[str, Field(description="Comment body (markdown).", min_length=1, max_length=10000)],
 ) -> str:
     """Post a comment on an issue."""
     result = subprocess.run(
@@ -228,31 +228,27 @@ def comment_issue(
 
 
 @mcp.tool()
-def edit_issue_body(
+def edit_issue(
     issue_number: Annotated[int, Field(description="Issue number.")],
-    body: Annotated[str, Field(description="New issue body (markdown).", min_length=10, max_length=65536)],
+    body: Annotated[str, Field(description="New issue body (markdown).", min_length=10, max_length=10000)],
+    title: Annotated[
+        str | None,
+        Field(description="New issue title (single line). Omit to leave the title unchanged.", min_length=5, max_length=300),
+    ] = None,
 ) -> str:
-    """Set the body of an issue."""
-    result = subprocess.run(
-        ["gh", "issue", "edit", str(issue_number), "--repo", _REPO, "--body", body],
-        capture_output=True, text=True, check=True,
-    )
-    return result.stdout or f"Body updated on issue #{issue_number}"
+    """Set the body of an issue, and optionally its title.
 
-
-@mcp.tool()
-def edit_issue_title(
-    issue_number: Annotated[int, Field(description="Issue number.")],
-    title: Annotated[str, Field(description="New issue title (single line).", min_length=5, max_length=300)],
-) -> str:
-    """Set the title of an issue."""
-    if "\n" in title:
+    Always pass the full rewritten body. Pass title only when it needs
+    correcting — omit it to leave the existing title in place.
+    """
+    if title is not None and "\n" in title:
         raise ValueError("Title must be a single line")
-    result = subprocess.run(
-        ["gh", "issue", "edit", str(issue_number), "--repo", _REPO, "--title", title],
-        capture_output=True, text=True, check=True,
-    )
-    return result.stdout or f"Title updated on issue #{issue_number}"
+    args = ["gh", "issue", "edit", str(issue_number), "--repo", _REPO, "--body", body]
+    if title is not None:
+        args += ["--title", title]
+    result = subprocess.run(args, capture_output=True, text=True, check=True)
+    updated = ["body"] + (["title"] if title is not None else [])
+    return result.stdout or f"Updated {' and '.join(updated)} on issue #{issue_number}"
 
 
 @mcp.tool()
@@ -316,7 +312,7 @@ def edit_issue_labels(
 @mcp.tool()
 def comment_pr(
     pr_number: Annotated[int, Field(description="PR number to comment on.")],
-    body: Annotated[str, Field(description="Comment body (markdown).", min_length=1, max_length=65536)],
+    body: Annotated[str, Field(description="Comment body (markdown).", min_length=1, max_length=10000)],
 ) -> str:
     """Post a comment on a pull request."""
     result = subprocess.run(
@@ -330,7 +326,7 @@ def comment_pr(
 def open_pr(
     issue_number: Annotated[int, Field(description="Issue number this PR closes.")],
     title: Annotated[str, Field(description="PR title (single line, Conventional Commit format).", min_length=5, max_length=300)],
-    body: Annotated[str, Field(description="PR body (markdown). 'Closes #N' is appended automatically.", min_length=10, max_length=65536)],
+    body: Annotated[str, Field(description="PR body (markdown). 'Closes #N' is appended automatically.", min_length=10, max_length=10000)],
 ) -> str:
     """Open a PR from the current branch.
 
@@ -349,7 +345,7 @@ def open_pr(
 def submit_pr_review(
     pr_number: Annotated[int, Field(description="PR number.")],
     event: Annotated[Literal["APPROVE", "REQUEST_CHANGES"], Field(description="Review verdict.")],
-    body: Annotated[str, Field(description="Review summary comment.", min_length=10, max_length=65536)],
+    body: Annotated[str, Field(description="Review summary comment.", min_length=10, max_length=10000)],
     comments: Annotated[
         list[InlineComment] | None,
         Field(description='Inline comments per changed line. Empty list or omit for APPROVE.'),

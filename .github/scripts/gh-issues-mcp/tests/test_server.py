@@ -19,9 +19,8 @@ from server import (
     apply_refinement_outcome,
     comment_issue,
     comment_pr,
-    edit_issue_body,
+    edit_issue,
     edit_issue_labels,
-    edit_issue_title,
     list_issues,
     open_pr,
     push_branch,
@@ -190,41 +189,38 @@ def test_comment_issue():
 
 
 # ---------------------------------------------------------------------------
-# edit_issue_body
+# edit_issue
 # ---------------------------------------------------------------------------
 
 
-def test_edit_issue_body():
+def test_edit_issue_body_only():
     with patch("server.subprocess.run") as mock_run:
         mock_run.return_value = _make_proc()
         with patch.object(server, "_REPO", "owner/repo"):
-            edit_issue_body(issue_number=5, body="New body\n## Header\nContent")
+            edit_issue(issue_number=5, body="New body\n## Header\nContent")
 
     cmd = mock_run.call_args[0][0]
     assert "edit" in cmd
     assert "--body" in cmd
     assert "5" in cmd
+    assert "--title" not in cmd
 
 
-# ---------------------------------------------------------------------------
-# edit_issue_title
-# ---------------------------------------------------------------------------
-
-
-def test_edit_issue_title():
+def test_edit_issue_with_title():
     with patch("server.subprocess.run") as mock_run:
         mock_run.return_value = _make_proc()
         with patch.object(server, "_REPO", "owner/repo"):
-            edit_issue_title(issue_number=5, title="New title")
+            edit_issue(issue_number=5, body="Updated body content here", title="New title")
 
     cmd = mock_run.call_args[0][0]
+    assert "--body" in cmd
     assert "--title" in cmd
     assert "New title" in cmd
 
 
-def test_edit_issue_title_rejects_multiline():
+def test_edit_issue_rejects_multiline_title():
     with pytest.raises(ValueError, match="single line"):
-        edit_issue_title(issue_number=5, title="Line one\nLine two")
+        edit_issue(issue_number=5, body="Some body content here", title="Line one\nLine two")
 
 
 # ---------------------------------------------------------------------------

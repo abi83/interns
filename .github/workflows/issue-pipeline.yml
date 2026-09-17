@@ -39,8 +39,7 @@ env:
   ALLOWED_LIST_ISSUES: "mcp__gh-issues__list_issues"
   ALLOWED_VIEW_ISSUE: "mcp__gh-issues__view_issue"
   ALLOWED_EDIT_LABELS: "mcp__gh-issues__edit_issue_labels"
-  ALLOWED_EDIT_BODY: "mcp__gh-issues__edit_issue_body"
-  ALLOWED_EDIT_TITLE: "mcp__gh-issues__edit_issue_title"
+  ALLOWED_EDIT_ISSUE: "mcp__gh-issues__edit_issue"
   ALLOWED_COMMENT: "mcp__gh-issues__comment_issue"
   ALLOWED_APPLY_REFINEMENT: "mcp__gh-issues__apply_refinement_outcome"
   ALLOWED_APPLY_ESTIMATION: "mcp__gh-issues__apply_estimation_outcome"
@@ -186,7 +185,7 @@ jobs:
             --model ${{ steps.cfg.outputs.model }}
             --max-turns ${{ steps.cfg.outputs.max_turns }}
             --mcp-config /tmp/mcp-config-gh-issues.json
-            --allowedTools "Read,Grep,Glob,${{ env.ALLOWED_EDIT_BODY }},${{ env.ALLOWED_EDIT_TITLE }},${{ env.ALLOWED_EDIT_LABELS }},${{ env.ALLOWED_COMMENT }},${{ env.ALLOWED_LIST_ISSUES }},${{ env.ALLOWED_VIEW_ISSUE }},${{ env.ALLOWED_APPLY_REFINEMENT }}"
+            --allowedTools "Read,Grep,Glob,${{ env.ALLOWED_EDIT_ISSUE }},${{ env.ALLOWED_EDIT_LABELS }},${{ env.ALLOWED_COMMENT }},${{ env.ALLOWED_LIST_ISSUES }},${{ env.ALLOWED_VIEW_ISSUE }},${{ env.ALLOWED_APPLY_REFINEMENT }}"
 
       - name: Report run cost
         if: always() && steps.claude.outputs.execution_file != ''
