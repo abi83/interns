@@ -403,6 +403,7 @@ def main(argv: list[str] | None = None) -> int:
         safety.check_branch_protection(con, repo, default_branch,
                                         handled_externally=args.branch_protection_handled_externally)
         safety.check_pages(con, repo)
+        safety.check_metrics_branch(con, repo)
     except (gh.GhError, safety.SafetyCheckError) as exc:
         con.error(str(exc))
         con.summary()

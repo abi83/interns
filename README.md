@@ -385,8 +385,10 @@ run gathers the records its agent jobs uploaded and commits them in a single
 push (serialised by a `metrics-append` concurrency group, fetch-rebased on a
 race).
 
-The branch is created automatically on the first run — no manual seeding. The
-record shape is versioned by `schema_version` and specified in
+The branch is created and protected against deletion by `interns-install` —
+no manual seeding. (A repo installed before this existed gets the branch on
+its first pipeline run instead; `interns-install` still protects it on a
+later re-run.) The record shape is versioned by `schema_version` and specified in
 [`.github/pipeline-metrics.schema.json`](.github/pipeline-metrics.schema.json);
 bump it and the `SCHEMA_VERSION` constant in `extract-metrics.sh` together on
 any breaking change. Read the log from any client with a single unauthenticated
