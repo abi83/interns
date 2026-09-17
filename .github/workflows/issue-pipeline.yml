@@ -84,7 +84,7 @@ jobs:
         id: triage_token
         uses: actions/create-github-app-token@v3
         with:
-          client-id: ${{ vars.INTERNS_TRIAGE_APP_ID }}
+          app-id: ${{ vars.INTERNS_TRIAGE_APP_ID }}
           private-key: ${{ secrets.INTERNS_TRIAGE_APP_PRIVATE_KEY }}
 
       - name: Resolve agent config
@@ -264,7 +264,7 @@ jobs:
         id: triage_token
         uses: actions/create-github-app-token@v3
         with:
-          client-id: ${{ vars.INTERNS_TRIAGE_APP_ID }}
+          app-id: ${{ vars.INTERNS_TRIAGE_APP_ID }}
           private-key: ${{ secrets.INTERNS_TRIAGE_APP_PRIVATE_KEY }}
 
       - name: Resolve triage identity
@@ -450,7 +450,7 @@ jobs:
           path: .interns
 
       - name: Download run metrics records
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v4
         continue-on-error: true
         with:
           pattern: pipeline-metrics-*

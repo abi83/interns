@@ -91,7 +91,7 @@ jobs:
         id: coder_token
         uses: actions/create-github-app-token@v3
         with:
-          client-id: ${{ vars.INTERNS_CODER_APP_ID }}
+          app-id: ${{ vars.INTERNS_CODER_APP_ID }}
           private-key: ${{ secrets.INTERNS_CODER_APP_PRIVATE_KEY }}
 
       - name: Checkout
@@ -549,7 +549,7 @@ jobs:
         id: reviewer_token
         uses: actions/create-github-app-token@v3
         with:
-          client-id: ${{ vars.INTERNS_REVIEWER_APP_ID }}
+          app-id: ${{ vars.INTERNS_REVIEWER_APP_ID }}
           private-key: ${{ secrets.INTERNS_REVIEWER_APP_PRIVATE_KEY }}
 
       # One source of truth for the reviewer's bot login, derived from the app
@@ -568,7 +568,7 @@ jobs:
         id: coder_token
         uses: actions/create-github-app-token@v3
         with:
-          client-id: ${{ vars.INTERNS_CODER_APP_ID }}
+          app-id: ${{ vars.INTERNS_CODER_APP_ID }}
           private-key: ${{ secrets.INTERNS_CODER_APP_PRIVATE_KEY }}
 
       - name: Resolve coder identity
@@ -818,7 +818,7 @@ jobs:
           path: .interns
 
       - name: Download run metrics records
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v4
         continue-on-error: true
         with:
           pattern: pipeline-metrics-*
