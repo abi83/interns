@@ -65,10 +65,11 @@ GRAPHQL_RESPONSE = {
 }
 
 
-def _make_proc(stdout: str = "", returncode: int = 0) -> MagicMock:
+def _make_proc(stdout: str = "", returncode: int = 0, stderr: str = "") -> MagicMock:
     m = MagicMock()
     m.stdout = stdout
     m.returncode = returncode
+    m.stderr = stderr
     return m
 
 
@@ -299,13 +300,25 @@ def test_open_pr_appends_closes():
     with patch("server.subprocess.run") as mock_run:
         mock_run.return_value = _make_proc("https://github.com/owner/repo/pull/1")
         with patch.object(server, "_REPO", "owner/repo"):
-            open_pr(issue_number=42, title="feat: add thing", body="Implements the thing")
+            with patch.object(server, "_WORKSPACE", "/workspace"):
+                open_pr(issue_number=42, title="feat: add thing", body="Implements the thing")
 
     cmd = mock_run.call_args[0][0]
     body_idx = cmd.index("--body") + 1
     body = cmd[body_idx]
     assert "Closes #42" in body
     assert "Implements the thing" in body
+    assert mock_run.call_args[1].get("cwd") == "/workspace"
+
+
+def test_open_pr_surfaces_gh_error():
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.return_value = _make_proc(
+            returncode=1, stderr="error creating pull request: No commits between 'main' and 'feat/x'"
+        )
+        with patch.object(server, "_REPO", "owner/repo"):
+            with pytest.raises(RuntimeError, match="No commits between"):
+                open_pr(issue_number=42, title="feat: add thing", body="Implements the thing")
 
 
 # ---------------------------------------------------------------------------

@@ -63,6 +63,18 @@ class InlineComment(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+def _run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
+    """Run a subprocess and re-raise failures with stderr so agents see why."""
+    kwargs.pop("check", None)
+    kwargs.setdefault("capture_output", True)
+    kwargs.setdefault("text", True)
+    result = subprocess.run(cmd, **kwargs)
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
+        raise RuntimeError(detail or f"'{cmd[0]}' exited {result.returncode}")
+    return result
+
+
 def _load_label_names() -> list[str]:
     try:
         data = json.loads(_LABELS_JSON.read_text())
@@ -102,7 +114,7 @@ query($owner: String!, $repo: String!, $number: Int!) {
 def _fetch_issue(number: int) -> Issue:
     """Run the GraphQL query and parse the response into an Issue model."""
     owner, repo = _REPO.split("/", 1)
-    result = subprocess.run(
+    result = _run(
         [
             "gh", "api", "graphql",
             "-f", f"query={_VIEW_QUERY}",
@@ -110,7 +122,6 @@ def _fetch_issue(number: int) -> Issue:
             "-F", f"repo={repo}",
             "-F", f"number={number}",
         ],
-        capture_output=True, text=True, check=True,
     )
     raw = json.loads(result.stdout)["data"]["repository"]["issue"]
     return Issue(
@@ -192,7 +203,7 @@ def list_issues(
     ]
     if label:
         cmd += ["--label", label]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    result = _run(cmd)
     return result.stdout
 
 
@@ -220,10 +231,7 @@ def comment_issue(
     body: Annotated[str, Field(description="Comment body (markdown).", min_length=1, max_length=10000)],
 ) -> str:
     """Post a comment on an issue."""
-    result = subprocess.run(
-        ["gh", "issue", "comment", str(issue_number), "--repo", _REPO, "--body", body],
-        capture_output=True, text=True, check=True,
-    )
+    result = _run(["gh", "issue", "comment", str(issue_number), "--repo", _REPO, "--body", body])
     return result.stdout or f"Comment posted on issue #{issue_number}"
 
 
@@ -246,7 +254,7 @@ def edit_issue(
     args = ["gh", "issue", "edit", str(issue_number), "--repo", _REPO, "--body", body]
     if title is not None:
         args += ["--title", title]
-    result = subprocess.run(args, capture_output=True, text=True, check=True)
+    result = _run(args)
     updated = ["body"] + (["title"] if title is not None else [])
     return result.stdout or f"Updated {' and '.join(updated)} on issue #{issue_number}"
 
@@ -267,7 +275,7 @@ def edit_issue_labels(
     if not add_labels and not remove_labels:
         return "Nothing to do"
 
-    valid_result = subprocess.run(
+    valid_result = _run(
         [
             "gh", "label", "list",
             "--repo", _REPO,
@@ -275,7 +283,6 @@ def edit_issue_labels(
             "--json", "name",
             "--jq", ".[].name",
         ],
-        capture_output=True, text=True, check=True,
     )
     valid = set(valid_result.stdout.splitlines())
 
@@ -295,7 +302,7 @@ def edit_issue_labels(
     for lbl in remove_labels:
         args += ["--remove-label", lbl]
 
-    result = subprocess.run(args, capture_output=True, text=True, check=True)
+    result = _run(args)
     parts = []
     if add_labels:
         parts.append(f"Added: {', '.join(add_labels)}")
@@ -315,10 +322,7 @@ def comment_pr(
     body: Annotated[str, Field(description="Comment body (markdown).", min_length=1, max_length=10000)],
 ) -> str:
     """Post a comment on a pull request."""
-    result = subprocess.run(
-        ["gh", "pr", "comment", str(pr_number), "--repo", _REPO, "--body", body],
-        capture_output=True, text=True, check=True,
-    )
+    result = _run(["gh", "pr", "comment", str(pr_number), "--repo", _REPO, "--body", body])
     return result.stdout or f"Comment posted on PR #{pr_number}"
 
 
@@ -334,9 +338,9 @@ def open_pr(
     linked to the issue via GitHub's closing-reference mechanism.
     """
     full_body = f"{body}\n\nCloses #{issue_number}"
-    result = subprocess.run(
+    result = _run(
         ["gh", "pr", "create", "--repo", _REPO, "--title", title, "--body", full_body],
-        capture_output=True, text=True, check=True,
+        cwd=_WORKSPACE or None,
     )
     return result.stdout
 
@@ -355,14 +359,13 @@ def submit_pr_review(
     if event not in ("APPROVE", "REQUEST_CHANGES"):
         raise ValueError("event must be APPROVE or REQUEST_CHANGES")
     payload = {"event": event, "body": body, "comments": [c.model_dump() for c in (comments or [])]}
-    result = subprocess.run(
+    result = _run(
         [
             "gh", "api", "--method", "POST",
             f"repos/{_REPO}/pulls/{pr_number}/reviews",
             "--input", "-",
         ],
         input=json.dumps(payload),
-        capture_output=True, text=True, check=True,
     )
     return result.stdout
 
@@ -384,10 +387,7 @@ def push_branch() -> str:
     ws = _WORKSPACE or None
 
     def git(*args: str) -> str:
-        r = subprocess.run(
-            ["git"] + list(args), cwd=ws, capture_output=True, text=True, check=True
-        )
-        return r.stdout.strip()
+        return _run(["git"] + list(args), cwd=ws).stdout.strip()
 
     branch = git("rev-parse", "--abbrev-ref", "HEAD")
     if branch in ("main", "master"):
@@ -477,7 +477,7 @@ def apply_refinement_outcome(
         args += ["--add-label", lbl]
     for lbl in remove:
         args += ["--remove-label", lbl]
-    subprocess.run(args, capture_output=True, text=True, check=True)
+    _run(args)
     return f"Refinement outcome '{outcome}' applied to issue #{issue_number}"
 
 
@@ -528,7 +528,7 @@ def apply_estimation_outcome(
         args += ["--add-label", lbl]
     for lbl in remove:
         args += ["--remove-label", lbl]
-    subprocess.run(args, capture_output=True, text=True, check=True)
+    _run(args)
 
     if outcome == "estimated":
         return f"Estimation outcome 'estimated' applied to issue #{issue_number} (size:{size})"
