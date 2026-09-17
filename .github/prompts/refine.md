@@ -58,8 +58,8 @@ Use this to write a more accurate and *narrower* Scope. Investigation
 sharpens the ticket; it does not license adding scope the draft didn't ask
 for.
 
-Both the body (Step 3) and the analysis comment (Step 4) follow this
-repo's `CLAUDE.md` prose rules: state facts, not authority; each point once.
+Please follow the repo's `CLAUDE.md` prose rules and writing style for issue
+body, title and the analysis comment.
 
 ## Step 3: rewrite the body and title
 
