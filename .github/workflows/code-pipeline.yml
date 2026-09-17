@@ -263,35 +263,11 @@ jobs:
         if: steps.guard.outputs.skip != 'true' && steps.mode.outputs.fix_round != 'true'
         run: .interns/.github/scripts/pipeline/load-prompt.sh .interns/.github/prompts/_shared.md .interns/.github/prompts/code.md
 
-      - name: Create MCP config for gh-issues server
+      - name: Set up gh-issues MCP server
         if: steps.guard.outputs.skip != 'true'
-        env:
-          GH_TOKEN_VALUE: ${{ steps.coder_token.outputs.token }}
-        run: |
-          python3 << 'PYEOF'
-          import json, os
-          config = {
-            "mcpServers": {
-              "gh-issues": {
-                "type": "stdio",
-                "command": "uv",
-                "args": [
-                  "--directory",
-                  "${{ github.workspace }}/.interns/.github/scripts/gh-issues-mcp",
-                  "run",
-                  "server.py",
-                ],
-                "env": {
-                  "GH_TOKEN": os.environ["GH_TOKEN_VALUE"],
-                  "GITHUB_REPOSITORY": "${{ github.repository }}",
-                  "GITHUB_WORKSPACE": "${{ github.workspace }}",
-                },
-              }
-            }
-          }
-          with open("/tmp/mcp-config-gh-issues.json", "w") as f:
-            json.dump(config, f)
-          PYEOF
+        uses: ./.interns/.github/actions/setup-gh-issues-mcp
+        with:
+          gh_token: ${{ steps.coder_token.outputs.token }}
 
       - name: Run Claude coder (initial implementation)
         id: claude_initial
@@ -627,35 +603,11 @@ jobs:
         if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.cap.outputs.capped != 'true'
         run: .interns/.github/scripts/pipeline/load-prompt.sh .interns/.github/prompts/_shared.md .interns/.github/prompts/review.md
 
-      - name: Create MCP config for gh-issues server
+      - name: Set up gh-issues MCP server
         if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.cap.outputs.capped != 'true'
-        env:
-          GH_TOKEN_VALUE: ${{ steps.reviewer_token.outputs.token }}
-        run: |
-          python3 << 'PYEOF'
-          import json, os
-          config = {
-            "mcpServers": {
-              "gh-issues": {
-                "type": "stdio",
-                "command": "uv",
-                "args": [
-                  "--directory",
-                  "${{ github.workspace }}/.interns/.github/scripts/gh-issues-mcp",
-                  "run",
-                  "server.py",
-                ],
-                "env": {
-                  "GH_TOKEN": os.environ["GH_TOKEN_VALUE"],
-                  "GITHUB_REPOSITORY": "${{ github.repository }}",
-                  "GITHUB_WORKSPACE": "${{ github.workspace }}",
-                },
-              }
-            }
-          }
-          with open("/tmp/mcp-config-gh-issues.json", "w") as f:
-            json.dump(config, f)
-          PYEOF
+        uses: ./.interns/.github/actions/setup-gh-issues-mcp
+        with:
+          gh_token: ${{ steps.reviewer_token.outputs.token }}
 
       - name: Run Claude reviewer
         id: claude

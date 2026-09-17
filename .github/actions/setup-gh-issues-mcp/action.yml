@@ -1,0 +1,43 @@
+name: setup-gh-issues-mcp
+description: Install uv and write the MCP config for the gh-issues server
+
+inputs:
+  gh_token:
+    description: Token the gh-issues server authenticates to GitHub with
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install uv
+      uses: astral-sh/setup-uv@v10
+
+    - name: Write MCP config
+      shell: bash
+      env:
+        GH_TOKEN_VALUE: ${{ inputs.gh_token }}
+      run: |
+        python3 << 'PYEOF'
+        import json, os
+        config = {
+          "mcpServers": {
+            "gh-issues": {
+              "type": "stdio",
+              "command": "uv",
+              "args": [
+                "--directory",
+                "${{ github.workspace }}/.interns/.github/scripts/gh-issues-mcp",
+                "run",
+                "server.py",
+              ],
+              "env": {
+                "GH_TOKEN": os.environ["GH_TOKEN_VALUE"],
+                "GITHUB_REPOSITORY": "${{ github.repository }}",
+                "GITHUB_WORKSPACE": "${{ github.workspace }}",
+              },
+            }
+          }
+        }
+        with open("/tmp/mcp-config-gh-issues.json", "w") as f:
+          json.dump(config, f)
+        PYEOF
