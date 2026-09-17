@@ -134,15 +134,16 @@ On the normal path, in order:
 4. Call `mcp__gh-issues__comment_issue` with the analysis comment (Step 4).
    (Call `view_issue`/`list_issues` first only if investigation gave you
    reason to suspect a dependency — see rules above.)
-5. Write `refined` to `./.issue-pipeline-outcome`.
+5. Call `mcp__gh-issues__apply_refinement_outcome` with `issue_number` and
+   `outcome='refined'`.
 
 On the stop-and-comment path (below): call `mcp__gh-issues__comment_issue`
-with the clarification comment, then write `needs-attention` to
-`./.issue-pipeline-outcome`. Don't edit the body, title, or type.
+with the clarification comment, then call
+`mcp__gh-issues__apply_refinement_outcome` with `outcome='needs-attention'`.
+Don't edit the body, title, or type.
 
-The workflow reads that marker and moves the lifecycle label. You never set a
-`status:*` label yourself. Post exactly the one comment for the path you're on
-— no others.
+You never set a `status:*` label yourself. Post exactly the one comment for
+the path you're on — no others.
 
 ## When to stop instead of refining
 

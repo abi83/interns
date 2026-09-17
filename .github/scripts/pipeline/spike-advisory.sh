@@ -20,5 +20,10 @@ if [[ ",$labels," != *",type:spike,"* ]]; then
   exit 0
 fi
 
+if [[ ",$labels," != *",status:estimated,"* ]]; then
+  echo "Issue #$ISSUE is a spike but not yet estimated — no advisory."
+  exit 0
+fi
+
 gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body \
   "This is a spike; no coder picks it up. The estimate above is for your planning — do the investigation and close the issue when done."

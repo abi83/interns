@@ -412,6 +412,101 @@ def push_branch() -> str:
     return f"Branch {branch!r} squashed and pushed to origin"
 
 
+# ---------------------------------------------------------------------------
+# Outcome tools — apply pipeline lifecycle label transitions directly,
+# so refiner/estimator need no Write access and no marker files on disk.
+# ---------------------------------------------------------------------------
+
+_ROLL_UP_TABLE: dict[tuple[int, int], str] = {
+    (0, 0): "XS", (0, 1): "S",  (0, 2): "S",  (0, 3): "M",  (0, 4): "M",
+    (1, 0): "M",  (1, 1): "M",  (1, 2): "M",  (1, 3): "L",
+    (2, 0): "L",  (2, 1): "L",  (2, 2): "L",
+    (3, 0): "XL", (3, 1): "XL",
+    (4, 0): "XL",
+}
+
+
+def _roll_up_size(blast: str, touch: str, human: str, review: str) -> str:
+    """Map four Low|Mid|High scores to XS|S|M|L|XL via the (#High, #Mid) key."""
+    highs = mids = 0
+    for score in (blast, touch, human, review):
+        s = score.strip().lower()
+        if s == "high":
+            highs += 1
+        elif s == "mid":
+            mids += 1
+        elif s == "low":
+            pass
+        else:
+            raise ValueError(f"Not a Low|Mid|High score: {score!r}")
+    return _ROLL_UP_TABLE[(highs, mids)]
+
+
+@mcp.tool()
+def apply_refinement_outcome(
+    issue_number: Annotated[int, Field(description="Issue number.")],
+    outcome: Annotated[str, Field(description="'refined' or 'needs-attention'.")],
+) -> str:
+    """Apply the lifecycle label transition after refinement.
+
+    refined       → removes status:needs-refinement and status:needs-attention,
+                    adds status:refined (which triggers the estimate job).
+    needs-attention → removes status:needs-refinement, adds status:needs-attention.
+    """
+    if outcome == "refined":
+        add, remove = ["status:refined"], ["status:needs-refinement", "status:needs-attention"]
+    elif outcome == "needs-attention":
+        add, remove = ["status:needs-attention"], ["status:needs-refinement"]
+    else:
+        raise ValueError("outcome must be 'refined' or 'needs-attention'")
+
+    args = ["gh", "issue", "edit", str(issue_number), "--repo", _REPO]
+    for lbl in add:
+        args += ["--add-label", lbl]
+    for lbl in remove:
+        args += ["--remove-label", lbl]
+    subprocess.run(args, capture_output=True, text=True, check=True)
+    return f"Refinement outcome '{outcome}' applied to issue #{issue_number}"
+
+
+@mcp.tool()
+def apply_estimation_outcome(
+    issue_number: Annotated[int, Field(description="Issue number.")],
+    outcome: Annotated[str, Field(description="'estimated' or 'needs-attention'.")],
+    blast_radius: Annotated[str, Field(description="Low|Mid|High. Required when outcome='estimated'.")] = "",
+    touch: Annotated[str, Field(description="Low|Mid|High. Required when outcome='estimated'.")] = "",
+    human_involvement: Annotated[str, Field(description="Low|Mid|High. Required when outcome='estimated'.")] = "",
+    review_overhead: Annotated[str, Field(description="Low|Mid|High. Required when outcome='estimated'.")] = "",
+) -> str:
+    """Apply the lifecycle label transition after estimation.
+
+    estimated     → rolls the four Low|Mid|High scores into a size:* label,
+                    then removes status:refined and status:needs-attention,
+                    adds status:estimated and the computed size:* label.
+    needs-attention → removes status:refined, adds status:needs-attention.
+    """
+    if outcome == "estimated":
+        size = _roll_up_size(blast_radius, touch, human_involvement, review_overhead)
+        add = ["status:estimated", f"size:{size}"]
+        remove = ["status:refined", "status:needs-attention"]
+    elif outcome == "needs-attention":
+        add, remove = ["status:needs-attention"], ["status:refined"]
+        size = ""
+    else:
+        raise ValueError("outcome must be 'estimated' or 'needs-attention'")
+
+    args = ["gh", "issue", "edit", str(issue_number), "--repo", _REPO]
+    for lbl in add:
+        args += ["--add-label", lbl]
+    for lbl in remove:
+        args += ["--remove-label", lbl]
+    subprocess.run(args, capture_output=True, text=True, check=True)
+
+    if outcome == "estimated":
+        return f"Estimation outcome 'estimated' applied to issue #{issue_number} (size:{size})"
+    return f"Estimation outcome 'needs-attention' applied to issue #{issue_number}"
+
+
 if __name__ == "__main__":
     import sys
 

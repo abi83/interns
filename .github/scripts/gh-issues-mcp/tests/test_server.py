@@ -12,7 +12,10 @@ from server import (
     Issue,
     RelatedIssue,
     _fetch_issue,
+    _roll_up_size,
     _write_github_output,
+    apply_estimation_outcome,
+    apply_refinement_outcome,
     comment_issue,
     comment_pr,
     edit_issue_body,
@@ -456,6 +459,126 @@ def test_write_github_output(tmp_path):
     assert "Nice" in content
     # Bot comment from github-actions should be excluded
     assert "Bot" not in content
+
+
+# ---------------------------------------------------------------------------
+# _roll_up_size
+# ---------------------------------------------------------------------------
+
+
+def test_roll_up_size_all_low():
+    assert _roll_up_size("Low", "Low", "Low", "Low") == "XS"
+
+
+def test_roll_up_size_one_mid():
+    assert _roll_up_size("Low", "Mid", "Low", "Low") == "S"
+
+
+def test_roll_up_size_two_mid():
+    assert _roll_up_size("Mid", "Low", "Low", "Mid") == "S"
+
+
+def test_roll_up_size_one_high():
+    assert _roll_up_size("High", "Low", "Low", "Low") == "M"
+
+
+def test_roll_up_size_one_high_three_mid():
+    assert _roll_up_size("High", "Mid", "Mid", "Mid") == "L"
+
+
+def test_roll_up_size_three_high():
+    assert _roll_up_size("High", "High", "High", "Low") == "XL"
+
+
+def test_roll_up_size_invalid_score():
+    with pytest.raises(ValueError, match="Not a Low|Mid|High score"):
+        _roll_up_size("Low", "Medium", "Low", "Low")
+
+
+# ---------------------------------------------------------------------------
+# apply_refinement_outcome
+# ---------------------------------------------------------------------------
+
+
+def test_apply_refinement_outcome_refined():
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.return_value = _make_proc()
+        with patch.object(server, "_REPO", "owner/repo"):
+            result = apply_refinement_outcome(issue_number=5, outcome="refined")
+
+    cmd = mock_run.call_args[0][0]
+    assert "--add-label" in cmd
+    assert "status:refined" in cmd
+    assert "--remove-label" in cmd
+    assert "status:needs-refinement" in cmd
+    assert "refined" in result
+
+
+def test_apply_refinement_outcome_needs_attention():
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.return_value = _make_proc()
+        with patch.object(server, "_REPO", "owner/repo"):
+            result = apply_refinement_outcome(issue_number=5, outcome="needs-attention")
+
+    cmd = mock_run.call_args[0][0]
+    assert "--add-label" in cmd
+    assert "status:needs-attention" in cmd
+    assert "--remove-label" in cmd
+    assert "status:needs-refinement" in cmd
+    assert "status:refined" not in cmd
+    assert "needs-attention" in result
+
+
+def test_apply_refinement_outcome_invalid():
+    with pytest.raises(ValueError):
+        apply_refinement_outcome(issue_number=5, outcome="done")
+
+
+# ---------------------------------------------------------------------------
+# apply_estimation_outcome
+# ---------------------------------------------------------------------------
+
+
+def test_apply_estimation_outcome_estimated():
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.return_value = _make_proc()
+        with patch.object(server, "_REPO", "owner/repo"):
+            result = apply_estimation_outcome(
+                issue_number=7,
+                outcome="estimated",
+                blast_radius="Low",
+                touch="Mid",
+                human_involvement="Low",
+                review_overhead="Low",
+            )
+
+    cmd = mock_run.call_args[0][0]
+    assert "--add-label" in cmd
+    assert "status:estimated" in cmd
+    assert "size:S" in cmd
+    assert "--remove-label" in cmd
+    assert "status:refined" in cmd
+    assert "estimated" in result
+    assert "size:S" in result
+
+
+def test_apply_estimation_outcome_needs_attention():
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.return_value = _make_proc()
+        with patch.object(server, "_REPO", "owner/repo"):
+            result = apply_estimation_outcome(issue_number=7, outcome="needs-attention")
+
+    cmd = mock_run.call_args[0][0]
+    assert "--add-label" in cmd
+    assert "status:needs-attention" in cmd
+    assert "--remove-label" in cmd
+    assert "status:refined" in cmd
+    assert "needs-attention" in result
+
+
+def test_apply_estimation_outcome_invalid():
+    with pytest.raises(ValueError):
+        apply_estimation_outcome(issue_number=7, outcome="done")
 
 
 def test_write_github_output_no_human_comments(tmp_path):
