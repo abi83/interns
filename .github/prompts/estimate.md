@@ -47,10 +47,6 @@ what you looked for and didn't find:
   one clean review pass is Low; multiple PRs or back-and-forth design
   review is High.
 
-Score the four criteria and stop there — the pipeline maps the tuple to a
-single size deterministically, so there is no SIZE line for you to write or
-reason about.
-
 If you see natural seams where the work could be split, say so in the
 REVIEW OVERHEAD or TOUCH reasoning. The owner decides whether to split
 before approving.

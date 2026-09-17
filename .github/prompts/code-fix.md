@@ -20,27 +20,19 @@ the feedback or re-litigating it in the next round without ever having said
 so. To comment on the PR: call `mcp__gh-issues__comment_pr` with `pr_number`
 and your reasoning.
 
-Don't modify CI or pipeline configuration — anything under
-`.github/workflows/`, or the paths `mcp__gh-issues__push_branch` rejects.
-That tool rejects any push that touches those paths. If addressing the
-feedback requires such a change, decline the task (see below).
+Don't modify CI or pipeline configuration (see CI and test conventions
+above). If addressing the feedback requires such a change, decline the task
+(see below).
 
 Re-check the repo's own conventions (`CLAUDE.md` / `AGENTS.md`, any
-contributor guide, or the existing code) if you need a refresher. Re-run
-`make test` and `make build` before pushing and keep them green — the same
-bar applies to a fix commit as to the original implementation, and a red
-check sends the issue to a human rather than back to you for another round.
-If the repo has no `Makefile`, or the output says `INTERNS: not configured`,
-testing isn't set up for this repo yet — that's expected, not a failure.
-Don't try to configure it yourself unless the feedback specifically asks
-for that; just note it didn't run and move on.
+contributor guide, or the existing code) if you need a refresher.
 
 ## If you can't complete the fix
 
-Some fix rounds can't be carried out: the feedback needs a change under
-`.github/workflows/` or another protected path (`mcp__gh-issues__push_branch`
-will reject the push), the reviewer's request is out of scope for the issue
-or contradicts it, or resolving it needs a decision only the owner can make.
+Some fix rounds can't be carried out: the feedback needs a CI/pipeline
+change (see CI and test conventions above), the reviewer's request is out
+of scope for the issue or contradicts it, or resolving it needs a decision
+only the owner can make.
 
 In that case, **don't** just leave a PR comment and stop — a bare comment
 looks identical to a finished fix, so the pipeline hands the PR back to the
