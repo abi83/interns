@@ -594,6 +594,13 @@ def test_apply_estimation_outcome_invalid():
         apply_estimation_outcome(issue_number=7, outcome="done")
 
 
+def test_write_github_output_no_github_output_env():
+    issue = Issue(number=1, title="T", body="B", state="OPEN", labels=[], comments=[])
+    env = {k: v for k, v in os.environ.items() if k != "GITHUB_OUTPUT"}
+    with patch.dict(os.environ, env, clear=True):
+        _write_github_output(issue)  # must not raise
+
+
 def test_write_github_output_no_human_comments(tmp_path):
     output_file = tmp_path / "output"
     output_file.write_text("")

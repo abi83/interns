@@ -252,14 +252,16 @@ def edit_issue_title(
 @mcp.tool()
 def edit_issue_labels(
     issue_number: Annotated[int, Field(description="Issue number.")],
-    add_labels: Annotated[list[str], Field(description="Labels to add.")] = [],
-    remove_labels: Annotated[list[str], Field(description="Labels to remove.")] = [],
+    add_labels: Annotated[list[str] | None, Field(description="Labels to add.")] = None,
+    remove_labels: Annotated[list[str] | None, Field(description="Labels to remove.")] = None,
 ) -> str:
     """Add or remove labels on an issue.
 
     Only labels that exist in the repository are accepted. Pass an empty list
     to skip adding or removing.
     """
+    add_labels = add_labels or []
+    remove_labels = remove_labels or []
     if not add_labels and not remove_labels:
         return "Nothing to do"
 
@@ -343,14 +345,14 @@ def submit_pr_review(
     event: Annotated[str, Field(description="Review verdict: APPROVE or REQUEST_CHANGES.")],
     body: Annotated[str, Field(description="Review summary comment.")],
     comments: Annotated[
-        list[dict],
+        list[dict] | None,
         Field(description='Inline comments: [{"path": "...", "line": 123, "body": "..."}]. Empty for APPROVE.'),
-    ] = [],
+    ] = None,
 ) -> str:
     """Submit a formal PR review (verdict + optional inline comments) atomically."""
     if event not in ("APPROVE", "REQUEST_CHANGES"):
         raise ValueError("event must be APPROVE or REQUEST_CHANGES")
-    payload = {"event": event, "body": body, "comments": comments}
+    payload = {"event": event, "body": body, "comments": comments or []}
     result = subprocess.run(
         [
             "gh", "api", "--method", "POST",
