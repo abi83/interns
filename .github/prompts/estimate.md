@@ -66,19 +66,23 @@ Output nothing else — no preamble, no closing remarks.
 
 ## Mechanics
 
-1. Write your output — the four score lines verbatim on the normal path, or
-   your clarification question on a stop path — to
-   `./.issue-pipeline-comment.md`, then run
-   `.interns/.github/scripts/gh-safe/comment-issue.sh` with no arguments (never
-   pass comment text on the command line — multi-line text breaks shell
-   quoting).
-2. Write the outcome to `./.issue-pipeline-outcome`: `estimated` on the normal
-   path, `needs-attention` on a stop path.
+On the normal path:
 
-Then stop. The workflow reads the marker: on `estimated` it rolls your four
-scores into a size and applies the `size:*` and status labels; on
-`needs-attention` it moves the status label for a human. You never set a
-`status:*` or `size:*` label yourself.
+1. Call `mcp__gh-issues__comment_issue` with `issue_number` and the four score
+   lines verbatim as the body.
+2. Call `mcp__gh-issues__apply_estimation_outcome` with `issue_number`,
+   `outcome='estimated'`, and the four scores as `blast_radius`, `touch`,
+   `human_involvement`, `review_overhead` (each `Low`, `Mid`, or `High`).
+
+On a stop path:
+
+1. Call `mcp__gh-issues__comment_issue` with the clarification question,
+   tagging the owner.
+2. Call `mcp__gh-issues__apply_estimation_outcome` with `issue_number` and
+   `outcome='needs-attention'`.
+
+No file writes. You never set a `status:*` or `size:*` label yourself — the
+tool applies the lifecycle label and computes the size from your scores.
 
 ## When to stop instead of estimating
 

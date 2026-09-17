@@ -22,8 +22,7 @@ Work through every item in Acceptance Criteria. Don't add scope beyond what
 Value/Scope/Acceptance Criteria actually ask for, and don't leave anything
 half-finished — if something in Acceptance Criteria can't be completed
 (missing information, a blocked dependency), stop rather than opening a
-partial PR: write an explanation to `./.issue-pipeline-comment.md` and run
-`.interns/.github/scripts/gh-safe/comment-issue.sh` (no arguments).
+partial PR: call `mcp__gh-issues__comment_issue` with an explanation.
 
 Match the surrounding code: naming, structure, error handling, test style,
 comment density. Don't introduce patterns the repo doesn't already use, add
@@ -31,9 +30,9 @@ speculative abstraction, or refactor code the issue didn't ask you to
 touch.
 
 Don't modify CI or pipeline configuration — anything under
-`.github/workflows/`, or the paths `push-branch.sh` rejects. That script
-rejects any push that touches those paths. If the issue seems to require
-such a change, stop and comment on the issue instead of opening a PR.
+`.github/workflows/`, or the paths `mcp__gh-issues__push_branch` rejects.
+That tool rejects any push that touches those paths. If the issue seems to
+require such a change, stop and comment on the issue instead of opening a PR.
 
 Tests are your responsibility. Add or update tests for the behaviour you
 change, then run the project's build and test commands and make sure they
@@ -46,9 +45,9 @@ them green, stop and comment on the issue instead.
 
 Use the branch name given as `BRANCH` in your prompt — it's derived from
 the issue and already matches the commit type. Commit your changes with a
-normal, clear commit message. `push-branch.sh` collapses the branch to a
-single commit before pushing, so don't rely on your intermediate commit
-structure surviving.
+normal, clear commit message. `mcp__gh-issues__push_branch` collapses the
+branch to a single commit before pushing, so don't rely on your intermediate
+commit structure surviving.
 
 ## Open the PR
 
@@ -62,11 +61,10 @@ and derives releases from commit history, this line becomes that commit.
 PR body: a concise, meaningful summary of what changed and why — readable
 on its own without needing to open the issue.
 
-1. Write the PR title (single line) to `./.pr-title.txt`.
-2. Write the PR body to `./.pr-body.md`. Do not add a "Closes #N" line
-   yourself — the script that opens the PR adds it automatically.
-3. Push your branch: `.interns/.github/scripts/gh-safe/push-branch.sh` (no arguments).
-4. Run `.interns/.github/scripts/gh-safe/open-pr.sh` (no arguments).
+1. Call `mcp__gh-issues__push_branch` (no parameters — reads current git state).
+2. Call `mcp__gh-issues__open_pr` with `issue_number`, `title` (Conventional
+   Commit subject line), and `body`. Do not add a "Closes #N" line yourself —
+   the tool appends it automatically.
 
 Do nothing else — no label edits, no other comments. The workflow handles
 status transitions after your run completes.

@@ -1,0 +1,621 @@
+"""Tests for gh-issues MCP server."""
+
+import json
+import os
+from unittest.mock import MagicMock, call, patch
+
+import pytest
+
+import server
+from server import (
+    Comment,
+    Issue,
+    RelatedIssue,
+    _fetch_issue,
+    _roll_up_size,
+    _write_github_output,
+    apply_estimation_outcome,
+    apply_refinement_outcome,
+    comment_issue,
+    comment_pr,
+    edit_issue_body,
+    edit_issue_labels,
+    edit_issue_title,
+    list_issues,
+    open_pr,
+    push_branch,
+    submit_pr_review,
+    view_issue,
+)
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+GRAPHQL_RESPONSE = {
+    "data": {
+        "repository": {
+            "issue": {
+                "number": 42,
+                "title": "Test issue",
+                "body": "Issue body",
+                "state": "OPEN",
+                "labels": {"nodes": [{"name": "bug"}, {"name": "priority:high"}]},
+                "comments": {
+                    "nodes": [
+                        {
+                            "author": {"login": "alice"},
+                            "createdAt": "2024-01-01T00:00:00Z",
+                            "body": "Great issue",
+                        },
+                        {
+                            "author": {"login": "github-actions"},
+                            "createdAt": "2024-01-02T00:00:00Z",
+                            "body": "Pipeline comment",
+                        },
+                    ]
+                },
+                "parent": {"number": 10, "title": "Parent epic", "state": "OPEN"},
+                "subIssues": {"nodes": [{"number": 43, "title": "Sub", "state": "OPEN"}]},
+                "blockedBy": {"nodes": []},
+                "blocking": {"nodes": []},
+            }
+        }
+    }
+}
+
+
+def _make_proc(stdout: str = "", returncode: int = 0) -> MagicMock:
+    m = MagicMock()
+    m.stdout = stdout
+    m.returncode = returncode
+    return m
+
+
+# ---------------------------------------------------------------------------
+# _fetch_issue
+# ---------------------------------------------------------------------------
+
+
+def test_fetch_issue_returns_model():
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.return_value = _make_proc(json.dumps(GRAPHQL_RESPONSE))
+        with patch.object(server, "_REPO", "owner/repo"):
+            issue = _fetch_issue(42)
+
+    assert isinstance(issue, Issue)
+    assert issue.number == 42
+    assert issue.title == "Test issue"
+    assert issue.body == "Issue body"
+    assert issue.state == "OPEN"
+    assert issue.labels == ["bug", "priority:high"]
+    assert len(issue.comments) == 2
+    assert issue.comments[0].author == "alice"
+    assert issue.parent is not None
+    assert issue.parent.number == 10
+    assert len(issue.sub_issues) == 1
+    assert issue.blocked_by == []
+    assert issue.blocking == []
+
+
+def test_fetch_issue_null_body():
+    response = json.loads(json.dumps(GRAPHQL_RESPONSE))
+    response["data"]["repository"]["issue"]["body"] = None
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.return_value = _make_proc(json.dumps(response))
+        with patch.object(server, "_REPO", "owner/repo"):
+            issue = _fetch_issue(42)
+    assert issue.body == ""
+
+
+def test_fetch_issue_no_parent():
+    response = json.loads(json.dumps(GRAPHQL_RESPONSE))
+    response["data"]["repository"]["issue"]["parent"] = None
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.return_value = _make_proc(json.dumps(response))
+        with patch.object(server, "_REPO", "owner/repo"):
+            issue = _fetch_issue(42)
+    assert issue.parent is None
+
+
+# ---------------------------------------------------------------------------
+# view_issue
+# ---------------------------------------------------------------------------
+
+
+def test_view_issue_returns_flat_json():
+    with patch("server._fetch_issue") as mock_fetch:
+        mock_fetch.return_value = Issue(
+            number=1,
+            title="T",
+            body="B",
+            state="OPEN",
+            labels=["bug"],
+            comments=[],
+        )
+        result = view_issue(issue_number=1)
+
+    data = json.loads(result)
+    assert data["number"] == 1
+    assert data["labels"] == ["bug"]
+    assert "nodes" not in str(data)
+
+
+# ---------------------------------------------------------------------------
+# list_issues
+# ---------------------------------------------------------------------------
+
+
+def test_list_issues_no_label():
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.return_value = _make_proc('[{"number":1}]')
+        with patch.object(server, "_REPO", "owner/repo"):
+            result = list_issues()
+
+    cmd = mock_run.call_args[0][0]
+    assert "--label" not in cmd
+    assert result == '[{"number":1}]'
+
+
+def test_list_issues_with_label():
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.return_value = _make_proc("[]")
+        with patch.object(server, "_REPO", "owner/repo"):
+            list_issues(label="bug")
+
+    cmd = mock_run.call_args[0][0]
+    assert "--label" in cmd
+    assert "bug" in cmd
+
+
+# ---------------------------------------------------------------------------
+# comment_issue
+# ---------------------------------------------------------------------------
+
+
+def test_comment_issue():
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.return_value = _make_proc("https://github.com/.../42#issuecomment-1")
+        with patch.object(server, "_REPO", "owner/repo"):
+            result = comment_issue(issue_number=42, body="Hello")
+
+    cmd = mock_run.call_args[0][0]
+    assert "gh" in cmd
+    assert "issue" in cmd
+    assert "comment" in cmd
+    assert "42" in cmd
+    assert "--body" in cmd
+    assert "Hello" in cmd
+
+
+# ---------------------------------------------------------------------------
+# edit_issue_body
+# ---------------------------------------------------------------------------
+
+
+def test_edit_issue_body():
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.return_value = _make_proc()
+        with patch.object(server, "_REPO", "owner/repo"):
+            edit_issue_body(issue_number=5, body="New body\n## Header\nContent")
+
+    cmd = mock_run.call_args[0][0]
+    assert "edit" in cmd
+    assert "--body" in cmd
+    assert "5" in cmd
+
+
+# ---------------------------------------------------------------------------
+# edit_issue_title
+# ---------------------------------------------------------------------------
+
+
+def test_edit_issue_title():
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.return_value = _make_proc()
+        with patch.object(server, "_REPO", "owner/repo"):
+            edit_issue_title(issue_number=5, title="New title")
+
+    cmd = mock_run.call_args[0][0]
+    assert "--title" in cmd
+    assert "New title" in cmd
+
+
+def test_edit_issue_title_rejects_multiline():
+    with pytest.raises(ValueError, match="single line"):
+        edit_issue_title(issue_number=5, title="Line one\nLine two")
+
+
+# ---------------------------------------------------------------------------
+# edit_issue_labels
+# ---------------------------------------------------------------------------
+
+
+def _mock_label_list(mock_run: MagicMock, labels: list[str]) -> None:
+    mock_run.return_value = _make_proc("\n".join(labels))
+
+
+def test_edit_issue_labels_add():
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.side_effect = [
+            _make_proc("bug\npriority:high\nstatus:ready"),  # label list
+            _make_proc(),  # issue edit
+        ]
+        with patch.object(server, "_REPO", "owner/repo"):
+            edit_issue_labels(issue_number=7, add_labels=["bug"])
+
+    edit_call = mock_run.call_args_list[1][0][0]
+    assert "--add-label" in edit_call
+    assert "bug" in edit_call
+
+
+def test_edit_issue_labels_remove():
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.side_effect = [
+            _make_proc("bug\npriority:high"),
+            _make_proc(),
+        ]
+        with patch.object(server, "_REPO", "owner/repo"):
+            edit_issue_labels(issue_number=7, remove_labels=["bug"])
+
+    edit_call = mock_run.call_args_list[1][0][0]
+    assert "--remove-label" in edit_call
+
+
+def test_edit_issue_labels_rejects_unknown():
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.return_value = _make_proc("bug")
+        with patch.object(server, "_REPO", "owner/repo"):
+            with pytest.raises(ValueError, match="don't exist"):
+                edit_issue_labels(issue_number=7, add_labels=["no-such-label"])
+
+
+def test_edit_issue_labels_noop():
+    result = edit_issue_labels(issue_number=7)
+    assert result == "Nothing to do"
+
+
+# ---------------------------------------------------------------------------
+# comment_pr
+# ---------------------------------------------------------------------------
+
+
+def test_comment_pr():
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.return_value = _make_proc("https://...")
+        with patch.object(server, "_REPO", "owner/repo"):
+            comment_pr(pr_number=99, body="LGTM")
+
+    cmd = mock_run.call_args[0][0]
+    assert "pr" in cmd
+    assert "comment" in cmd
+    assert "99" in cmd
+    assert "--body" in cmd
+
+
+# ---------------------------------------------------------------------------
+# open_pr
+# ---------------------------------------------------------------------------
+
+
+def test_open_pr_appends_closes():
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.return_value = _make_proc("https://github.com/owner/repo/pull/1")
+        with patch.object(server, "_REPO", "owner/repo"):
+            open_pr(issue_number=42, title="feat: add thing", body="Implements the thing")
+
+    cmd = mock_run.call_args[0][0]
+    body_idx = cmd.index("--body") + 1
+    body = cmd[body_idx]
+    assert "Closes #42" in body
+    assert "Implements the thing" in body
+
+
+# ---------------------------------------------------------------------------
+# submit_pr_review
+# ---------------------------------------------------------------------------
+
+
+def test_submit_pr_review_approve():
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.return_value = _make_proc('{"id": 1}')
+        with patch.object(server, "_REPO", "owner/repo"):
+            submit_pr_review(pr_number=10, event="APPROVE", body="Looks good")
+
+    cmd = mock_run.call_args[0][0]
+    assert "POST" in cmd
+    assert any("pulls/10/reviews" in arg for arg in cmd)
+    payload = json.loads(mock_run.call_args[1]["input"])
+    assert payload["event"] == "APPROVE"
+    assert payload["body"] == "Looks good"
+    assert payload["comments"] == []
+
+
+def test_submit_pr_review_request_changes_with_comments():
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.return_value = _make_proc('{"id": 2}')
+        with patch.object(server, "_REPO", "owner/repo"):
+            submit_pr_review(
+                pr_number=10,
+                event="REQUEST_CHANGES",
+                body="Needs work",
+                comments=[{"path": "foo.py", "line": 5, "body": "Fix this"}],
+            )
+
+    payload = json.loads(mock_run.call_args[1]["input"])
+    assert payload["event"] == "REQUEST_CHANGES"
+    assert len(payload["comments"]) == 1
+
+
+def test_submit_pr_review_rejects_bad_event():
+    with pytest.raises(ValueError, match="APPROVE or REQUEST_CHANGES"):
+        submit_pr_review(pr_number=10, event="COMMENT", body="hi")
+
+
+# ---------------------------------------------------------------------------
+# push_branch
+# ---------------------------------------------------------------------------
+
+
+def _git_seq(*stdout_values: str) -> list[MagicMock]:
+    return [_make_proc(v) for v in stdout_values]
+
+
+def test_push_branch_squashes_and_pushes():
+    seq = _git_seq(
+        "feat/my-branch",   # rev-parse --abbrev-ref HEAD
+        "",                 # fetch origin main
+        "abc123",           # merge-base
+        "def456",           # rev-parse HEAD
+        "commit message",   # log -1
+        "",                 # reset --soft
+        "",                 # commit
+        "file.py",          # diff-tree (no protected paths)
+        "",                 # push
+    )
+    with patch("server.subprocess.run", side_effect=seq):
+        result = push_branch()
+
+    assert "feat/my-branch" in result
+
+
+def test_push_branch_rejects_main():
+    with patch("server.subprocess.run", return_value=_make_proc("main")):
+        with pytest.raises(ValueError, match="Refusing"):
+            push_branch()
+
+
+def test_push_branch_rejects_no_commits():
+    seq = _git_seq(
+        "my-branch",  # branch name
+        "",           # fetch
+        "abc123",     # merge-base
+        "abc123",     # HEAD == base => nothing to push
+    )
+    with patch("server.subprocess.run", side_effect=seq):
+        with pytest.raises(ValueError, match="nothing to push"):
+            push_branch()
+
+
+def test_push_branch_rejects_protected_paths():
+    seq = _git_seq(
+        "my-branch",
+        "",
+        "abc123",
+        "def456",
+        "fix: update",
+        "",
+        "",
+        ".github/workflows/ci.yml",  # protected path
+    )
+    with patch("server.subprocess.run", side_effect=seq):
+        with pytest.raises(ValueError, match="protected paths"):
+            push_branch()
+
+
+def test_push_branch_rejects_scripts_protected_paths():
+    seq = _git_seq(
+        "my-branch",
+        "",
+        "abc123",
+        "def456",
+        "chore: update",
+        "",
+        "",
+        ".github/scripts/pipeline/lib.sh",
+    )
+    with patch("server.subprocess.run", side_effect=seq):
+        with pytest.raises(ValueError, match="protected paths"):
+            push_branch()
+
+
+# ---------------------------------------------------------------------------
+# _write_github_output
+# ---------------------------------------------------------------------------
+
+
+def test_write_github_output(tmp_path):
+    output_file = tmp_path / "output"
+    output_file.write_text("")
+    issue = Issue(
+        number=5,
+        title="My issue",
+        body="# Body\nContent",
+        state="OPEN",
+        labels=["bug", "priority:high"],
+        comments=[
+            Comment(author="alice", created_at="2024-01-01T00:00:00Z", body="Nice"),
+            Comment(author="github-actions", created_at="2024-01-02T00:00:00Z", body="Bot"),
+        ],
+    )
+    with patch.dict(os.environ, {"GITHUB_OUTPUT": str(output_file)}):
+        _write_github_output(issue)
+
+    content = output_file.read_text()
+    assert "number=5" in content
+    assert "title=My issue" in content
+    assert "labels=bug, priority:high" in content
+    assert "# Body" in content
+    assert "Nice" in content
+    # Bot comment from github-actions should be excluded
+    assert "Bot" not in content
+
+
+# ---------------------------------------------------------------------------
+# _roll_up_size
+# ---------------------------------------------------------------------------
+
+
+def test_roll_up_size_all_low():
+    assert _roll_up_size("Low", "Low", "Low", "Low") == "XS"
+
+
+def test_roll_up_size_one_mid():
+    assert _roll_up_size("Low", "Mid", "Low", "Low") == "S"
+
+
+def test_roll_up_size_two_mid():
+    assert _roll_up_size("Mid", "Low", "Low", "Mid") == "S"
+
+
+def test_roll_up_size_one_high():
+    assert _roll_up_size("High", "Low", "Low", "Low") == "M"
+
+
+def test_roll_up_size_one_high_three_mid():
+    assert _roll_up_size("High", "Mid", "Mid", "Mid") == "L"
+
+
+def test_roll_up_size_three_high():
+    assert _roll_up_size("High", "High", "High", "Low") == "XL"
+
+
+def test_roll_up_size_two_high():
+    assert _roll_up_size("High", "High", "Low", "Low") == "L"
+
+
+def test_roll_up_size_case_insensitive():
+    assert _roll_up_size("low", "MID", "HIGH", "Low") == "M"
+
+
+def test_roll_up_size_invalid_score():
+    with pytest.raises(ValueError, match="Not a Low|Mid|High score"):
+        _roll_up_size("Low", "Medium", "Low", "Low")
+
+
+# ---------------------------------------------------------------------------
+# apply_refinement_outcome
+# ---------------------------------------------------------------------------
+
+
+def test_apply_refinement_outcome_refined():
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.return_value = _make_proc()
+        with patch.object(server, "_REPO", "owner/repo"):
+            result = apply_refinement_outcome(issue_number=5, outcome="refined")
+
+    cmd = mock_run.call_args[0][0]
+    assert "--add-label" in cmd
+    assert "status:refined" in cmd
+    assert "--remove-label" in cmd
+    assert "status:needs-refinement" in cmd
+    assert "refined" in result
+
+
+def test_apply_refinement_outcome_needs_attention():
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.return_value = _make_proc()
+        with patch.object(server, "_REPO", "owner/repo"):
+            result = apply_refinement_outcome(issue_number=5, outcome="needs-attention")
+
+    cmd = mock_run.call_args[0][0]
+    assert "--add-label" in cmd
+    assert "status:needs-attention" in cmd
+    assert "--remove-label" in cmd
+    assert "status:needs-refinement" in cmd
+    assert "status:refined" not in cmd
+    assert "needs-attention" in result
+
+
+def test_apply_refinement_outcome_invalid():
+    with pytest.raises(ValueError):
+        apply_refinement_outcome(issue_number=5, outcome="done")
+
+
+# ---------------------------------------------------------------------------
+# apply_estimation_outcome
+# ---------------------------------------------------------------------------
+
+
+def test_apply_estimation_outcome_estimated():
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.return_value = _make_proc()
+        with patch.object(server, "_REPO", "owner/repo"):
+            result = apply_estimation_outcome(
+                issue_number=7,
+                outcome="estimated",
+                blast_radius="Low",
+                touch="Mid",
+                human_involvement="Low",
+                review_overhead="Low",
+            )
+
+    cmd = mock_run.call_args[0][0]
+    assert "--add-label" in cmd
+    assert "status:estimated" in cmd
+    assert "size:S" in cmd
+    assert "--remove-label" in cmd
+    assert "status:refined" in cmd
+    assert "estimated" in result
+    assert "size:S" in result
+
+
+def test_apply_estimation_outcome_needs_attention():
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.return_value = _make_proc()
+        with patch.object(server, "_REPO", "owner/repo"):
+            result = apply_estimation_outcome(issue_number=7, outcome="needs-attention")
+
+    cmd = mock_run.call_args[0][0]
+    assert "--add-label" in cmd
+    assert "status:needs-attention" in cmd
+    assert "--remove-label" in cmd
+    assert "status:refined" in cmd
+    assert "needs-attention" in result
+
+
+def test_apply_estimation_outcome_missing_scores():
+    with pytest.raises(ValueError):
+        apply_estimation_outcome(issue_number=7, outcome="estimated")
+
+
+def test_apply_estimation_outcome_invalid():
+    with pytest.raises(ValueError):
+        apply_estimation_outcome(issue_number=7, outcome="done")
+
+
+def test_write_github_output_no_github_output_env():
+    issue = Issue(number=1, title="T", body="B", state="OPEN", labels=[], comments=[])
+    env = {k: v for k, v in os.environ.items() if k != "GITHUB_OUTPUT"}
+    with patch.dict(os.environ, env, clear=True):
+        _write_github_output(issue)  # must not raise
+
+
+def test_write_github_output_no_human_comments(tmp_path):
+    output_file = tmp_path / "output"
+    output_file.write_text("")
+    issue = Issue(
+        number=1,
+        title="T",
+        body="B",
+        state="OPEN",
+        labels=[],
+        comments=[
+            Comment(author="github-actions", created_at="2024-01-01T00:00:00Z", body="Auto")
+        ],
+    )
+    with patch.dict(os.environ, {"GITHUB_OUTPUT": str(output_file)}):
+        _write_github_output(issue)
+
+    content = output_file.read_text()
+    assert "Auto" not in content

@@ -36,16 +36,14 @@ permissions:
   id-token: write
 
 env:
-  # Bash permission matching is a literal prefix match on the command string
-  # (not a resolved path), so each gh-safe script needs an entry for every
-  # form the agent might type it in: relative with ./, relative without it,
-  # and workspace-absolute.
-  ALLOWED_EDIT_BODY: "Bash(./.interns/.github/scripts/gh-safe/edit-issue-body.sh:*),Bash(.interns/.github/scripts/gh-safe/edit-issue-body.sh:*),Bash(${{ github.workspace }}/.interns/.github/scripts/gh-safe/edit-issue-body.sh:*)"
-  ALLOWED_EDIT_TITLE: "Bash(./.interns/.github/scripts/gh-safe/edit-issue-title.sh:*),Bash(.interns/.github/scripts/gh-safe/edit-issue-title.sh:*),Bash(${{ github.workspace }}/.interns/.github/scripts/gh-safe/edit-issue-title.sh:*)"
-  ALLOWED_EDIT_LABELS: "Bash(./.interns/.github/scripts/gh-safe/edit-issue-labels.sh:*),Bash(.interns/.github/scripts/gh-safe/edit-issue-labels.sh:*),Bash(${{ github.workspace }}/.interns/.github/scripts/gh-safe/edit-issue-labels.sh:*)"
-  ALLOWED_COMMENT: "Bash(./.interns/.github/scripts/gh-safe/comment-issue.sh:*),Bash(.interns/.github/scripts/gh-safe/comment-issue.sh:*),Bash(${{ github.workspace }}/.interns/.github/scripts/gh-safe/comment-issue.sh:*)"
   ALLOWED_LIST_ISSUES: "mcp__gh-issues__list_issues"
   ALLOWED_VIEW_ISSUE: "mcp__gh-issues__view_issue"
+  ALLOWED_EDIT_LABELS: "mcp__gh-issues__edit_issue_labels"
+  ALLOWED_EDIT_BODY: "mcp__gh-issues__edit_issue_body"
+  ALLOWED_EDIT_TITLE: "mcp__gh-issues__edit_issue_title"
+  ALLOWED_COMMENT: "mcp__gh-issues__comment_issue"
+  ALLOWED_APPLY_REFINEMENT: "mcp__gh-issues__apply_refinement_outcome"
+  ALLOWED_APPLY_ESTIMATION: "mcp__gh-issues__apply_estimation_outcome"
 
 jobs:
   refine:
@@ -125,7 +123,10 @@ jobs:
 
       - name: Create MCP config for gh-issues server
         env:
-          GH_TOKEN_VALUE: ${{ secrets.GITHUB_TOKEN }}
+          # Triage App token, not GITHUB_TOKEN: the apply_refinement_outcome
+          # tool writes status:refined, which must trigger the estimate job.
+          # GitHub's anti-recursion rule silences GITHUB_TOKEN-authored events.
+          GH_TOKEN_VALUE: ${{ steps.triage_token.outputs.token }}
         run: |
           python3 << 'PYEOF'
           import json, os
@@ -136,13 +137,14 @@ jobs:
                 "command": "uv",
                 "args": [
                   "--directory",
-                  "${{ github.workspace }}/.interns/.github/scripts/gh-issues-mcp/",
+                  "${{ github.workspace }}/.interns/.github/scripts/gh-issues-mcp",
                   "run",
                   "server.py",
                 ],
                 "env": {
                   "GH_TOKEN": os.environ["GH_TOKEN_VALUE"],
                   "GITHUB_REPOSITORY": "${{ github.repository }}",
+                  "GITHUB_WORKSPACE": "${{ github.workspace }}",
                 },
               }
             }
@@ -184,7 +186,7 @@ jobs:
             --model ${{ steps.cfg.outputs.model }}
             --max-turns ${{ steps.cfg.outputs.max_turns }}
             --mcp-config /tmp/mcp-config-gh-issues.json
-            --allowedTools "Read,Grep,Glob,Write,${{ env.ALLOWED_EDIT_BODY }},${{ env.ALLOWED_EDIT_TITLE }},${{ env.ALLOWED_EDIT_LABELS }},${{ env.ALLOWED_COMMENT }},${{ env.ALLOWED_LIST_ISSUES }},${{ env.ALLOWED_VIEW_ISSUE }}"
+            --allowedTools "Read,Grep,Glob,${{ env.ALLOWED_EDIT_BODY }},${{ env.ALLOWED_EDIT_TITLE }},${{ env.ALLOWED_EDIT_LABELS }},${{ env.ALLOWED_COMMENT }},${{ env.ALLOWED_LIST_ISSUES }},${{ env.ALLOWED_VIEW_ISSUE }},${{ env.ALLOWED_APPLY_REFINEMENT }}"
 
       - name: Report run cost
         if: always() && steps.claude.outputs.execution_file != ''
@@ -214,19 +216,6 @@ jobs:
           path: ${{ runner.temp }}/metrics-refiner.json
           if-no-files-found: ignore
           retention-days: 2
-
-      - name: Apply refinement outcome
-        if: success() && steps.claude.outputs.execution_file != ''
-        env:
-          # The triage App's token, not GITHUB_TOKEN -- see "Generate triage
-          # app token" above. This is the label write that must trigger the
-          # estimate job.
-          GH_TOKEN: ${{ steps.triage_token.outputs.token }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          ISSUE: ${{ steps.issue.outputs.number }}
-        run: >
-          .interns/.github/scripts/pipeline/apply-outcome.sh refinement
-          ./.issue-pipeline-outcome
 
       - name: Write run summary
         if: always() && steps.claude.outcome != 'skipped'
@@ -321,6 +310,36 @@ jobs:
         if: steps.gate.outputs.skip != 'true'
         run: .interns/.github/scripts/pipeline/load-prompt.sh .interns/.github/prompts/_shared.md .interns/.github/prompts/estimate.md
 
+      - name: Create MCP config for gh-issues server
+        if: steps.gate.outputs.skip != 'true'
+        env:
+          GH_TOKEN_VALUE: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 << 'PYEOF'
+          import json, os
+          config = {
+            "mcpServers": {
+              "gh-issues": {
+                "type": "stdio",
+                "command": "uv",
+                "args": [
+                  "--directory",
+                  "${{ github.workspace }}/.interns/.github/scripts/gh-issues-mcp",
+                  "run",
+                  "server.py",
+                ],
+                "env": {
+                  "GH_TOKEN": os.environ["GH_TOKEN_VALUE"],
+                  "GITHUB_REPOSITORY": "${{ github.repository }}",
+                  "GITHUB_WORKSPACE": "${{ github.workspace }}",
+                },
+              }
+            }
+          }
+          with open("/tmp/mcp-config-gh-issues.json", "w") as f:
+            json.dump(config, f)
+          PYEOF
+
       - name: Run Claude estimation
         id: claude
         if: steps.gate.outputs.skip != 'true'
@@ -350,22 +369,11 @@ jobs:
           claude_args: |
             --model ${{ steps.cfg.outputs.model }}
             --max-turns ${{ steps.cfg.outputs.max_turns }}
-            --allowedTools "Read,Grep,Glob,Write,${{ env.ALLOWED_COMMENT }}"
-
-      - name: Apply estimation outcome
-        id: size
-        if: steps.gate.outputs.skip != 'true' && steps.claude.outcome == 'success'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          ISSUE: ${{ steps.issue.outputs.number }}
-        run: >
-          .interns/.github/scripts/pipeline/apply-outcome.sh estimation
-          ./.issue-pipeline-outcome
-          ./.issue-pipeline-comment.md
+            --mcp-config /tmp/mcp-config-gh-issues.json
+            --allowedTools "Read,Grep,Glob,${{ env.ALLOWED_COMMENT }},${{ env.ALLOWED_APPLY_ESTIMATION }}"
 
       - name: Spike advisory
-        if: steps.gate.outputs.skip != 'true' && steps.size.outputs.outcome == 'estimated'
+        if: steps.gate.outputs.skip != 'true' && steps.claude.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}

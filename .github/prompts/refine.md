@@ -124,29 +124,26 @@ Rules for the comment:
 
 On the normal path, in order:
 
-1. Apply the type you picked (Step 1):
-   `.interns/.github/scripts/gh-safe/edit-issue-labels.sh --add-label <type>`,
-   adding `--remove-label <wrong-type>` if a wrong `type:*` label is set. Skip
-   when the correct label is already there.
-2. Write the rewritten body (Step 3) to `./.issue-pipeline-body.md`, then run
-   `.interns/.github/scripts/gh-safe/edit-issue-body.sh`.
-3. If the title needs correcting (Step 3), write it to
-   `./.issue-pipeline-title.md` and run
-   `.interns/.github/scripts/gh-safe/edit-issue-title.sh`. Otherwise leave it.
-4. Write the analysis comment (Step 4) to `./.issue-pipeline-comment.md`,
-   then run `.interns/.github/scripts/gh-safe/comment-issue.sh`.
+1. Apply the type you picked (Step 1): call
+   `mcp__gh-issues__edit_issue_labels` with `add_labels=[<type>]`, adding
+   `remove_labels=[<wrong-type>]` if a wrong `type:*` label is set. Skip when
+   the correct label is already there.
+2. Call `mcp__gh-issues__edit_issue_body` with the rewritten body (Step 3).
+3. If the title needs correcting (Step 3), call
+   `mcp__gh-issues__edit_issue_title`. Otherwise leave it.
+4. Call `mcp__gh-issues__comment_issue` with the analysis comment (Step 4).
    (Call `view_issue`/`list_issues` first only if investigation gave you
    reason to suspect a dependency — see rules above.)
-5. Write `refined` to `./.issue-pipeline-outcome`.
+5. Call `mcp__gh-issues__apply_refinement_outcome` with `issue_number` and
+   `outcome='refined'`.
 
-On the stop-and-comment path (below): write only the clarification comment
-(`./.issue-pipeline-comment.md` + `comment-issue.sh`), then write
-`needs-attention` to `./.issue-pipeline-outcome`. Don't edit the body, title,
-or type.
+On the stop-and-comment path (below): call `mcp__gh-issues__comment_issue`
+with the clarification comment, then call
+`mcp__gh-issues__apply_refinement_outcome` with `outcome='needs-attention'`.
+Don't edit the body, title, or type.
 
-The workflow reads that marker and moves the lifecycle label. You never set a
-`status:*` label yourself. Post exactly the one comment for the path you're on
-— no others.
+You never set a `status:*` label yourself. Post exactly the one comment for
+the path you're on — no others.
 
 ## When to stop instead of refining
 
