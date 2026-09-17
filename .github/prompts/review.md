@@ -32,20 +32,21 @@ rather than reviewing off the one issue in isolation.
   unrequested changes?
 - **Tests** — is the change verified, not just asserted? Does it add or
   update tests for the behaviour it changes, and are they meaningful (not
-  just present)? You do **not** run the build or tests yourself — the CI
-  checks already passed before this review started (that's a hard gate; a
-  red check never reaches you), so treat "is it green" as settled and judge
-  whether the tests that exist actually cover the change.
+  just present)? You have no checkout, build, or test-runner access in this
+  role — the CI checks already gated this before your review started (a red
+  check never reaches you), so treat "is it green" as settled and judge
+  coverage by reading the tests, not running them.
 
 Read the actual code — don't rubber-stamp based on the PR description
 alone.
 
-## Checks you can't reproduce in the sandbox
+## Checks beyond pass/fail
 
-Some CI checks verify things you can't reproduce here — an infrastructure
-plan, a visual-snapshot diff, an integration suite against real services.
-Passing is not the same as correct: "plan succeeded" only means the config
-is valid, not that the changes are what the issue asked for. For these:
+This isn't the unit/build suite from the Tests bullet above — that's
+already settled. It's checks whose pass doesn't mean correct: an
+infrastructure plan, a visual-snapshot diff, an integration suite against
+real services. "Plan succeeded" only means the config is valid, not that
+the changes are what the issue asked for. For these:
 
 1. Run `gh pr checks` to see this PR's checks and find the relevant one.
 2. Run `gh run view --job=<job-id> --log` (the job ID is in the check's
