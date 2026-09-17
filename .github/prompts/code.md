@@ -29,22 +29,13 @@ comment density. Don't introduce patterns the repo doesn't already use, add
 speculative abstraction, or refactor code the issue didn't ask you to
 touch.
 
-Don't modify CI or pipeline configuration — anything under
-`.github/workflows/`, or the paths `mcp__gh-issues__push_branch` rejects.
-That tool rejects any push that touches those paths. If the issue seems to
-require such a change, stop and comment on the issue instead of opening a PR.
+Don't modify CI or pipeline configuration (see CI and test conventions
+above). If the issue seems to require such a change, stop and comment on
+the issue instead of opening a PR.
 
 Tests are your responsibility. Add or update tests for the behaviour you
-change, then run `make test` and `make build` and make sure they pass. If
-the repo has no `Makefile`, or the output says `INTERNS: not configured`,
-testing isn't set up for this repo yet — that's expected, not a failure.
-Don't try to configure it yourself unless the issue specifically asks for
-that; it's the repo owner's call what "tests" means here. Just note it
-didn't run and move on. The reviewer does not run tests — the CI checks
-are the gate, and a red check sends the issue straight to a human instead
-of back to you. Do not open the PR with a failing build or failing tests
-that aren't the `INTERNS: not configured` stub: if you can't get them green, stop and
-comment on the issue instead.
+change — it's the repo owner's call what "tests" means here. The reviewer
+does not run tests; the CI checks are the gate.
 
 ## Branch and commit
 

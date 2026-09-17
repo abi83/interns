@@ -131,7 +131,7 @@ On the normal path, in order:
 2. Call `mcp__gh-issues__comment_issue` with the analysis comment (Step 4).
    (Call `view_issue`/`list_issues` first only if investigation gave you
    reason to suspect a dependency — see rules above.)
-4. Call `mcp__gh-issues__apply_refinement_outcome` with `issue_number`,
+3. Call `mcp__gh-issues__apply_refinement_outcome` with `issue_number`,
    `outcome='refined'`, and `type_label=<type>` (the type you picked in Step 1).
    This sets the type label and advances the status in one call. If a wrong
    `type:*` label is already on the issue, remove it first with
