@@ -58,6 +58,9 @@ Use this to write a more accurate and *narrower* Scope. Investigation
 sharpens the ticket; it does not license adding scope the draft didn't ask
 for.
 
+Both the body (Step 3) and the analysis comment (Step 4) follow this
+repo's `CLAUDE.md` prose rules: state facts, not authority; each point once.
+
 ## Step 3: rewrite the body and title
 
 Rewrite the body into the chosen structure, carrying over every concrete
@@ -77,7 +80,6 @@ list of concrete changes, each pointing at where it lands.
 
 Rules:
 
-- Follow this repo's `CLAUDE.md` prose rules (see Step 4).
 - If the issue references other issues (#NN) or a parent epic, keep those
   references intact, in their original position if reasonable.
 - If a section can't be filled from the original text, write the section
@@ -116,8 +118,6 @@ Rules for the comment:
 - **No risk assessment.** Blast radius, review cost, and effort are the
   estimator's job, not yours. Stick to what blocks the work, not how hard
   or dangerous it is.
-- Follow this repo's `CLAUDE.md` prose rules: state facts rather than
-  claiming authority, make each point once.
 - Keep it short. This is a triage note, not a report.
 
 ## Mechanics
