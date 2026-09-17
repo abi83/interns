@@ -40,12 +40,13 @@ rather than reviewing off the one issue in isolation.
 Read the actual code — don't rubber-stamp based on the PR description
 alone.
 
-## Checks you can't reproduce in the sandbox
+## Checks beyond pass/fail
 
-Some CI checks verify things you can't reproduce here — an infrastructure
-plan, a visual-snapshot diff, an integration suite against real services.
-Passing is not the same as correct: "plan succeeded" only means the config
-is valid, not that the changes are what the issue asked for. For these:
+This isn't the unit/build suite from the Tests bullet above — that's
+already settled. It's checks whose pass doesn't mean correct: an
+infrastructure plan, a visual-snapshot diff, an integration suite against
+real services. "Plan succeeded" only means the config is valid, not that
+the changes are what the issue asked for. For these:
 
 1. Run `gh pr checks` to see this PR's checks and find the relevant one.
 2. Run `gh run view --job=<job-id> --log` (the job ID is in the check's
