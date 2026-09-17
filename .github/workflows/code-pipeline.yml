@@ -326,6 +326,13 @@ jobs:
             --mcp-config /tmp/mcp-config-gh-issues.json
             --allowedTools "Read,Grep,Glob,Write,Edit,${{ env.ALLOWED_GIT_WRITE }},${{ env.ALLOWED_BUILD_TEST }},${{ env.ALLOWED_PUSH_BRANCH }},${{ env.ALLOWED_OPEN_PR }},${{ env.ALLOWED_COMMENT_ISSUE }}"
 
+      - name: Upload coder-initial execution log (debug)
+        if: steps.guard.outputs.skip != 'true' && inputs.debug == 'true' && always() && steps.claude_initial.outputs.execution_file != ''
+        uses: ./.interns/.github/actions/upload-execution-log
+        with:
+          name: execution-log-coder-initial-issue-${{ steps.issue.outputs.number }}
+          path: ${{ steps.claude_initial.outputs.execution_file }}
+
       - name: Load coder fix-round instructions
         id: fix_instructions
         if: steps.guard.outputs.skip != 'true' && steps.mode.outputs.fix_round == 'true'
@@ -368,6 +375,13 @@ jobs:
             --max-turns ${{ steps.cfg.outputs.max_turns }}
             --mcp-config /tmp/mcp-config-gh-issues.json
             --allowedTools "Read,Grep,Glob,Write,Edit,${{ env.ALLOWED_GIT_WRITE }},${{ env.ALLOWED_BUILD_TEST }},${{ env.ALLOWED_PUSH_BRANCH }},${{ env.ALLOWED_COMMENT_PR }}"
+
+      - name: Upload coder-fix execution log (debug)
+        if: steps.guard.outputs.skip != 'true' && inputs.debug == 'true' && always() && steps.claude_fix.outputs.execution_file != ''
+        uses: ./.interns/.github/actions/upload-execution-log
+        with:
+          name: execution-log-coder-fix-issue-${{ steps.issue.outputs.number }}
+          path: ${{ steps.claude_fix.outputs.execution_file }}
 
       # Deterministic, independent of what the coder did or said this run --
       # greps the Makefile on disk rather than trusting the agent's word for
@@ -672,6 +686,13 @@ jobs:
             --max-turns ${{ steps.cfg.outputs.max_turns }}
             --mcp-config /tmp/mcp-config-gh-issues.json
             --allowedTools "Read,Grep,Glob,${{ env.ALLOWED_GIT_READ }},${{ env.ALLOWED_PR_READ }},${{ env.ALLOWED_CI_READ }},${{ env.ALLOWED_VIEW_ISSUE }},${{ env.ALLOWED_SUBMIT_REVIEW }},${{ env.ALLOWED_COMMENT_PR }}"
+
+      - name: Upload reviewer execution log (debug)
+        if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.cap.outputs.capped != 'true' && inputs.debug == 'true' && always() && steps.claude.outputs.execution_file != ''
+        uses: ./.interns/.github/actions/upload-execution-log
+        with:
+          name: execution-log-reviewer-pr-${{ github.event.pull_request.number || inputs.pr_number }}
+          path: ${{ steps.claude.outputs.execution_file }}
 
       - name: Report run cost
         if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.cap.outputs.capped != 'true' && always() && steps.claude.outputs.execution_file != ''
