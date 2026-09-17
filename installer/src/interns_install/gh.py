@@ -189,9 +189,40 @@ def branch_head_sha(repo: str, branch: str) -> str:
     return data["object"]["sha"]
 
 
+def ref_exists(repo: str, branch: str) -> bool:
+    status, _ = api_status(f"repos/{repo}/git/ref/heads/{branch}")
+    if status == "blocked":
+        raise GhError(f"could not check heads/{branch} on {repo}")
+    return status == "ok"
+
+
 def create_branch(repo: str, branch: str, sha: str) -> None:
     api(f"repos/{repo}/git/refs", method="POST",
         fields={"ref": f"refs/heads/{branch}", "sha": sha})
+
+
+def create_blob(repo: str, content: str) -> str:
+    data = api(f"repos/{repo}/git/blobs", method="POST",
+               fields={"content": content, "encoding": "utf-8"})
+    if not isinstance(data, dict):
+        raise GhError(f"could not create blob in {repo}")
+    return data["sha"]
+
+
+def create_tree(repo: str, entries: list[dict]) -> str:
+    data = api(f"repos/{repo}/git/trees", method="POST",
+               input_json=json.dumps({"tree": entries}))
+    if not isinstance(data, dict):
+        raise GhError(f"could not create tree in {repo}")
+    return data["sha"]
+
+
+def create_commit(repo: str, message: str, tree: str, parents: list[str]) -> str:
+    data = api(f"repos/{repo}/git/commits", method="POST",
+               input_json=json.dumps({"message": message, "tree": tree, "parents": parents}))
+    if not isinstance(data, dict):
+        raise GhError(f"could not create commit in {repo}")
+    return data["sha"]
 
 
 def put_file(repo: str, path: str, content: str, message: str, branch: str) -> None:
