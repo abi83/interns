@@ -5,7 +5,7 @@ import os
 import pathlib
 import re
 import subprocess
-from typing import Annotated, Optional
+from typing import Annotated, Literal, Optional
 
 from mcp.server.mcpserver import MCPServer
 from pydantic import BaseModel, Field
@@ -50,6 +50,12 @@ class Issue(BaseModel):
     sub_issues: list[RelatedIssue] = []
     blocked_by: list[RelatedIssue] = []
     blocking: list[RelatedIssue] = []
+
+
+class InlineComment(BaseModel):
+    path: str = Field(description="File path relative to repo root.")
+    line: int = Field(description="Line number in the file.", ge=1)
+    body: str = Field(description="Comment text.", min_length=1, max_length=65536)
 
 
 # ---------------------------------------------------------------------------
@@ -211,7 +217,7 @@ def view_issue(
 @mcp.tool()
 def comment_issue(
     issue_number: Annotated[int, Field(description="Issue number to comment on.")],
-    body: Annotated[str, Field(description="Comment body (markdown).")],
+    body: Annotated[str, Field(description="Comment body (markdown).", min_length=1, max_length=65536)],
 ) -> str:
     """Post a comment on an issue."""
     result = subprocess.run(
@@ -224,7 +230,7 @@ def comment_issue(
 @mcp.tool()
 def edit_issue_body(
     issue_number: Annotated[int, Field(description="Issue number.")],
-    body: Annotated[str, Field(description="New issue body (markdown).")],
+    body: Annotated[str, Field(description="New issue body (markdown).", min_length=10, max_length=65536)],
 ) -> str:
     """Set the body of an issue."""
     result = subprocess.run(
@@ -237,7 +243,7 @@ def edit_issue_body(
 @mcp.tool()
 def edit_issue_title(
     issue_number: Annotated[int, Field(description="Issue number.")],
-    title: Annotated[str, Field(description="New issue title (single line).")],
+    title: Annotated[str, Field(description="New issue title (single line).", min_length=5, max_length=300)],
 ) -> str:
     """Set the title of an issue."""
     if "\n" in title:
@@ -310,7 +316,7 @@ def edit_issue_labels(
 @mcp.tool()
 def comment_pr(
     pr_number: Annotated[int, Field(description="PR number to comment on.")],
-    body: Annotated[str, Field(description="Comment body (markdown).")],
+    body: Annotated[str, Field(description="Comment body (markdown).", min_length=1, max_length=65536)],
 ) -> str:
     """Post a comment on a pull request."""
     result = subprocess.run(
@@ -323,8 +329,8 @@ def comment_pr(
 @mcp.tool()
 def open_pr(
     issue_number: Annotated[int, Field(description="Issue number this PR closes.")],
-    title: Annotated[str, Field(description="PR title (single line, Conventional Commit format).")],
-    body: Annotated[str, Field(description="PR body (markdown). 'Closes #N' is appended automatically.")],
+    title: Annotated[str, Field(description="PR title (single line, Conventional Commit format).", min_length=5, max_length=300)],
+    body: Annotated[str, Field(description="PR body (markdown). 'Closes #N' is appended automatically.", min_length=10, max_length=65536)],
 ) -> str:
     """Open a PR from the current branch.
 
@@ -342,17 +348,17 @@ def open_pr(
 @mcp.tool()
 def submit_pr_review(
     pr_number: Annotated[int, Field(description="PR number.")],
-    event: Annotated[str, Field(description="Review verdict: APPROVE or REQUEST_CHANGES.")],
-    body: Annotated[str, Field(description="Review summary comment.")],
+    event: Annotated[Literal["APPROVE", "REQUEST_CHANGES"], Field(description="Review verdict.")],
+    body: Annotated[str, Field(description="Review summary comment.", min_length=10, max_length=65536)],
     comments: Annotated[
-        list[dict] | None,
-        Field(description='Inline comments: [{"path": "...", "line": 123, "body": "..."}]. Empty for APPROVE.'),
+        list[InlineComment] | None,
+        Field(description='Inline comments per changed line. Empty list or omit for APPROVE.'),
     ] = None,
 ) -> str:
     """Submit a formal PR review (verdict + optional inline comments) atomically."""
     if event not in ("APPROVE", "REQUEST_CHANGES"):
         raise ValueError("event must be APPROVE or REQUEST_CHANGES")
-    payload = {"event": event, "body": body, "comments": comments or []}
+    payload = {"event": event, "body": body, "comments": [c.model_dump() for c in (comments or [])]}
     result = subprocess.run(
         [
             "gh", "api", "--method", "POST",
@@ -447,16 +453,24 @@ def _roll_up_size(blast: str, touch: str, human: str, review: str) -> str:
 @mcp.tool()
 def apply_refinement_outcome(
     issue_number: Annotated[int, Field(description="Issue number.")],
-    outcome: Annotated[str, Field(description="'refined' or 'needs-attention'.")],
+    outcome: Annotated[Literal["refined", "needs-attention"], Field(description="Refinement outcome.")],
+    type_label: Annotated[
+        Literal["type:coding-task", "type:bug", "type:spike"] | None,
+        Field(description="Required when outcome='refined'. The type label for this issue."),
+    ] = None,
 ) -> str:
     """Apply the lifecycle label transition after refinement.
 
-    refined       → removes status:needs-refinement and status:needs-attention,
-                    adds status:refined (which triggers the estimate job).
+    refined       → requires type_label; removes status:needs-refinement and
+                    status:needs-attention, adds status:refined and the type label
+                    (which triggers the estimate job).
     needs-attention → removes status:needs-refinement, adds status:needs-attention.
     """
     if outcome == "refined":
-        add, remove = ["status:refined"], ["status:needs-refinement", "status:needs-attention"]
+        if type_label is None:
+            raise ValueError("type_label is required when outcome='refined'")
+        add = ["status:refined", type_label]
+        remove = ["status:needs-refinement", "status:needs-attention"]
     elif outcome == "needs-attention":
         add, remove = ["status:needs-attention"], ["status:needs-refinement"]
     else:
@@ -474,11 +488,23 @@ def apply_refinement_outcome(
 @mcp.tool()
 def apply_estimation_outcome(
     issue_number: Annotated[int, Field(description="Issue number.")],
-    outcome: Annotated[str, Field(description="'estimated' or 'needs-attention'.")],
-    blast_radius: Annotated[str, Field(description="Low|Mid|High. Required when outcome='estimated'.")] = "",
-    touch: Annotated[str, Field(description="Low|Mid|High. Required when outcome='estimated'.")] = "",
-    human_involvement: Annotated[str, Field(description="Low|Mid|High. Required when outcome='estimated'.")] = "",
-    review_overhead: Annotated[str, Field(description="Low|Mid|High. Required when outcome='estimated'.")] = "",
+    outcome: Annotated[Literal["estimated", "needs-attention"], Field(description="Estimation outcome.")],
+    blast_radius: Annotated[
+        Literal["Low", "Mid", "High"] | None,
+        Field(description="Risk of breaking existing functionality. Required when outcome='estimated'."),
+    ] = None,
+    touch: Annotated[
+        Literal["Low", "Mid", "High"] | None,
+        Field(description="Number of files/components touched. Required when outcome='estimated'."),
+    ] = None,
+    human_involvement: Annotated[
+        Literal["Low", "Mid", "High"] | None,
+        Field(description="Expected back-and-forth with the owner. Required when outcome='estimated'."),
+    ] = None,
+    review_overhead: Annotated[
+        Literal["Low", "Mid", "High"] | None,
+        Field(description="Reviewer effort. Required when outcome='estimated'."),
+    ] = None,
 ) -> str:
     """Apply the lifecycle label transition after estimation.
 
@@ -488,7 +514,11 @@ def apply_estimation_outcome(
     needs-attention → removes status:refined, adds status:needs-attention.
     """
     if outcome == "estimated":
-        size = _roll_up_size(blast_radius, touch, human_involvement, review_overhead)
+        if None in (blast_radius, touch, human_involvement, review_overhead):
+            raise ValueError(
+                "blast_radius, touch, human_involvement, and review_overhead are all required when outcome='estimated'"
+            )
+        size = _roll_up_size(blast_radius, touch, human_involvement, review_overhead)  # type: ignore[arg-type]
         add = ["status:estimated", f"size:{size}"]
         remove = ["status:refined", "status:needs-attention"]
     elif outcome == "needs-attention":

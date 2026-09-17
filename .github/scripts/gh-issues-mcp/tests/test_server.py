@@ -9,6 +9,7 @@ import pytest
 import server
 from server import (
     Comment,
+    InlineComment,
     Issue,
     RelatedIssue,
     _fetch_issue,
@@ -338,13 +339,14 @@ def test_submit_pr_review_request_changes_with_comments():
             submit_pr_review(
                 pr_number=10,
                 event="REQUEST_CHANGES",
-                body="Needs work",
-                comments=[{"path": "foo.py", "line": 5, "body": "Fix this"}],
+                body="Needs work here",
+                comments=[InlineComment(path="foo.py", line=5, body="Fix this")],
             )
 
     payload = json.loads(mock_run.call_args[1]["input"])
     assert payload["event"] == "REQUEST_CHANGES"
     assert len(payload["comments"]) == 1
+    assert payload["comments"][0] == {"path": "foo.py", "line": 5, "body": "Fix this"}
 
 
 def test_submit_pr_review_rejects_bad_event():
@@ -512,14 +514,22 @@ def test_apply_refinement_outcome_refined():
     with patch("server.subprocess.run") as mock_run:
         mock_run.return_value = _make_proc()
         with patch.object(server, "_REPO", "owner/repo"):
-            result = apply_refinement_outcome(issue_number=5, outcome="refined")
+            result = apply_refinement_outcome(
+                issue_number=5, outcome="refined", type_label="type:coding-task"
+            )
 
     cmd = mock_run.call_args[0][0]
     assert "--add-label" in cmd
     assert "status:refined" in cmd
+    assert "type:coding-task" in cmd
     assert "--remove-label" in cmd
     assert "status:needs-refinement" in cmd
     assert "refined" in result
+
+
+def test_apply_refinement_outcome_missing_type_label():
+    with pytest.raises(ValueError, match="type_label is required"):
+        apply_refinement_outcome(issue_number=5, outcome="refined")
 
 
 def test_apply_refinement_outcome_needs_attention():

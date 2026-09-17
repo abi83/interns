@@ -124,18 +124,17 @@ Rules for the comment:
 
 On the normal path, in order:
 
-1. Apply the type you picked (Step 1): call
-   `mcp__gh-issues__edit_issue_labels` with `add_labels=[<type>]`, adding
-   `remove_labels=[<wrong-type>]` if a wrong `type:*` label is set. Skip when
-   the correct label is already there.
-2. Call `mcp__gh-issues__edit_issue_body` with the rewritten body (Step 3).
-3. If the title needs correcting (Step 3), call
+1. Call `mcp__gh-issues__edit_issue_body` with the rewritten body (Step 3).
+2. If the title needs correcting (Step 3), call
    `mcp__gh-issues__edit_issue_title`. Otherwise leave it.
-4. Call `mcp__gh-issues__comment_issue` with the analysis comment (Step 4).
+3. Call `mcp__gh-issues__comment_issue` with the analysis comment (Step 4).
    (Call `view_issue`/`list_issues` first only if investigation gave you
    reason to suspect a dependency — see rules above.)
-5. Call `mcp__gh-issues__apply_refinement_outcome` with `issue_number` and
-   `outcome='refined'`.
+4. Call `mcp__gh-issues__apply_refinement_outcome` with `issue_number`,
+   `outcome='refined'`, and `type_label=<type>` (the type you picked in Step 1).
+   This sets the type label and advances the status in one call. If a wrong
+   `type:*` label is already on the issue, remove it first with
+   `mcp__gh-issues__edit_issue_labels`.
 
 On the stop-and-comment path (below): call `mcp__gh-issues__comment_issue`
 with the clarification comment, then call
