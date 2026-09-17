@@ -163,6 +163,15 @@ jobs:
             --mcp-config /tmp/mcp-config-gh-issues.json
             --allowedTools "Read,Grep,Glob,${{ env.ALLOWED_EDIT_ISSUE }},${{ env.ALLOWED_EDIT_LABELS }},${{ env.ALLOWED_COMMENT }},${{ env.ALLOWED_LIST_ISSUES }},${{ env.ALLOWED_VIEW_ISSUE }},${{ env.ALLOWED_APPLY_REFINEMENT }}"
 
+      - name: Upload refiner execution log (debug)
+        if: inputs.debug == 'true' && always() && steps.claude.outputs.execution_file != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: execution-log-refiner-issue-${{ steps.issue.outputs.number }}
+          path: ${{ steps.claude.outputs.execution_file }}
+          if-no-files-found: ignore
+          retention-days: 2
+
       - name: Report run cost
         if: always() && steps.claude.outputs.execution_file != ''
         env:
@@ -330,6 +339,15 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           ISSUE: ${{ steps.issue.outputs.number }}
         run: .interns/.github/scripts/pipeline/spike-advisory.sh
+
+      - name: Upload estimator execution log (debug)
+        if: steps.gate.outputs.skip != 'true' && inputs.debug == 'true' && always() && steps.claude.outputs.execution_file != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: execution-log-estimator-issue-${{ steps.issue.outputs.number }}
+          path: ${{ steps.claude.outputs.execution_file }}
+          if-no-files-found: ignore
+          retention-days: 2
 
       - name: Report run cost
         if: always() && steps.claude.outputs.execution_file != ''
