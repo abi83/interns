@@ -29,3 +29,18 @@ setup() {
   run "$PIPELINE_DIR/report-run.sh" Coder "$BATS_TEST_TMPDIR/exec.json" "" ""
   [ "$status" -eq 1 ]
 }
+
+@test "--warn appends a warning line to the same comment" {
+  echo '[{"type":"result","total_cost_usd":0.42}]' >"$BATS_TEST_TMPDIR/exec.json"
+  run "$PIPELINE_DIR/report-run.sh" Coder "$BATS_TEST_TMPDIR/exec.json" 55 --warn "tests aren't configured"
+  [ "$status" -eq 0 ]
+  grep -q 'cost: \$0.4200' "$STUB_LOG"
+  grep -q "⚠️ tests aren't configured" "$STUB_LOG"
+}
+
+@test "no --warn adds no warning line" {
+  echo '[{"type":"result","total_cost_usd":0.42}]' >"$BATS_TEST_TMPDIR/exec.json"
+  run "$PIPELINE_DIR/report-run.sh" Coder "$BATS_TEST_TMPDIR/exec.json" 55
+  [ "$status" -eq 0 ]
+  ! grep -q '⚠️' "$STUB_LOG"
+}

@@ -6,13 +6,25 @@
 # #105. Cost is parsed from the claude-code-action execution file; "unknown"
 # when the run produced none.
 #
-# Usage: report-run.sh <phase> <execution-file> <issue-number> [<pr-number>]
+# Usage: report-run.sh <phase> <execution-file> <issue-number> [<pr-number>] [--warn TEXT]
 #   Comments on the issue. Falls back to the PR only when issue-number is
 #   empty — the reviewer on a PR with no linked issue.
+#   --warn appends a "⚠️ TEXT" line to the same comment, e.g. a nudge that
+#   tests/build aren't configured for this repo.
 
 set -euo pipefail
 # shellcheck source=.github/scripts/pipeline/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
+warn=""
+positional=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --warn) warn="$2"; shift 2 ;;
+    *) positional+=("$1"); shift ;;
+  esac
+done
+set -- "${positional[@]}"
 
 phase="$1"
 exec_file="$2"
@@ -21,6 +33,7 @@ pr="${4:-}"
 
 raw_cost=$(jq -r '[.[] | select(.type=="result")][0].total_cost_usd // empty' "$exec_file" 2>/dev/null || true)
 body="$phase [pipeline run]($(run_url)) — cost: \$$(format_cost "$raw_cost")"
+[[ -n "$warn" ]] && body="$body"$'\n\n'"⚠️ $warn"
 
 if [[ -n "$issue" ]]; then
   gh issue comment "$issue" --repo "$GITHUB_REPOSITORY" --body "$body"

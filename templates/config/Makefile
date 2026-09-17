@@ -8,11 +8,13 @@
 #   build:
 #   	npm run build
 #
-# Left empty, both targets are no-ops, and the pipeline treats testing as not
-# yet configured for this repo rather than failing every PR on it.
+# Left as the stub below, the pipeline notices (grep for the marker text) and
+# nags the issue instead of either failing every PR or silently doing nothing.
 
 .PHONY: test build
 
 test:
+	@echo "INTERNS: not configured -- no tests configured for this repo, expected, not a failure, continue"
 
 build:
+	@echo "INTERNS: not configured -- no build configured for this repo, expected, not a failure, continue"

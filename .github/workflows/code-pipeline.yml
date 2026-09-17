@@ -369,14 +369,27 @@ jobs:
             --mcp-config /tmp/mcp-config-gh-issues.json
             --allowedTools "Read,Grep,Glob,Write,Edit,${{ env.ALLOWED_GIT_WRITE }},${{ env.ALLOWED_BUILD_TEST }},${{ env.ALLOWED_PUSH_BRANCH }},${{ env.ALLOWED_COMMENT_PR }}"
 
+      # Deterministic, independent of what the coder did or said this run --
+      # greps the Makefile on disk rather than trusting the agent's word for
+      # it, so the nudge below fires even on a run that failed outright.
+      - name: Check test/build configuration
+        id: build_config
+        if: steps.guard.outputs.skip != 'true' && always()
+        run: .interns/.github/scripts/pipeline/check-build-config.sh
+
       - name: Report run cost
         if: steps.guard.outputs.skip != 'true' && always() && (steps.claude_initial.outputs.execution_file != '' || steps.claude_fix.outputs.execution_file != '')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >
-          .interns/.github/scripts/pipeline/report-run.sh Coder
-          "${{ steps.claude_initial.outputs.execution_file }}${{ steps.claude_fix.outputs.execution_file }}"
-          "${{ steps.issue.outputs.number }}"
+        run: |
+          warn_args=()
+          if [[ "${{ steps.build_config.outputs.configured }}" != "true" ]]; then
+            warn_args=(--warn "tests/build aren't configured for this repo — fill in the test/build targets in Makefile so the pipeline can actually verify changes.")
+          fi
+          .interns/.github/scripts/pipeline/report-run.sh Coder \
+            "${{ steps.claude_initial.outputs.execution_file }}${{ steps.claude_fix.outputs.execution_file }}" \
+            "${{ steps.issue.outputs.number }}" \
+            "${warn_args[@]}"
 
       # A fix round that can't do the work (protected path, out-of-scope or
       # contradictory feedback, needs an owner decision) leaves a
