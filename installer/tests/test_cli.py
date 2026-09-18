@@ -10,6 +10,7 @@ from interns_install.cli import (
     _secret_verb,
     _stage_install_files,
     _use_existing_app,
+    _write_oauth_token,
 )
 from interns_install.console import Console
 
@@ -73,6 +74,31 @@ CODER = next(s for s in APPS if s.key == "coder")
 
 def _repo():
     return gh.Repo(owner="acme", name="widgets", is_org=False)
+
+
+class WriteOAuthTokenTests(unittest.TestCase):
+    def test_opens_claude_app_install_page_and_notes_manual_reminder(self):
+        con = Console(assume_yes=False)
+        con.prompt_secret = lambda q: ""
+        with mock.patch.object(cli.webbrowser, "open") as opener:
+            _write_oauth_token(con, _repo(), existing_secrets=[])
+        opener.assert_called_once_with("https://github.com/apps/claude/installations/new")
+        self.assertTrue(any("Claude Code GitHub App" in n for n in con.manual))
+
+    def test_skips_browser_under_yes(self):
+        con = Console(assume_yes=True)
+        con.prompt_secret = lambda q: ""
+        with mock.patch.object(cli.webbrowser, "open") as opener:
+            _write_oauth_token(con, _repo(), existing_secrets=[])
+        opener.assert_not_called()
+        self.assertTrue(any("Claude Code GitHub App" in n for n in con.manual))
+
+    def test_dry_run_records_planned_secret_without_prompting(self):
+        con = Console(assume_yes=False, dry_run=True)
+        with mock.patch.object(cli.webbrowser, "open") as opener:
+            _write_oauth_token(con, _repo(), existing_secrets=[])
+        opener.assert_not_called()
+        self.assertTrue(any("CLAUDE_CODE_OAUTH_TOKEN" in p for p in con.planned))
 
 
 class AppClientIdArgTests(unittest.TestCase):
