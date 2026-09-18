@@ -44,8 +44,14 @@ class Console:
         if self.assume_yes:
             return True
         suffix = "Y/n" if default else "y/N"
+        # Write+flush explicitly rather than relying on input()'s own prompt
+        # handling: piped through `curl | sh`'s reattached /dev/tty stdin,
+        # input()'s implicit prompt write doesn't reliably reach the terminal
+        # before it blocks for a line, leaving the operator answering a
+        # question they can't see (confirmed hands-on).
+        print(f"{question} [{suffix}] ", end="", flush=True)
         try:
-            answer = input(f"{question} [{suffix}] ").strip().lower()
+            answer = input().strip().lower()
         except EOFError:
             return default
         if not answer:
@@ -53,7 +59,8 @@ class Console:
         return answer in ("y", "yes")
 
     def prompt(self, question: str) -> str:
-        return input(f"{question} ").strip()
+        print(f"{question} ", end="", flush=True)
+        return input().strip()
 
     def prompt_secret(self, question: str) -> str:
         return getpass.getpass(f"{question} ").strip()
