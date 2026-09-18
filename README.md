@@ -23,6 +23,14 @@ Four agents pick issues up by label and hand them along a fixed track:
 | **Coder** | `status:ready` (human-assigned) on a `type:coding-task` or `type:bug` | implements every Acceptance Criteria item, writes tests, opens a PR that `Closes #N` | `status:in-progress`, a PR labelled `pr:in-review` |
 | **Reviewer** | a PR opened/updated by the coder (or a human)                         | waits for the PR's checks to be green, reviews the diff against the linked issue, submits `APPROVE` or `REQUEST_CHANGES` | PR approved, or a coder fix round, or `pr:needs-attention` |
 
+Agents never call the GitHub API directly: every read and write — issue
+lookups, label changes, comments, reviews — goes through an MCP server that
+validates the request first, so a misfiring agent can't step outside the
+label state machine or touch a protected path. Whatever can be decided
+without judgment — creating a branch, checking whether tests pass, rolling
+up an estimate to a size, appending metrics — runs as plain scripted logic
+around the agent instead of burning its tokens on a deterministic task.
+
 The human owner steps in twice. First, on a refined and estimated issue: decide
 whether to run the automated implementation flow, or send the task back for
 rework — e.g. the scope is too broad to land in one PR, the estimator flagged a
@@ -123,8 +131,8 @@ into sub-issues. Either way, a human takes it from there.
 ### `size:*` and `priority:*`
 
 `size:XS` … `size:XL` are applied alongside `status:estimated`: the estimator
-scores the four criteria and `roll-up-size.sh` maps that tuple to one size via a
-fixed lookup table, so the size is reproducible from the scores.
+scores the four criteria and a fixed lookup table maps that tuple to one size,
+so the size is reproducible from the scores.
 `priority:low` …
 `priority:urgent` are owner triage labels — the pipeline reads neither; they
 exist for humans sorting the backlog.
@@ -154,11 +162,12 @@ re-run either any time to fix drift.
 |---|---|---|
 | 1 | Check (and fix) default-branch protection | An agent could ignore its instructions and push straight to the default branch; protection forces every change through a PR. |
 | 2 | Check (and enable) GitHub Pages | Deploy target for the visibility dashboard ([#6](https://github.com/abi83/interns/issues/6)). |
-| 3 | Mint (or reuse) the three GitHub Apps | Separate coder/reviewer identities, so the reviewer can approve the coder's PRs (`claude[bot]` can't approve its own); a third triage App applies `status:refined` under its own identity so the estimate phase actually triggers (`GITHUB_TOKEN` label edits never fire new workflow runs). Reused as-is on further repos under the same account — see [GitHub Apps](#github-apps). |
-| 4 | Write App secrets/variables + `CLAUDE_CODE_OAUTH_TOKEN` | The workflows need these to authenticate as the Apps and call Claude. |
-| 5 | Hand off to `install.yml` | If no caller for it exists yet, open a one-file PR adding `.github/workflows/install.yml` (a thin wrapper) — merge it and re-run the installer. Once present, dispatch it. |
-| 6 | (`install.yml`) Sync labels | The pipeline routes on `status:*` / `type:*` / `pr:*` and can't run without them. |
-| 7 | (`install.yml`) Open the caller-stub PR | Adds the pipeline's workflows and starter config; merging it finishes setup. |
+| 3 | Check (and create) the `metrics` branch | Orphan branch the pipeline appends run metrics to — see [Pipeline metrics](#pipeline-metrics). |
+| 4 | Mint (or reuse) the three GitHub Apps | Separate coder/reviewer identities, so the reviewer can approve the coder's PRs (`claude[bot]` can't approve its own); a third triage App applies `status:refined` under its own identity so the estimate phase actually triggers (`GITHUB_TOKEN` label edits never fire new workflow runs). Reused as-is on further repos under the same account — see [GitHub Apps](#github-apps). |
+| 5 | Write App secrets/variables + `CLAUDE_CODE_OAUTH_TOKEN` | The workflows need these to authenticate as the Apps and call Claude. |
+| 6 | Hand off to `install.yml` | If no caller for it exists yet, open a one-file PR adding `.github/workflows/install.yml` (a thin wrapper) — merge it and re-run the installer. Once present, dispatch it. |
+| 7 | (`install.yml`) Sync labels | The pipeline routes on `status:*` / `type:*` / `pr:*` and can't run without them. |
+| 8 | (`install.yml`) Open the caller-stub PR | Adds the pipeline's workflows and starter config; merging it finishes setup. |
 
 #### Default-branch protection
 
@@ -373,8 +382,8 @@ reviewer with the caller's `workflow_dispatch` (`phase: reviewer`,
 
 It left a comment on the issue explaining why (feedback needs a protected path,
 is out of scope, or needs an owner decision) and set `status:needs-attention`.
-Pipeline config under `.github/workflows/` and the `gh-safe` / `pipeline`
-scripts are protected — `push-branch.sh` rejects any push touching them.
+The pipeline's own config and scripts under `.github/` are protected — the
+coder can't push a change that touches them.
 
 </details>
 
@@ -388,14 +397,12 @@ run gathers the records its agent jobs uploaded and commits them in a single
 push (serialised by a `metrics-append` concurrency group, fetch-rebased on a
 race).
 
-The branch is created and protected against deletion by `interns-install` —
-no manual seeding. (A repo installed before this existed gets the branch on
-its first pipeline run instead; `interns-install` still protects it on a
-later re-run.) The record shape is versioned by `schema_version` and specified in
-[`.github/pipeline-metrics.schema.json`](.github/pipeline-metrics.schema.json);
-bump it and the `SCHEMA_VERSION` constant in `extract-metrics.sh` together on
-any breaking change. Read the log from any client with a single unauthenticated
-fetch of `raw.githubusercontent.com/<owner>/<repo>/metrics/metrics.jsonl`.
+`interns-install` also protects the branch against deletion — no manual
+seeding, and a repo installed before this step existed gets both on the next
+re-run. The record shape is versioned by `schema_version`, specified in
+[`.github/pipeline-metrics.schema.json`](.github/pipeline-metrics.schema.json).
+Read the log from any client with a single unauthenticated fetch of
+`raw.githubusercontent.com/<owner>/<repo>/metrics/metrics.jsonl`.
 
 ## License
 

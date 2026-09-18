@@ -1,6 +1,6 @@
 # interns-install
 
-The local CLI half of repo provisioning: creates the two GitHub Apps, writes
+The local CLI half of repo provisioning: creates the three GitHub Apps, writes
 repo secrets and variables, checks default-branch protection and Pages, then
 hands off to `install.yml`. It runs locally because `GITHUB_TOKEN` is never
 granted admin access or `secrets: write`.
