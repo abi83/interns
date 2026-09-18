@@ -33,7 +33,7 @@ EOF
 
   # Happy-path defaults; individual tests override.
   export STUB_SECRETS="CLAUDE_CODE_OAUTH_TOKEN INTERNS_REVIEWER_APP_PRIVATE_KEY INTERNS_CODER_APP_PRIVATE_KEY INTERNS_TRIAGE_APP_PRIVATE_KEY"
-  export STUB_VARS="INTERNS_REVIEWER_APP_ID INTERNS_CODER_APP_ID INTERNS_TRIAGE_APP_ID"
+  export STUB_VARS="INTERNS_REVIEWER_CLIENT_ID INTERNS_CODER_CLIENT_ID INTERNS_TRIAGE_CLIENT_ID"
 }
 
 calls() { cat "$STUB_LOG"; }
@@ -59,10 +59,10 @@ calls() { cat "$STUB_LOG"; }
 }
 
 @test "fails and names a missing Actions variable" {
-  export STUB_VARS="INTERNS_REVIEWER_APP_ID"
+  export STUB_VARS="INTERNS_REVIEWER_CLIENT_ID"
   run "$SCRIPT"
   [ "$status" -ne 0 ]
-  [[ "$output" == *"missing repo variable(s): INTERNS_CODER_APP_ID INTERNS_TRIAGE_APP_ID"* ]]
+  [[ "$output" == *"missing repo variable(s): INTERNS_CODER_CLIENT_ID INTERNS_TRIAGE_CLIENT_ID"* ]]
 }
 
 @test "warns but does not fail when variables can't be listed" {
