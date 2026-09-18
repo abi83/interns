@@ -305,6 +305,17 @@ def _provision_app(con: Console, repo: gh.Repo, spec: AppSpec,
 
 def _write_oauth_token(con: Console, repo: gh.Repo, existing_secrets: list[str] | None) -> None:
     con.step("Claude Code OAuth token")
+    # Separate from the interns-* Apps minted above: without Anthropic's own
+    # Claude Code App installed on the repo, CLAUDE_CODE_OAUTH_TOKEN's token
+    # exchange 401s and every coder/reviewer/refiner run fails -- confirmed
+    # hands-on, and previously not surfaced anywhere in the installer.
+    install_url = "https://github.com/apps/claude/installations/new"
+    con.note_manual(f"install the Claude Code GitHub App on {repo.slug}: {install_url}")
+    if not con.dry_run and not con.assume_yes:
+        con.say("the coder/reviewer/refiner steps also need Anthropic's own "
+                 "Claude Code GitHub App installed on this repo")
+        con.say(f"opening your browser to install it on {repo.slug} — pick the repo and click Install")
+        webbrowser.open(install_url)
     if con.dry_run:
         con.mutation(f"{_secret_verb('CLAUDE_CODE_OAUTH_TOKEN', existing_secrets)} "
                      "secret CLAUDE_CODE_OAUTH_TOKEN")

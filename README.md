@@ -238,8 +238,8 @@ installer prompts you to paste a token you obtain separately (see
 [github.com/apps/claude](https://github.com/apps/claude). This is separate
 from the `interns-coder-*` / `interns-reviewer-*` Apps minted above —
 `CLAUDE_CODE_OAUTH_TOKEN`'s OIDC token exchange fails with `401 Unauthorized`
-until it's installed on the consumer repo. Nothing in the installer checks
-for this yet; it only surfaces as a failed coder/reviewer run.
+until it's installed on the consumer repo. The installer opens this page for
+you at the same step it asks for `CLAUDE_CODE_OAUTH_TOKEN`.
 
 | Kind | Name | Value |
 |---|---|---|
