@@ -136,7 +136,7 @@ authenticated (`gh auth login`) as an account with **admin access to the
 repo** (needed to create repo secrets and variables):
 
 ```bash
-curl -LsSf https://raw.githubusercontent.com/abi83/interns/v0.1.0/install.sh | sh
+curl -LsSf https://raw.githubusercontent.com/abi83/interns/v0/install.sh | sh
 ```
 
 The script installs [`uv`](https://docs.astral.sh/uv/) if it's missing, then
