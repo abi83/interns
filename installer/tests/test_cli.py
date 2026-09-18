@@ -75,16 +75,22 @@ def _repo():
     return gh.Repo(owner="acme", name="widgets", is_org=False)
 
 
-class AppIdArgTests(unittest.TestCase):
-    def test_app_id_flags_parse(self):
-        a = _parse_args(["--coder-app-id", "111", "--reviewer-app-id", "222"])
-        self.assertEqual(a.coder_app_id, "111")
-        self.assertEqual(a.reviewer_app_id, "222")
+class AppClientIdArgTests(unittest.TestCase):
+    def test_client_id_flags_parse(self):
+        a = _parse_args(["--coder-client-id", "Iv1.aaa", "--reviewer-client-id", "Iv1.bbb"])
+        self.assertEqual(a.coder_client_id, "Iv1.aaa")
+        self.assertEqual(a.reviewer_client_id, "Iv1.bbb")
 
-    def test_app_id_flags_default_none(self):
+    def test_client_id_flags_default_none(self):
         a = _parse_args([])
-        self.assertIsNone(a.coder_app_id)
-        self.assertIsNone(a.reviewer_app_id)
+        self.assertIsNone(a.coder_client_id)
+        self.assertIsNone(a.reviewer_client_id)
+
+
+def _confirm_sequence(*answers: bool):
+    """A con.confirm stand-in that returns each answer in turn, by call order."""
+    it = iter(answers)
+    return lambda question, default=False: next(it)
 
 
 class ReuseAppTests(unittest.TestCase):
@@ -92,9 +98,9 @@ class ReuseAppTests(unittest.TestCase):
         con = Console(assume_yes=True)
         with mock.patch.multiple(cli.gh, set_variable=mock.DEFAULT,
                                  set_secret=mock.DEFAULT) as m:
-            _use_existing_app(con, _repo(), CODER, "12345", "interns-coder",
+            _use_existing_app(con, _repo(), CODER, "Iv1.aaa", "interns-coder",
                               existing_secrets=[CODER.key_secret])
-        m["set_variable"].assert_called_once_with("acme/widgets", CODER.id_var, "12345")
+        m["set_variable"].assert_called_once_with("acme/widgets", CODER.client_id_var, "Iv1.aaa")
         m["set_secret"].assert_not_called()
         self.assertTrue(any("installed on acme/widgets" in n for n in con.manual))
 
@@ -102,7 +108,7 @@ class ReuseAppTests(unittest.TestCase):
         con = Console(assume_yes=True)
         with mock.patch.multiple(cli.gh, set_variable=mock.DEFAULT,
                                  set_secret=mock.DEFAULT) as m:
-            _use_existing_app(con, _repo(), CODER, "12345", "interns-coder",
+            _use_existing_app(con, _repo(), CODER, "Iv1.aaa", "interns-coder",
                               existing_secrets=[])
         m["set_variable"].assert_called_once()
         m["set_secret"].assert_not_called()
@@ -111,33 +117,35 @@ class ReuseAppTests(unittest.TestCase):
     def test_minted_name_is_namespaced_per_owner(self):
         self.assertEqual(CODER.name_for("Acme"), "interns-coder-acme")
 
-    def test_provision_reuses_own_app_and_prefills_id(self):
-        con = Console(assume_yes=True)
-        owned = {"slug": "interns-coder-acme", "id": 987654,
-                 "owner": {"login": "acme"}}
-        with mock.patch.object(cli.gh, "app_public", return_value=owned), \
-             mock.patch.object(cli, "ManifestServer") as server, \
+    def test_provision_reuses_when_operator_confirms_existing_app(self):
+        """No API call decides this -- GitHub can't tell us about a private
+        App even for its own owner (confirmed hands-on, see #88 follow-up).
+        The operator is asked directly and, on yes, is prompted for the
+        Client ID via _use_existing_app's own fallback prompt."""
+        con = Console(assume_yes=False)
+        con.confirm = _confirm_sequence(True, True)  # "set up now?" then "already have it?"
+        con.prompt = lambda q: "Iv1.existing"
+        with mock.patch.object(cli, "ManifestServer") as server, \
+             mock.patch.object(cli.webbrowser, "open"), \
              mock.patch.multiple(cli.gh, set_variable=mock.DEFAULT, set_secret=mock.DEFAULT) as m:
-            _provision_app(con, _repo(), CODER, None,
-                           existing_secrets=[CODER.key_secret], existing_vars=[])
+            _provision_app(con, _repo(), CODER, None, existing_secrets=[CODER.key_secret])
         server.assert_not_called()
-        m["set_variable"].assert_called_once_with("acme/widgets", CODER.id_var, "987654")
+        m["set_variable"].assert_called_once_with("acme/widgets", CODER.client_id_var, "Iv1.existing")
 
-    def test_provision_mints_when_same_name_owned_by_someone_else(self):
-        con = Console(assume_yes=True, dry_run=True)
-        stranger = {"slug": "interns-coder-acme", "id": 4701402,
-                    "owner": {"login": "jpdlr"}}
-        with mock.patch.object(cli.gh, "app_public", return_value=stranger):
-            _provision_app(con, _repo(), CODER, None,
-                           existing_secrets=[], existing_vars=[])
+    def test_provision_mints_when_operator_says_no_existing_app(self):
+        con = Console(assume_yes=False, dry_run=True)
+        con.confirm = _confirm_sequence(True, False)  # "set up now?" then "already have it?"
+        _provision_app(con, _repo(), CODER, None, existing_secrets=[])
         self.assertTrue(any("via manifest" in p for p in con.planned))
-        self.assertFalse(any(str(4701402) in p for p in con.planned))
 
-    def test_provision_mints_when_no_existing_app(self):
+    def test_provision_skips_reuse_question_under_yes(self):
+        """--yes has no one to ask -- it must fall straight to minting rather
+        than silently answering the reuse question for the operator."""
         con = Console(assume_yes=True, dry_run=True)
-        with mock.patch.object(cli.gh, "app_public", return_value=None):
-            _provision_app(con, _repo(), CODER, None,
-                           existing_secrets=[], existing_vars=[])
+        with mock.patch.object(cli, "ManifestServer") as server:
+            _provision_app(con, _repo(), CODER, None, existing_secrets=[])
+        # dry_run short-circuits before ManifestServer is ever constructed;
+        # the assertion that matters is the mint path, not this call.
         self.assertTrue(any("via manifest" in p for p in con.planned))
 
 

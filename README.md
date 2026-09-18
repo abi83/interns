@@ -207,18 +207,17 @@ links.
 repo under the same account reuses that account's `interns-*-<owner>` triple
 rather than minting a duplicate:
 
-- Pass `--coder-app-id` / `--reviewer-app-id` / `--triage-app-id` to run the
-  App step non-interactively against the existing Apps.
-- Without the flags, the installer looks up `interns-<role>-<owner>`, confirms
-  the account owns it, reads its App ID from the App's public metadata, and
-  asks only for a PEM private key instead of minting. If that lookup can't
-  return the ID, it prints the settings URL and asks for it too.
+- Pass `--coder-client-id` / `--reviewer-client-id` / `--triage-client-id` to
+  run the App step non-interactively against the existing Apps.
+- Without the flags, the installer asks whether you already own
+  `interns-<role>-<owner>` — GitHub's API can't see private Apps, so this
+  can't be auto-detected — and asks for its Client ID instead of minting.
 - For the key you can paste the same PEM the first repo already stores, or
   click **Generate a private key** — an App holds several keys at once and
   adding one does not revoke the others, so the first repo keeps working.
   Client secret and webhook secret are account-wide and need no change.
 - Then install the existing App on the new repo (the installer prints the
-  link) and let it write `INTERNS_*_APP_ID` + `INTERNS_*_APP_PRIVATE_KEY`.
+  link) and let it write `INTERNS_*_CLIENT_ID` + `INTERNS_*_APP_PRIVATE_KEY`.
 
 #### Secrets and variables
 
@@ -239,9 +238,9 @@ for this yet; it only surfaces as a failed coder/reviewer run.
 | Secret | `INTERNS_CODER_APP_PRIVATE_KEY` | coder App private key (PEM) |
 | Secret | `INTERNS_REVIEWER_APP_PRIVATE_KEY` | reviewer App private key (PEM) |
 | Secret | `INTERNS_TRIAGE_APP_PRIVATE_KEY` | triage App private key (PEM) |
-| Variable | `INTERNS_CODER_APP_ID` | coder App ID |
-| Variable | `INTERNS_REVIEWER_APP_ID` | reviewer App ID |
-| Variable | `INTERNS_TRIAGE_APP_ID` | triage App ID |
+| Variable | `INTERNS_CODER_CLIENT_ID` | coder App Client ID |
+| Variable | `INTERNS_REVIEWER_CLIENT_ID` | reviewer App Client ID |
+| Variable | `INTERNS_TRIAGE_CLIENT_ID` | triage App Client ID |
 
 The `install.yml` safety check fails the install if a required secret or
 variable is missing; if its token can't list them it warns and leaves

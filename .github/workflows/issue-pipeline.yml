@@ -28,7 +28,7 @@ on:
         description: OAuth token for anthropics/claude-code-action
         required: true
       INTERNS_TRIAGE_APP_PRIVATE_KEY:
-        description: Private key for the triage GitHub App (paired with vars.INTERNS_TRIAGE_APP_ID)
+        description: Private key for the triage GitHub App (paired with vars.INTERNS_TRIAGE_CLIENT_ID)
         required: true
 
 permissions:
@@ -83,7 +83,7 @@ jobs:
         id: triage_token
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ vars.INTERNS_TRIAGE_APP_ID }}
+          client-id: ${{ vars.INTERNS_TRIAGE_CLIENT_ID }}
           private-key: ${{ secrets.INTERNS_TRIAGE_APP_PRIVATE_KEY }}
 
       - name: Resolve agent config
@@ -246,7 +246,7 @@ jobs:
         id: triage_token
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ vars.INTERNS_TRIAGE_APP_ID }}
+          client-id: ${{ vars.INTERNS_TRIAGE_CLIENT_ID }}
           private-key: ${{ secrets.INTERNS_TRIAGE_APP_PRIVATE_KEY }}
 
       - name: Resolve triage identity

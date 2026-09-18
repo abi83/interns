@@ -37,10 +37,10 @@ on:
         description: OAuth token for anthropics/claude-code-action
         required: true
       INTERNS_REVIEWER_APP_PRIVATE_KEY:
-        description: Private key for the reviewer GitHub App (paired with vars.INTERNS_REVIEWER_APP_ID); reviewer job only
+        description: Private key for the reviewer GitHub App (paired with vars.INTERNS_REVIEWER_CLIENT_ID); reviewer job only
         required: true
       INTERNS_CODER_APP_PRIVATE_KEY:
-        description: Private key for the coder GitHub App (paired with vars.INTERNS_CODER_APP_ID); coder job only
+        description: Private key for the coder GitHub App (paired with vars.INTERNS_CODER_CLIENT_ID); coder job only
         required: true
 
 permissions:
@@ -89,14 +89,14 @@ jobs:
       # identity (interns-coder: pull_requests/issues write, contents write), so
       # authorship, audit trail, and branch-protection rules can treat it
       # separately from the reviewer's identity and from github-actions[bot].
-      # The installer's safety check requires vars.INTERNS_CODER_APP_ID +
+      # The installer's safety check requires vars.INTERNS_CODER_CLIENT_ID +
       # secrets.INTERNS_CODER_APP_PRIVATE_KEY, so this is unconditional like the
       # reviewer's equivalent.
       - name: Generate coder app token
         id: coder_token
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ vars.INTERNS_CODER_APP_ID }}
+          client-id: ${{ vars.INTERNS_CODER_CLIENT_ID }}
           private-key: ${{ secrets.INTERNS_CODER_APP_PRIVATE_KEY }}
 
       - name: Checkout
@@ -589,11 +589,11 @@ jobs:
         id: reviewer_token
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ vars.INTERNS_REVIEWER_APP_ID }}
+          client-id: ${{ vars.INTERNS_REVIEWER_CLIENT_ID }}
           private-key: ${{ secrets.INTERNS_REVIEWER_APP_PRIVATE_KEY }}
 
       # One source of truth for the reviewer's bot login, derived from the app
-      # token (which is derived from vars.INTERNS_REVIEWER_APP_ID). Every step that
+      # token (which is derived from vars.INTERNS_REVIEWER_CLIENT_ID). Every step that
       # matches reviews by author reads this output — renaming the app only
       # touches the variable, never a hardcoded slug (see #132 defect 3).
       - name: Resolve reviewer identity
@@ -608,7 +608,7 @@ jobs:
         id: coder_token
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ vars.INTERNS_CODER_APP_ID }}
+          client-id: ${{ vars.INTERNS_CODER_CLIENT_ID }}
           private-key: ${{ secrets.INTERNS_CODER_APP_PRIVATE_KEY }}
 
       - name: Resolve coder identity

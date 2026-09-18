@@ -104,13 +104,13 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
                    help="target repo (default: the repo `gh` resolves for the cwd)")
     p.add_argument("--yes", action="store_true",
                    help="assume yes for every prompt (non-interactive)")
-    p.add_argument("--coder-app-id", metavar="ID",
-                   help="reuse the coder App with this ID instead of minting one "
+    p.add_argument("--coder-client-id", metavar="ID",
+                   help="reuse the coder App with this Client ID instead of minting one "
                         "(the App is account-wide; only its install + secrets are per-repo)")
-    p.add_argument("--reviewer-app-id", metavar="ID",
-                   help="reuse the reviewer App with this ID instead of minting one")
-    p.add_argument("--triage-app-id", metavar="ID",
-                   help="reuse the triage App with this ID instead of minting one")
+    p.add_argument("--reviewer-client-id", metavar="ID",
+                   help="reuse the reviewer App with this Client ID instead of minting one")
+    p.add_argument("--triage-client-id", metavar="ID",
+                   help="reuse the triage App with this Client ID instead of minting one")
     p.add_argument("--dry-run", action="store_true",
                    help="print every mutation without performing it")
     p.add_argument("--issue-templates", nargs="?", const="true", default="false",
@@ -164,49 +164,44 @@ def _secret_verb(name: str, existing: list[str] | None) -> str:
     return "overwrite" if name in existing else "add"
 
 
-def _app_owner(app: dict) -> str:
-    """Login of the account that owns a `GET /apps/{slug}` result, lowercased.
-    A same-name App owned by someone else is a global-namespace collision, not
-    something this account can reuse."""
-    return str((app.get("owner") or {}).get("login", "")).lower()
-
-
 def _use_existing_app(con: Console, repo: gh.Repo, spec: AppSpec,
-                      app_id: str | None, slug: str,
+                      client_id: str | None, slug: str,
                       existing_secrets: list[str] | None) -> None:
-    """Reuse an account-wide App: write this repo's App-ID variable and private
-    key secret, and prompt to install it here. Never mints, never reads a key
-    back — the operator pastes a PEM (reused from another repo, or freshly
-    generated on the App's settings page; adding a key does not revoke others).
+    """Reuse an account-wide App: write this repo's Client-ID variable and
+    private key secret, and prompt to install it here. Never mints, never
+    reads a key back — the operator pastes a PEM (reused from another repo,
+    or freshly generated on the App's settings page; adding a key does not
+    revoke others).
     """
     settings_url = settings_app_url(repo.owner, repo.is_org, slug)
     have_key = existing_secrets is not None and spec.key_secret in existing_secrets
 
     if con.dry_run:
         con.say(f"existing {spec.key} App — {settings_url}")
-        con.mutation(f"set variable {spec.id_var} (existing {spec.key} App)")
+        con.mutation(f"set variable {spec.client_id_var} (existing {spec.key} App)")
         if not have_key:
             con.mutation(f"{_secret_verb(spec.key_secret, existing_secrets)} "
                          f"secret {spec.key_secret} (pasted PEM)")
         con.note_manual(f"install the existing {spec.key} App on {repo.slug}")
         return
 
-    if app_id is None:
-        con.say(f"its App ID (and 'Generate a private key') is on: {settings_url}")
+    if client_id is None:
+        con.say(f"its Client ID (and 'Generate a private key') is on: {settings_url}")
         if con.assume_yes:
-            con.note_manual(f"pass --{spec.key}-app-id (from {settings_url}) and set "
+            con.note_manual(f"pass --{spec.key}-client-id (from {settings_url}) and set "
                             f"{spec.key_secret}, then install the App on {repo.slug}")
             return
-        app_id = con.prompt(f"{spec.id_var} — the numeric App ID (blank to skip):")
-        if not app_id:
-            con.note_manual(f"set {spec.id_var} / {spec.key_secret} for the existing "
+        client_id = con.prompt(f"{spec.client_id_var} — the App's Client ID, "
+                               f"e.g. 'Iv23li...' (blank to skip):")
+        if not client_id:
+            con.note_manual(f"set {spec.client_id_var} / {spec.key_secret} for the existing "
                             f"{spec.key} App, then install it on {repo.slug}")
             return
     else:
-        con.say(f"reusing {spec.key} App {app_id} — {settings_url}")
+        con.say(f"reusing {spec.key} App {client_id} — {settings_url}")
 
-    if con.mutation(f"set variable {spec.id_var} = {app_id}"):
-        gh.set_variable(repo.slug, spec.id_var, app_id)
+    if con.mutation(f"set variable {spec.client_id_var} = {client_id}"):
+        gh.set_variable(repo.slug, spec.client_id_var, client_id)
 
     if have_key:
         con.say(f"{spec.key_secret} is already set — leaving it (its key stays valid; "
@@ -236,39 +231,40 @@ def _use_existing_app(con: Console, repo: gh.Repo, spec: AppSpec,
 
 
 def _provision_app(con: Console, repo: gh.Repo, spec: AppSpec,
-                   app_id: str | None,
-                   existing_secrets: list[str] | None,
-                   existing_vars: list[str] | None) -> None:
+                   client_id: str | None,
+                   existing_secrets: list[str] | None) -> None:
     name = spec.name_for(repo.owner)
     con.step(f"GitHub App: {name} ({spec.key})")
 
-    if app_id is not None:
-        con.say(f"--{spec.key}-app-id given — reusing App {app_id}, skipping the mint")
-        _use_existing_app(con, repo, spec, app_id, name, existing_secrets)
+    if client_id is not None:
+        con.say(f"--{spec.key}-client-id given — reusing App {client_id}, skipping the mint")
+        _use_existing_app(con, repo, spec, client_id, name, existing_secrets)
         return
 
     if not con.confirm(f"Set up the App '{name}' now?", default=True):
-        con.note_manual(f"create the {spec.key} App and set {spec.id_var} / {spec.key_secret}")
+        con.note_manual(f"create the {spec.key} App and set {spec.client_id_var} / {spec.key_secret}")
         return
 
-    existing = gh.app_public(name)
-    if existing and _app_owner(existing) == repo.owner.lower():
-        con.say(f"you already own an App named '{name}' — reusing it, no duplicate minted")
-        discovered_id = existing.get("id")
-        _use_existing_app(con, repo, spec,
-                          str(discovered_id) if discovered_id else None,
-                          existing.get("slug", name), existing_secrets)
-        return
-    if existing:
-        con.say(f"the name '{name}' is held by another account — GitHub will ask "
-                "you to pick a different name in the form")
+    # GitHub's Apps API only resolves *public* Apps by name; this installer
+    # always mints private ones (see build_manifest), and GET /apps/{slug}
+    # 404s on those even for the owning account's own token -- confirmed
+    # hands-on, not a scope/rate-limit fluke. There is no automated way to
+    # tell whether you already own '{name}', so ask instead of guessing and
+    # walking into a mint that GitHub will reject as a name collision. Under
+    # --yes there's no one to ask -- pass --{spec.key}-client-id instead.
+    if not con.assume_yes:
+        settings_url = settings_app_url(repo.owner, repo.is_org, name)
+        if con.confirm(f"Do you already have a GitHub App named '{name}'? "
+                       f"(check {settings_url} if unsure)", default=False):
+            _use_existing_app(con, repo, spec, None, name, existing_secrets)
+            return
 
     action_url = settings_new_url(repo.owner, repo.is_org)
 
     if con.dry_run:
         con.mutation(f"open {action_url} to create App '{name}' via manifest")
         con.mutation(f"{_secret_verb(spec.key_secret, existing_secrets)} secret {spec.key_secret}")
-        con.mutation(f"set variable {spec.id_var}")
+        con.mutation(f"set variable {spec.client_id_var}")
         con.note_manual(f"install the {spec.key} App on {repo.slug}")
         return
 
@@ -281,7 +277,7 @@ def _provision_app(con: Console, repo: gh.Repo, spec: AppSpec,
         code = server.wait_for_code()
 
     conv = gh.convert_manifest(code)
-    app_id = str(conv["id"])
+    client_id = str(conv["client_id"])
     slug = conv.get("slug", name)
     pem = conv["pem"]
 
@@ -291,10 +287,10 @@ def _provision_app(con: Console, repo: gh.Repo, spec: AppSpec,
         gh.set_secret(repo.slug, spec.key_secret, pem)
     pem = None  # noqa: F841 - drop the only reference to the key
 
-    if con.mutation(f"set variable {spec.id_var} = {app_id}"):
-        gh.set_variable(repo.slug, spec.id_var, app_id)
+    if con.mutation(f"set variable {spec.client_id_var} = {client_id}"):
+        gh.set_variable(repo.slug, spec.client_id_var, client_id)
 
-    con.say(f"App '{slug}' created (id {app_id})")
+    con.say(f"App '{slug}' created (client id {client_id})")
     install_url = f"https://github.com/apps/{slug}/installations/new"
     con.note_manual(f"install the {spec.key} App on {repo.slug}: {install_url}")
     if not con.assume_yes:
@@ -426,7 +422,6 @@ def main(argv: list[str] | None = None) -> int:
     if not args.skip_handoff:
         _workflow_scope_preflight(con)
     existing_secrets = _scope_preflight(con, repo.slug)
-    existing_vars = gh.list_variable_names(repo.slug)
 
     try:
         default_branch = _default_branch(repo)
@@ -440,11 +435,10 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     try:
-        app_ids = {"coder": args.coder_app_id, "reviewer": args.reviewer_app_id,
-                   "triage": args.triage_app_id}
+        client_ids = {"coder": args.coder_client_id, "reviewer": args.reviewer_client_id,
+                      "triage": args.triage_client_id}
         for spec in APPS:
-            _provision_app(con, repo, spec, app_ids.get(spec.key),
-                           existing_secrets, existing_vars)
+            _provision_app(con, repo, spec, client_ids.get(spec.key), existing_secrets)
         _write_oauth_token(con, repo, existing_secrets)
         if not args.skip_handoff:
             _handoff(con, repo, args)

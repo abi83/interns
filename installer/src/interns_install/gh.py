@@ -108,14 +108,6 @@ def list_secret_names(repo: str) -> list[str] | None:
     return [s["name"] for s in (data or {}).get("secrets", [])]
 
 
-def list_variable_names(repo: str) -> list[str] | None:
-    try:
-        data = api(f"repos/{repo}/actions/variables?per_page=100")
-    except GhError:
-        return None
-    return [v["name"] for v in (data or {}).get("variables", [])]
-
-
 def set_secret(repo: str, name: str, value: str) -> None:
     # `--body` takes its argument as the literal value -- "-" is not a stdin
     # sentinel to gh, so passing it wrote the literal string "-" every time
@@ -128,15 +120,6 @@ def set_variable(repo: str, name: str, value: str) -> None:
     # `variable set` refuses to overwrite silently on some versions; delete-then-set is idempotent.
     _run(["variable", "delete", name, "--repo", repo], check=False)
     _run(["variable", "set", name, "--repo", repo], input_text=value)
-
-
-def app_public(slug: str) -> dict | None:
-    """Public metadata for the App registered under this slug, or None if no
-    such App exists. App names are globally unique, so a hit on the default
-    name means minting it again would collide — reuse the existing App instead.
-    """
-    status, body = api_status(f"apps/{slug}")
-    return body if status == "ok" and isinstance(body, dict) else None
 
 
 def convert_manifest(code: str) -> dict:

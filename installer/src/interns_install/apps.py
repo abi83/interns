@@ -39,7 +39,7 @@ TRIAGE_APP_PERMISSIONS = {
 class AppSpec:
     key: str            # "reviewer" / "coder" / "triage"
     name_base: str      # "interns-reviewer" / "interns-coder" / "interns-triage"
-    id_var: str         # "INTERNS_REVIEWER_APP_ID"
+    client_id_var: str  # "INTERNS_REVIEWER_CLIENT_ID"
     key_secret: str     # "INTERNS_REVIEWER_APP_PRIVATE_KEY"
     description: str
     permissions: dict[str, str] | None = None  # None = APP_PERMISSIONS
@@ -55,21 +55,21 @@ APPS = [
     AppSpec(
         key="reviewer",
         name_base="interns-reviewer",
-        id_var="INTERNS_REVIEWER_APP_ID",
+        client_id_var="INTERNS_REVIEWER_CLIENT_ID",
         key_secret="INTERNS_REVIEWER_APP_PRIVATE_KEY",
         description="submits PR reviews for the interns pipeline (claude[bot] can't approve its own PR)",
     ),
     AppSpec(
         key="coder",
         name_base="interns-coder",
-        id_var="INTERNS_CODER_APP_ID",
+        client_id_var="INTERNS_CODER_CLIENT_ID",
         key_secret="INTERNS_CODER_APP_PRIVATE_KEY",
         description="coder-side pushes, PRs, comments and label edits for the interns pipeline",
     ),
     AppSpec(
         key="triage",
         name_base="interns-triage",
-        id_var="INTERNS_TRIAGE_APP_ID",
+        client_id_var="INTERNS_TRIAGE_CLIENT_ID",
         key_secret="INTERNS_TRIAGE_APP_PRIVATE_KEY",
         description="applies status:refined so the estimate phase actually triggers "
                      "(GITHUB_TOKEN-authored label edits never fire new workflow runs)",
