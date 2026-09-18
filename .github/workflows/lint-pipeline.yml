@@ -20,9 +20,15 @@ jobs:
         #   the job self-checks-out this repo there (see code-pipeline.yml).
         # -ignore 'job_workflow_ref': actionlint doesn't know this context property
         #   yet; install.yml uses it intentionally (see its "Resolve pipeline ref").
+        # -ignore 'create-github-app-token@v3': actionlint's bundled action metadata
+        #   (checked against its own main branch) still only knows this action's
+        #   deprecated `app-id` input -- upstream added `client-id` without
+        #   actionlint's database catching up. We use `client-id` deliberately
+        #   (`app-id` is deprecated by the action itself); this is a lint false
+        #   positive, not a workflow bug.
         uses: docker://rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
         with:
-          args: -color -ignore interns -ignore job_workflow_ref
+          args: -color -ignore interns -ignore job_workflow_ref -ignore create-github-app-token@v3
 
       # -x so shellcheck follows the `source` of pipeline/lib.sh.
       - name: Lint standalone shell scripts
