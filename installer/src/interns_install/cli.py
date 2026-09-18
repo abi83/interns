@@ -241,23 +241,27 @@ def _provision_app(con: Console, repo: gh.Repo, spec: AppSpec,
         _use_existing_app(con, repo, spec, client_id, name, existing_secrets)
         return
 
-    if not con.confirm(f"Set up the App '{name}' now?", default=True):
-        con.note_manual(f"create the {spec.key} App and set {spec.client_id_var} / {spec.key_secret}")
-        return
-
     # GitHub's Apps API only resolves *public* Apps by name; this installer
     # always mints private ones (see build_manifest), and GET /apps/{slug}
     # 404s on those even for the owning account's own token -- confirmed
     # hands-on, not a scope/rate-limit fluke. There is no automated way to
     # tell whether you already own '{name}', so ask instead of guessing and
     # walking into a mint that GitHub will reject as a name collision. Under
-    # --yes there's no one to ask -- pass --{spec.key}-client-id instead.
+    # --yes there's no one to ask -- pass --{spec.key}-client-id instead. Ask
+    # this before "create a new one?" -- "Set up now? [Y/n]" read as "create
+    # a new App", and answering "n" (meaning "no, I have one already") ended
+    # up skipping the App entirely instead of reaching the reuse question.
     if not con.assume_yes:
         settings_url = settings_app_url(repo.owner, repo.is_org, name)
         if con.confirm(f"Do you already have a GitHub App named '{name}'? "
                        f"(check {settings_url} if unsure)", default=False):
             _use_existing_app(con, repo, spec, None, name, existing_secrets)
             return
+
+    if not con.confirm(f"Create a new App '{name}' now?", default=True):
+        con.note_manual(f"create the {spec.key} App (or point at an existing one with "
+                        f"--{spec.key}-client-id) and set {spec.client_id_var} / {spec.key_secret}")
+        return
 
     action_url = settings_new_url(repo.owner, repo.is_org)
 

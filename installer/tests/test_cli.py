@@ -120,10 +120,12 @@ class ReuseAppTests(unittest.TestCase):
     def test_provision_reuses_when_operator_confirms_existing_app(self):
         """No API call decides this -- GitHub can't tell us about a private
         App even for its own owner (confirmed hands-on, see #88 follow-up).
-        The operator is asked directly and, on yes, is prompted for the
-        Client ID via _use_existing_app's own fallback prompt."""
+        The operator is asked "already have one?" first (not "set up now?"
+        first, which read as "create a new one" and made "no" skip the App
+        entirely instead of reaching the reuse question) and, on yes, is
+        prompted for the Client ID via _use_existing_app's own fallback."""
         con = Console(assume_yes=False)
-        con.confirm = _confirm_sequence(True, True)  # "set up now?" then "already have it?"
+        con.confirm = _confirm_sequence(True)  # "already have it?"
         con.prompt = lambda q: "Iv1.existing"
         with mock.patch.object(cli, "ManifestServer") as server, \
              mock.patch.object(cli.webbrowser, "open"), \
@@ -134,9 +136,16 @@ class ReuseAppTests(unittest.TestCase):
 
     def test_provision_mints_when_operator_says_no_existing_app(self):
         con = Console(assume_yes=False, dry_run=True)
-        con.confirm = _confirm_sequence(True, False)  # "set up now?" then "already have it?"
+        con.confirm = _confirm_sequence(False, True)  # "already have it?" then "create new?"
         _provision_app(con, _repo(), CODER, None, existing_secrets=[])
         self.assertTrue(any("via manifest" in p for p in con.planned))
+
+    def test_provision_records_manual_todo_when_operator_declines_both(self):
+        con = Console(assume_yes=False, dry_run=True)
+        con.confirm = _confirm_sequence(False, False)  # "already have it?" then "create new?"
+        _provision_app(con, _repo(), CODER, None, existing_secrets=[])
+        self.assertFalse(any("via manifest" in p for p in con.planned))
+        self.assertTrue(any(CODER.client_id_var in n for n in con.manual))
 
     def test_provision_skips_reuse_question_under_yes(self):
         """--yes has no one to ask -- it must fall straight to minting rather
