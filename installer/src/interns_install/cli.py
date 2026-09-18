@@ -273,7 +273,7 @@ def _provision_app(con: Console, repo: gh.Repo, spec: AppSpec,
         return
 
     with ManifestServer(action_url, lambda redirect: build_manifest(
-        name, redirect, spec.description, spec.permissions)) as server:
+        name, repo.slug, redirect, spec.description, spec.permissions)) as server:
         con.say(f"opening your browser to create '{name}' — "
                 "click 'Create GitHub App'")
         con.say(f"if nothing opened, visit: {server.base_url}")

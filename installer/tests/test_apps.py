@@ -12,8 +12,9 @@ from interns_install.apps import (
 
 class ManifestTests(unittest.TestCase):
     def test_build_manifest_shape(self):
-        m = build_manifest("interns-coder", "http://127.0.0.1:5/callback", "desc")
+        m = build_manifest("interns-coder", "acme/widgets", "http://127.0.0.1:5/callback", "desc")
         self.assertEqual(m["name"], "interns-coder")
+        self.assertEqual(m["url"], "https://github.com/acme/widgets")
         self.assertEqual(m["redirect_url"], "http://127.0.0.1:5/callback")
         self.assertFalse(m["public"])
         self.assertEqual(m["default_events"], [])
@@ -30,7 +31,7 @@ class ManifestServerTests(unittest.TestCase):
     def _make(self):
         return ManifestServer(
             "https://github.com/settings/apps/new",
-            lambda redirect: build_manifest("interns-reviewer", redirect, "d"),
+            lambda redirect: build_manifest("interns-reviewer", "acme/widgets", redirect, "d"),
         )
 
     def test_form_page_carries_state_and_manifest(self):
