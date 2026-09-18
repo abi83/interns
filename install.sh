@@ -31,4 +31,17 @@ if ! command -v gh >/dev/null 2>&1; then
   exit 1
 fi
 
-exec uvx --from "$SPEC" interns-install "$@"
+# `curl ... | sh` leaves stdin as the (now-exhausted) pipe carrying this
+# script, not the terminal -- interns-install's prompts would hit EOF
+# instantly and silently fall through to their defaults instead of waiting
+# for an answer. Reattach stdin to the real terminal when one exists. Opening
+# /dev/tty (not just its permission bits) can still fail with no controlling
+# terminal at all (CI, some sandboxes) -- `exec 3< ...` in an `if` condition
+# is exempt from `set -e`, so that case falls through instead of aborting.
+if [ -t 0 ]; then
+  exec uvx --from "$SPEC" interns-install "$@"
+elif exec 3< /dev/tty 2>/dev/null; then
+  exec uvx --from "$SPEC" interns-install "$@" <&3
+else
+  exec uvx --from "$SPEC" interns-install "$@"
+fi
