@@ -78,11 +78,11 @@ APPS = [
 ]
 
 
-def build_manifest(name: str, redirect_url: str, description: str,
+def build_manifest(name: str, repo_slug: str, redirect_url: str, description: str,
                     permissions: dict[str, str] | None = None) -> dict:
     return {
         "name": name,
-        "url": "https://github.com/abi83/interns",
+        "url": f"https://github.com/{repo_slug}",
         "description": description,
         "redirect_url": redirect_url,
         "public": False,
