@@ -31,10 +31,7 @@ fi
 
 if [[ "$merged" == "true" ]]; then
   # The issue is already closed by `Closes #N`; just retire the run label.
-  current=$(gh issue view "$issue" --repo "$GITHUB_REPOSITORY" --json labels --jq '[.labels[].name] | join(",")')
-  if [[ ",$current," == *",status:in-progress,"* ]]; then
-    gh issue edit "$issue" --repo "$GITHUB_REPOSITORY" --remove-label status:in-progress || true
-  fi
+  edit_issue_labels "$issue" --remove status:in-progress
 else
   set_issue_status "$issue" status:needs-attention
   gh issue comment "$issue" --repo "$GITHUB_REPOSITORY" --body \

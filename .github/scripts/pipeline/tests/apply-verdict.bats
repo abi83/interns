@@ -23,7 +23,7 @@ setup() {
   export STUB_LAST_STATE=CHANGES_REQUESTED STUB_RC_COUNT=2 STUB_PR_LABELS="pr:in-review"
   run "$PIPELINE_DIR/apply-verdict.sh" 12 34
   grep -q "didn't converge. Escalating to a human" "$STUB_LOG"
-  grep -q 'gh pr edit 12 --repo owner/repo --remove-label pr:in-review --add-label pr:needs-attention' "$STUB_LOG"
+  grep -q 'gh pr edit 12 --repo owner/repo --add-label pr:needs-attention --remove-label pr:in-review' "$STUB_LOG"
   ! grep -q 'gh workflow run' "$STUB_LOG"
 }
 
@@ -38,5 +38,5 @@ setup() {
   export STUB_LAST_STATE="" STUB_PR_LABELS="pr:in-review"
   run "$PIPELINE_DIR/apply-verdict.sh" 12 34
   grep -q "without submitting a recognized verdict" "$STUB_LOG"
-  grep -q 'gh pr edit 12 --repo owner/repo --remove-label pr:in-review --add-label pr:needs-attention' "$STUB_LOG"
+  grep -q 'gh pr edit 12 --repo owner/repo --add-label pr:needs-attention --remove-label pr:in-review' "$STUB_LOG"
 }

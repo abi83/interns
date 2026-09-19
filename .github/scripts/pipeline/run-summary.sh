@@ -158,7 +158,7 @@ case "$phase" in
     title=$(gh_q issue view "$issue" --repo "$repo" --json title --jq .title)
     emit "**Issue:** [#$issue](${GITHUB_SERVER_URL}/${repo}/issues/${issue})${title:+ — $title}"
 
-    labels=",$(gh_q issue view "$issue" --repo "$repo" --json labels --jq '[.labels[].name] | join(",")'),"
+    labels=",$(issue_labels_csv "$issue" || true),"
     if [[ "$labels" == *",status:refined,"* ]]; then
       emit "**Outcome:** Body refined"
     elif [[ "$labels" == *",status:needs-attention,"* ]]; then
@@ -172,7 +172,7 @@ case "$phase" in
     title=$(gh_q issue view "$issue" --repo "$repo" --json title --jq .title)
     emit "**Issue:** [#$issue](${GITHUB_SERVER_URL}/${repo}/issues/${issue})${title:+ — $title}"
 
-    labels=",$(gh_q issue view "$issue" --repo "$repo" --json labels --jq '[.labels[].name] | join(",")'),"
+    labels=",$(issue_labels_csv "$issue" || true),"
     size=$(sed -nE 's/.*,(size:[A-Z]+),.*/\1/p' <<<"$labels")
     if [[ -n "$size" ]]; then
       emit "**Outcome:** Estimate posted — \`$size\`"

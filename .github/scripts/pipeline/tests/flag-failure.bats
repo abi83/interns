@@ -15,7 +15,7 @@ setup() {
   export STUB_PR_LABELS="pr:in-review"
   run "$PIPELINE_DIR/flag-failure.sh" --noun review --pr 4 --issue 9
   grep -q 'gh pr comment 4 .* Automated review failed' "$STUB_LOG"
-  grep -q 'gh pr edit 4 --repo owner/repo --remove-label pr:in-review --add-label pr:needs-attention' "$STUB_LOG"
+  grep -q 'gh pr edit 4 --repo owner/repo --add-label pr:needs-attention --remove-label pr:in-review' "$STUB_LOG"
   ! grep -q 'gh issue comment' "$STUB_LOG"
 }
 
