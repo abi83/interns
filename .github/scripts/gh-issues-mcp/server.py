@@ -1,11 +1,13 @@
 """GitHub issues MCP server for the interns pipeline."""
 
+from __future__ import annotations
+
 import json
 import os
 import pathlib
 import re
 import subprocess
-from typing import Annotated, Literal, Optional
+from typing import Annotated, Literal
 
 from mcp.server.mcpserver import MCPServer
 from pydantic import BaseModel, Field
@@ -20,6 +22,31 @@ _WORKSPACE = os.environ.get("GITHUB_WORKSPACE", "")
 _LABELS_JSON = pathlib.Path(__file__).parent.parent.parent / "labels.json"
 # Agents are not allowed to push changes to these paths.
 _PROTECTED_PATHS_RE = r"^\.github/(workflows|scripts)/"
+
+# Lifecycle label constants -- named so a typo is a NameError, not a silent
+# orphan label with no lint/compile check catching it.
+STATUS_NEEDS_REFINEMENT = "status:needs-refinement"
+STATUS_REFINED = "status:refined"
+STATUS_NEEDS_ATTENTION = "status:needs-attention"
+STATUS_ESTIMATED = "status:estimated"
+
+
+# ---------------------------------------------------------------------------
+# Exceptions
+# ---------------------------------------------------------------------------
+
+
+class GhCommandError(RuntimeError):
+    """A `gh`/`git` subprocess exited non-zero."""
+
+
+class InvalidInputError(ValueError):
+    """Caller-supplied arguments are malformed or fail validation."""
+
+
+class PushRefusedError(RuntimeError):
+    """push_branch declined to push for a policy reason (protected branch,
+    nothing to push, or a protected path in the diff)."""
 
 
 # ---------------------------------------------------------------------------
@@ -46,7 +73,7 @@ class Issue(BaseModel):
     state: str
     labels: list[str]
     comments: list[Comment]
-    parent: Optional[RelatedIssue] = None
+    parent: RelatedIssue | None = None
     sub_issues: list[RelatedIssue] = []
     blocked_by: list[RelatedIssue] = []
     blocking: list[RelatedIssue] = []
@@ -71,7 +98,7 @@ def _run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
     result = subprocess.run(cmd, **kwargs)
     if result.returncode != 0:
         detail = (result.stderr or result.stdout).strip()
-        raise RuntimeError(detail or f"'{cmd[0]}' exited {result.returncode}")
+        raise GhCommandError(detail or f"'{cmd[0]}' exited {result.returncode}")
     return result
 
 
@@ -250,7 +277,7 @@ def edit_issue(
     correcting — omit it to leave the existing title in place.
     """
     if title is not None and "\n" in title:
-        raise ValueError("Title must be a single line")
+        raise InvalidInputError("Title must be a single line")
     args = ["gh", "issue", "edit", str(issue_number), "--repo", _REPO, "--body", body]
     if title is not None:
         args += ["--title", title]
@@ -294,7 +321,7 @@ def edit_issue_labels(
             msgs.append(f"Labels don't exist, not added: {', '.join(unknown_add)}")
         if unknown_remove:
             msgs.append(f"Labels don't exist, not removed: {', '.join(unknown_remove)}")
-        raise ValueError("\n".join(msgs))
+        raise InvalidInputError("\n".join(msgs))
 
     args = ["gh", "issue", "edit", str(issue_number), "--repo", _REPO]
     for lbl in add_labels:
@@ -357,7 +384,7 @@ def submit_pr_review(
 ) -> str:
     """Submit a formal PR review (verdict + optional inline comments) atomically."""
     if event not in ("APPROVE", "REQUEST_CHANGES"):
-        raise ValueError("event must be APPROVE or REQUEST_CHANGES")
+        raise InvalidInputError("event must be APPROVE or REQUEST_CHANGES")
     payload = {"event": event, "body": body, "comments": [c.model_dump() for c in (comments or [])]}
     result = _run(
         [
@@ -391,14 +418,14 @@ def push_branch() -> str:
 
     branch = git("rev-parse", "--abbrev-ref", "HEAD")
     if branch in ("main", "master"):
-        raise ValueError(f"Refusing to push {branch} directly")
+        raise PushRefusedError(f"Refusing to push {branch} directly")
 
     git("fetch", "origin", "main", "--quiet")
     base = git("merge-base", "origin/main", "HEAD")
     head = git("rev-parse", "HEAD")
 
     if base == head:
-        raise ValueError("No commits beyond origin/main — nothing to push")
+        raise PushRefusedError("No commits beyond origin/main — nothing to push")
 
     message = git("log", "-1", "--format=%B")
     git("reset", "--soft", base)
@@ -408,7 +435,7 @@ def push_branch() -> str:
     protected = [p for p in changed.splitlines() if re.search(_PROTECTED_PATHS_RE, p)]
     if protected:
         paths = "\n".join(f"  {p}" for p in protected)
-        raise ValueError(
+        raise PushRefusedError(
             f"Cannot push: changes touch protected paths (drop these edits and push again):\n{paths}"
         )
 
@@ -421,6 +448,11 @@ def push_branch() -> str:
 # so refiner/estimator need no Write access and no marker files on disk.
 # ---------------------------------------------------------------------------
 
+# Keyed by (#High, #Mid) across the four scores (Low contributes to neither
+# count). Size climbs with either count: 0 highs stays XS/S/M as mids
+# accumulate; each extra high pushes the floor up a size; 3 or more highs is
+# always XL regardless of the rest. Every (highs, mids) combination with
+# highs + mids <= 4 has an entry.
 _ROLL_UP_TABLE: dict[tuple[int, int], str] = {
     (0, 0): "XS", (0, 1): "S",  (0, 2): "S",  (0, 3): "M",  (0, 4): "M",
     (1, 0): "M",  (1, 1): "M",  (1, 2): "M",  (1, 3): "L",
@@ -442,7 +474,7 @@ def _roll_up_size(blast: str, touch: str, human: str, review: str) -> str:
         elif s == "low":
             pass
         else:
-            raise ValueError(f"Not a Low|Mid|High score: {score!r}")
+            raise InvalidInputError(f"Not a Low|Mid|High score: {score!r}")
     return _ROLL_UP_TABLE[(highs, mids)]
 
 
@@ -464,13 +496,13 @@ def apply_refinement_outcome(
     """
     if outcome == "refined":
         if type_label is None:
-            raise ValueError("type_label is required when outcome='refined'")
-        add = ["status:refined", type_label]
-        remove = ["status:needs-refinement", "status:needs-attention"]
+            raise InvalidInputError("type_label is required when outcome='refined'")
+        add = [STATUS_REFINED, type_label]
+        remove = [STATUS_NEEDS_REFINEMENT, STATUS_NEEDS_ATTENTION]
     elif outcome == "needs-attention":
-        add, remove = ["status:needs-attention"], ["status:needs-refinement"]
+        add, remove = [STATUS_NEEDS_ATTENTION], [STATUS_NEEDS_REFINEMENT]
     else:
-        raise ValueError("outcome must be 'refined' or 'needs-attention'")
+        raise InvalidInputError("outcome must be 'refined' or 'needs-attention'")
 
     args = ["gh", "issue", "edit", str(issue_number), "--repo", _REPO]
     for lbl in add:
@@ -511,17 +543,17 @@ def apply_estimation_outcome(
     """
     if outcome == "estimated":
         if None in (blast_radius, touch, human_involvement, review_overhead):
-            raise ValueError(
+            raise InvalidInputError(
                 "blast_radius, touch, human_involvement, and review_overhead are all required when outcome='estimated'"
             )
         size = _roll_up_size(blast_radius, touch, human_involvement, review_overhead)  # type: ignore[arg-type]
-        add = ["status:estimated", f"size:{size}"]
-        remove = ["status:refined", "status:needs-attention"]
+        add = [STATUS_ESTIMATED, f"size:{size}"]
+        remove = [STATUS_REFINED, STATUS_NEEDS_ATTENTION]
     elif outcome == "needs-attention":
-        add, remove = ["status:needs-attention"], ["status:refined"]
+        add, remove = [STATUS_NEEDS_ATTENTION], [STATUS_REFINED]
         size = ""
     else:
-        raise ValueError("outcome must be 'estimated' or 'needs-attention'")
+        raise InvalidInputError("outcome must be 'estimated' or 'needs-attention'")
 
     args = ["gh", "issue", "edit", str(issue_number), "--repo", _REPO]
     for lbl in add:

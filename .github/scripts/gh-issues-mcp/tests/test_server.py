@@ -9,8 +9,11 @@ import pytest
 import server
 from server import (
     Comment,
+    GhCommandError,
     InlineComment,
+    InvalidInputError,
     Issue,
+    PushRefusedError,
     RelatedIssue,
     _fetch_issue,
     _roll_up_size,
@@ -220,7 +223,7 @@ def test_edit_issue_with_title():
 
 
 def test_edit_issue_rejects_multiline_title():
-    with pytest.raises(ValueError, match="single line"):
+    with pytest.raises(InvalidInputError, match="single line"):
         edit_issue(issue_number=5, body="Some body content here", title="Line one\nLine two")
 
 
@@ -264,7 +267,7 @@ def test_edit_issue_labels_rejects_unknown():
     with patch("server.subprocess.run") as mock_run:
         mock_run.return_value = _make_proc("bug")
         with patch.object(server, "_REPO", "owner/repo"):
-            with pytest.raises(ValueError, match="don't exist"):
+            with pytest.raises(InvalidInputError, match="don't exist"):
                 edit_issue_labels(issue_number=7, add_labels=["no-such-label"])
 
 
@@ -317,7 +320,7 @@ def test_open_pr_surfaces_gh_error():
             returncode=1, stderr="error creating pull request: No commits between 'main' and 'feat/x'"
         )
         with patch.object(server, "_REPO", "owner/repo"):
-            with pytest.raises(RuntimeError, match="No commits between"):
+            with pytest.raises(GhCommandError, match="No commits between"):
                 open_pr(issue_number=42, title="feat: add thing", body="Implements the thing")
 
 
@@ -359,7 +362,7 @@ def test_submit_pr_review_request_changes_with_comments():
 
 
 def test_submit_pr_review_rejects_bad_event():
-    with pytest.raises(ValueError, match="APPROVE or REQUEST_CHANGES"):
+    with pytest.raises(InvalidInputError, match="APPROVE or REQUEST_CHANGES"):
         submit_pr_review(pr_number=10, event="COMMENT", body="hi")
 
 
@@ -392,7 +395,7 @@ def test_push_branch_squashes_and_pushes():
 
 def test_push_branch_rejects_main():
     with patch("server.subprocess.run", return_value=_make_proc("main")):
-        with pytest.raises(ValueError, match="Refusing"):
+        with pytest.raises(PushRefusedError, match="Refusing"):
             push_branch()
 
 
@@ -404,7 +407,7 @@ def test_push_branch_rejects_no_commits():
         "abc123",     # HEAD == base => nothing to push
     )
     with patch("server.subprocess.run", side_effect=seq):
-        with pytest.raises(ValueError, match="nothing to push"):
+        with pytest.raises(PushRefusedError, match="nothing to push"):
             push_branch()
 
 
@@ -420,7 +423,7 @@ def test_push_branch_rejects_protected_paths():
         ".github/workflows/ci.yml",  # protected path
     )
     with patch("server.subprocess.run", side_effect=seq):
-        with pytest.raises(ValueError, match="protected paths"):
+        with pytest.raises(PushRefusedError, match="protected paths"):
             push_branch()
 
 
@@ -436,7 +439,7 @@ def test_push_branch_rejects_scripts_protected_paths():
         ".github/scripts/pipeline/lib.sh",
     )
     with patch("server.subprocess.run", side_effect=seq):
-        with pytest.raises(ValueError, match="protected paths"):
+        with pytest.raises(PushRefusedError, match="protected paths"):
             push_branch()
 
 
@@ -510,7 +513,7 @@ def test_roll_up_size_case_insensitive():
 
 
 def test_roll_up_size_invalid_score():
-    with pytest.raises(ValueError, match="Not a Low|Mid|High score"):
+    with pytest.raises(InvalidInputError, match="Not a Low|Mid|High score"):
         _roll_up_size("Low", "Medium", "Low", "Low")
 
 
@@ -537,7 +540,7 @@ def test_apply_refinement_outcome_refined():
 
 
 def test_apply_refinement_outcome_missing_type_label():
-    with pytest.raises(ValueError, match="type_label is required"):
+    with pytest.raises(InvalidInputError, match="type_label is required"):
         apply_refinement_outcome(issue_number=5, outcome="refined")
 
 
@@ -557,7 +560,7 @@ def test_apply_refinement_outcome_needs_attention():
 
 
 def test_apply_refinement_outcome_invalid():
-    with pytest.raises(ValueError):
+    with pytest.raises(InvalidInputError):
         apply_refinement_outcome(issue_number=5, outcome="done")
 
 
@@ -604,12 +607,12 @@ def test_apply_estimation_outcome_needs_attention():
 
 
 def test_apply_estimation_outcome_missing_scores():
-    with pytest.raises(ValueError):
+    with pytest.raises(InvalidInputError):
         apply_estimation_outcome(issue_number=7, outcome="estimated")
 
 
 def test_apply_estimation_outcome_invalid():
-    with pytest.raises(ValueError):
+    with pytest.raises(InvalidInputError):
         apply_estimation_outcome(issue_number=7, outcome="done")
 
 

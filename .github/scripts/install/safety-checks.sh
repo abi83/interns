@@ -9,7 +9,10 @@
 # Branch protection and GitHub Pages are checked elsewhere: both need admin
 # access to read or write, which GITHUB_TOKEN can never be granted, so
 # interns-install checks and fixes them locally at install time, with the
-# operator's own admin-scoped `gh` session, before this script ever runs.
+# operator's own admin-scoped `gh` session, before this script ever runs
+# (see installer/src/interns_install/safety.py). That module and this script
+# check disjoint things and neither owns the other's checks -- this will
+# collapse into one Python check once this script migrates (abi83/interns#155).
 #
 # Usage: safety-checks.sh
 # Env:   GH_TOKEN            repo token

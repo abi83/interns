@@ -1,3 +1,4 @@
+import json
 import unittest
 from unittest import mock
 
@@ -59,7 +60,7 @@ class CheckMetricsBranchTests(unittest.TestCase):
         create_branch.assert_called_once_with("acme/widgets", "metrics", "commit-sha")
         api.assert_called_once_with(
             "repos/acme/widgets/branches/metrics/protection",
-            method="PUT", input_json=safety.METRICS_PROTECTION)
+            method="PUT", input_json=json.dumps(safety.METRICS_PROTECTION))
 
     def test_skips_creation_when_branch_already_exists(self):
         con = Console(assume_yes=True)

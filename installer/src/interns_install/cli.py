@@ -26,12 +26,12 @@ from . import gh, safety
 from .apps import (
     APPS,
     AppSpec,
-    ManifestServer,
     build_manifest,
     settings_app_url,
     settings_new_url,
 )
 from .console import Console
+from .manifest_server import ManifestServer
 
 WORKFLOW = "install.yml"
 INTERNS_REPO = "abi83/interns"

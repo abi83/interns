@@ -6,9 +6,23 @@ Reading or writing branch protection and Pages state needs admin access to
 the repo, which `GITHUB_TOKEN` can never be granted; running the checks here
 instead of in a follow-up Actions workflow means no admin-capable token ever
 has to be stashed as a repo secret.
+
+Split with `.github/scripts/install/safety-checks.sh`: that script is the
+GITHUB_TOKEN-scoped, in-pipeline check -- it runs on every install.yml
+dispatch and can only verify what GITHUB_TOKEN can read, which is repo
+secret/variable *presence* (not branch protection or Pages, both admin-only).
+This module is the operator-scoped, local-only check -- branch protection,
+Pages, and the metrics branch, none of which GITHUB_TOKEN can read or write.
+Together they cover the full required set; neither owns the other's checks.
+This will collapse into one Python check once safety-checks.sh migrates
+(abi83/interns#155) -- until then, a new requirement must be added to
+whichever module can actually see it, and cross-referenced here if it
+changes what the other one owns.
 """
 
 from __future__ import annotations
+
+import json
 
 from . import gh
 from .console import Console
@@ -16,32 +30,28 @@ from .console import Console
 DEFAULT_BOT_LOGINS = ["github-actions[bot]", "claude[bot]"]
 
 # Require a PR + 1 approval, no force pushes or deletions, no push restrictions.
-BASELINE_PROTECTION = """\
-{
-  "required_status_checks": null,
-  "enforce_admins": false,
-  "required_pull_request_reviews": { "required_approving_review_count": 1 },
-  "restrictions": null,
-  "allow_force_pushes": false,
-  "allow_deletions": false
+BASELINE_PROTECTION = {
+    "required_status_checks": None,
+    "enforce_admins": False,
+    "required_pull_request_reviews": {"required_approving_review_count": 1},
+    "restrictions": None,
+    "allow_force_pushes": False,
+    "allow_deletions": False,
 }
-"""
 
 METRICS_BRANCH = "metrics"
 METRICS_FILE = "metrics.jsonl"
 
 # append-metrics.sh (see .github/scripts/pipeline/append-metrics.sh) pushes
 # straight to this branch, not via PR -- only guard against deletion.
-METRICS_PROTECTION = """\
-{
-  "required_status_checks": null,
-  "enforce_admins": false,
-  "required_pull_request_reviews": null,
-  "restrictions": null,
-  "allow_force_pushes": true,
-  "allow_deletions": false
+METRICS_PROTECTION = {
+    "required_status_checks": None,
+    "enforce_admins": False,
+    "required_pull_request_reviews": None,
+    "restrictions": None,
+    "allow_force_pushes": True,
+    "allow_deletions": False,
 }
-"""
 
 
 class SafetyCheckError(RuntimeError):
@@ -96,7 +106,7 @@ def check_branch_protection(con: Console, repo: gh.Repo, default_branch: str,
         return
     try:
         gh.api(f"repos/{repo.slug}/branches/{default_branch}/protection",
-               method="PUT", input_json=BASELINE_PROTECTION)
+               method="PUT", input_json=json.dumps(BASELINE_PROTECTION))
     except gh.GhError as exc:
         raise SafetyCheckError(
             f"branch '{default_branch}' is unprotected and the baseline "
@@ -148,7 +158,7 @@ def check_metrics_branch(con: Console, repo: gh.Repo) -> None:
         return
     try:
         gh.api(f"repos/{repo.slug}/branches/{METRICS_BRANCH}/protection",
-               method="PUT", input_json=METRICS_PROTECTION)
+               method="PUT", input_json=json.dumps(METRICS_PROTECTION))
     except gh.GhError as exc:
         raise SafetyCheckError(
             f"branch '{METRICS_BRANCH}' is unprotected and could not be protected: {exc}"
