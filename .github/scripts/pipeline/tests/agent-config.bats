@@ -125,3 +125,51 @@ EOF
   run "$PIPELINE_DIR/agent-config.sh" coder
   [ "$status" -ne 0 ]
 }
+
+@test "refiner's built-in disallowed_tools blocks Bash and Task" {
+  export INTERNS_CONFIG="$BATS_TEST_TMPDIR/none.yml"
+  run "$PIPELINE_DIR/agent-config.sh" refiner
+  [ "$status" -eq 0 ]
+  [[ "$(out disallowed_tools)" == *"Bash"* ]]
+  [[ "$(out disallowed_tools)" == *"Task"* ]]
+}
+
+@test "coder's built-in disallowed_tools does not block Bash, Write, or Edit" {
+  export INTERNS_CONFIG="$BATS_TEST_TMPDIR/none.yml"
+  run "$PIPELINE_DIR/agent-config.sh" coder
+  [ "$status" -eq 0 ]
+  disallowed=",$(out disallowed_tools),"
+  [[ "$disallowed" != *",Bash,"* ]]
+  [[ "$disallowed" != *",Write,"* ]]
+  [[ "$disallowed" != *",Edit,"* ]]
+  [[ "$disallowed" == *",Task,"* ]]
+}
+
+@test "reviewer's built-in disallowed_tools does not block Bash" {
+  export INTERNS_CONFIG="$BATS_TEST_TMPDIR/none.yml"
+  run "$PIPELINE_DIR/agent-config.sh" reviewer
+  [ "$status" -eq 0 ]
+  [[ "$(out disallowed_tools)" != *"Bash"* ]]
+}
+
+@test "agents.<name>.disallowed_tools overrides the built-in" {
+  cat >"$CONFIG" <<'EOF'
+agents:
+  refiner:
+    disallowed_tools: [Bash, Task]
+EOF
+  run "$PIPELINE_DIR/agent-config.sh" refiner
+  [ "$status" -eq 0 ]
+  [ "$(out disallowed_tools)" = "Bash,Task" ]
+}
+
+@test "rejects disallowed_tools that isn't a list" {
+  cat >"$CONFIG" <<'EOF'
+agents:
+  refiner:
+    disallowed_tools: "Bash,Task"
+EOF
+  run "$PIPELINE_DIR/agent-config.sh" refiner
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"must be a YAML list"* ]]
+}

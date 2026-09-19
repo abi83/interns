@@ -53,7 +53,12 @@
           "minimum": 16000,
           "description": "Safety ceiling, not a cost lever. Lowering it truncates edits and review bodies mid-write."
         },
-        "cost_warn_usd": { "type": "number", "exclusiveMinimum": 0 }
+        "cost_warn_usd": { "type": "number", "exclusiveMinimum": 0 },
+        "disallowed_tools": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Passed to --disallowedTools, overriding (not merging with) the phase's built-in default."
+        }
       }
     }
   }

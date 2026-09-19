@@ -2,15 +2,19 @@
 #
 # Resolves the effective execution limits for one agent job and appends them
 # to $GITHUB_OUTPUT (model, max_turns, timeout_minutes, max_output_tokens,
-# cost_warn_usd, wiki_enabled, wiki_repo). The workflow wires those into
-# --model / --max-turns / CLAUDE_CODE_MAX_OUTPUT_TOKENS / the step timeout,
-# passes cost_warn_usd to run-summary.sh, and uses wiki_enabled/wiki_repo to
-# decide whether to check out a wiki.
+# cost_warn_usd, disallowed_tools, wiki_enabled, wiki_repo). The workflow
+# wires those into --model / --max-turns / --disallowedTools /
+# CLAUDE_CODE_MAX_OUTPUT_TOKENS / the step timeout, passes cost_warn_usd to
+# run-summary.sh, and uses wiki_enabled/wiki_repo to decide whether to check
+# out a wiki.
 #
 # Precedence per key: agents.<name>.<key> > defaults.<key> > built-in default.
 # The config file is optional — with no file every key falls through to the
 # built-in. There is no other override layer (no Actions variables): one
 # file, one fallback.
+#
+# disallowed_tools is a YAML list in the config file but a comma-joined
+# string everywhere downstream (GITHUB_OUTPUT, --disallowedTools).
 #
 # A malformed file or an unknown agent/key exits non-zero; the job's
 # `Flag failure` step then posts the standard "pipeline failed" comment.
@@ -24,7 +28,7 @@ agent="${1:?usage: agent-config.sh <refiner|estimator|coder|reviewer>}"
 config="${INTERNS_CONFIG:-.github/interns.yml}"
 
 known_agents=" refiner estimator coder reviewer "
-known_keys=" model max_turns timeout_minutes max_output_tokens cost_warn_usd "
+known_keys=" model max_turns timeout_minutes max_output_tokens cost_warn_usd disallowed_tools "
 
 # The refiner runs a codebase investigation pass before rewriting the issue
 # body, so the whole pipeline defaults to claude-sonnet-5 rather than a
@@ -37,6 +41,20 @@ builtin_default() {
     timeout_minutes)   echo "30" ;;
     max_output_tokens) echo "32000" ;;
     cost_warn_usd)     echo "1.50" ;;
+    disallowed_tools)  builtin_default_disallowed_tools "$2" ;;
+  esac
+}
+
+# coder needs Write/Edit, and coder/reviewer both need Bash (scoped to
+# specific patterns by their own --allowedTools) — everyone else stays blocked.
+builtin_default_disallowed_tools() {
+  case "$1" in
+    refiner | estimator)
+      echo "Bash,Task,ScheduleWakeup,WebSearch,WebFetch,Write,Edit,NotebookEdit" ;;
+    coder)
+      echo "Task,ScheduleWakeup,WebSearch,WebFetch,NotebookEdit" ;;
+    reviewer)
+      echo "Task,ScheduleWakeup,WebSearch,WebFetch,Write,Edit,NotebookEdit" ;;
   esac
 }
 
@@ -87,6 +105,11 @@ if [[ -f "$config" ]]; then
     [[ -n "$v" && "$v" != "null" ]] && printf -v "file_$k" '%s' "$v"
   done
 
+  k=disallowed_tools
+  v=$(yq ".agents.$agent.$k // .defaults.$k // [] | join(\",\")" "$config") \
+    || die "agents.$agent.$k / defaults.$k must be a YAML list of tool names"
+  [[ -n "$v" ]] && printf -v "file_$k" '%s' "$v"
+
   if [[ "$(yq '.wiki.enabled // false' "$config")" == "true" ]]; then
     wiki_enabled=true
     wiki_repo=$(yq '.wiki.url // ""' "$config")
@@ -98,7 +121,7 @@ resolve() {
   local key="$1" fvar
   fvar="file_$key"
   if [[ -n "${!fvar:-}" ]]; then printf '%s' "${!fvar}"; return; fi
-  builtin_default "$key"
+  builtin_default "$key" "$agent"
 }
 
 model=$(resolve model)
@@ -106,6 +129,7 @@ max_turns=$(resolve max_turns)
 timeout_minutes=$(resolve timeout_minutes)
 max_output_tokens=$(resolve max_output_tokens)
 cost_warn_usd=$(resolve cost_warn_usd)
+disallowed_tools=$(resolve disallowed_tools)
 
 is_int_ge() { [[ "$1" =~ ^[0-9]+$ ]] && [[ "$1" -ge "$2" ]]; }
 is_num_gt0() { awk -v x="$1" 'BEGIN { exit !(x + 0 > 0) }'; }
@@ -116,6 +140,7 @@ is_int_ge "$timeout_minutes" 1 || die "timeout_minutes must be a positive intege
 is_int_ge "$max_output_tokens" 16000 \
   || die "max_output_tokens must be an integer >= 16000 (got '$max_output_tokens') — it is a safety ceiling, not a cost lever"
 is_num_gt0 "$cost_warn_usd" || die "cost_warn_usd must be a positive number (got '$cost_warn_usd')"
+[[ "$disallowed_tools" != *$'\n'* ]] || die "disallowed_tools must not contain newlines"
 
 {
   echo "model=$model"
@@ -123,8 +148,9 @@ is_num_gt0 "$cost_warn_usd" || die "cost_warn_usd must be a positive number (got
   echo "timeout_minutes=$timeout_minutes"
   echo "max_output_tokens=$max_output_tokens"
   echo "cost_warn_usd=$cost_warn_usd"
+  echo "disallowed_tools=$disallowed_tools"
   echo "wiki_enabled=$wiki_enabled"
   echo "wiki_repo=$wiki_repo"
 } >> "${GITHUB_OUTPUT:-/dev/stdout}"
 
-echo "agent-config[$agent]: model=$model max_turns=$max_turns timeout_minutes=$timeout_minutes max_output_tokens=$max_output_tokens cost_warn_usd=$cost_warn_usd wiki_enabled=$wiki_enabled" >&2
+echo "agent-config[$agent]: model=$model max_turns=$max_turns timeout_minutes=$timeout_minutes max_output_tokens=$max_output_tokens cost_warn_usd=$cost_warn_usd disallowed_tools=$disallowed_tools wiki_enabled=$wiki_enabled" >&2

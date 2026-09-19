@@ -27,11 +27,44 @@ agents:
   # turns for the same budget.
   refiner:
     max_turns: 35
+    # Shrink an agent's list only once you've confirmed it needs the tool — this is a security ceiling, not a convenience knob.
+    disallowed_tools:
+      - Bash
+      - Task
+      - ScheduleWakeup
+      - WebSearch
+      - WebFetch
+      - Write
+      - Edit
+      - NotebookEdit
   estimator:
     max_turns: 30
+    disallowed_tools:
+      - Bash
+      - Task
+      - ScheduleWakeup
+      - WebSearch
+      - WebFetch
+      - Write
+      - Edit
+      - NotebookEdit
   # The coder does the most work per run, so it gets a longer timeout and turn budget.
   coder:
     max_turns: 75
     timeout_minutes: 30
+    disallowed_tools:
+      - Task
+      - ScheduleWakeup
+      - WebSearch
+      - WebFetch
+      - NotebookEdit
   reviewer:
     max_turns: 45
+    disallowed_tools:
+      - Task
+      - ScheduleWakeup
+      - WebSearch
+      - WebFetch
+      - Write
+      - Edit
+      - NotebookEdit

@@ -20,6 +20,8 @@ outputs:
     value: ${{ steps.resolve.outputs.max_output_tokens }}
   cost_warn_usd:
     value: ${{ steps.resolve.outputs.cost_warn_usd }}
+  disallowed_tools:
+    value: ${{ steps.resolve.outputs.disallowed_tools }}
   wiki_enabled:
     value: ${{ steps.resolve.outputs.wiki_enabled }}
   wiki_repo:
