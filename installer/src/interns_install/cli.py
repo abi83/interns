@@ -12,11 +12,6 @@ The caller-stub PR is opened here too: it adds files under
 `.github/workflows/`, which `GITHUB_TOKEN` cannot push, so `install.yml` could
 never open it (see #74). `install.yml` is left with just label sync and the
 best-effort secret check, both fine under `github.token`.
-
-This module is orchestration only: parse args, decide what to run, render
-output via `Console`. The business logic it drives lives in `apps.py` (mint
-vs. reuse an App), `install_files.py` (which files are missing or drifted),
-and `gh.py` (every mutation).
 """
 
 from __future__ import annotations

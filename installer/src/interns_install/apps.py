@@ -195,12 +195,9 @@ class ManifestServer:
         self._httpd.server_close()
 
 
-def _forget(secret: str) -> None:  # noqa: ARG001 - see docstring
-    """Called once a decoded secret (a PEM) is no longer needed. This does
-    *not* scrub the string from memory -- in CPython, strings are immutable
-    and may already be copied or interned, so dropping a reference is not a
-    real mitigation. It exists only to make "we're done with this secret"
-    explicit at the call site."""
+def _forget(secret: str) -> None:  # noqa: ARG001
+    """Marks a PEM as done with, not a real scrub -- CPython strings are
+    immutable and may already be copied elsewhere in memory."""
 
 
 def use_existing_app(con: Console, repo: gh.Repo, spec: AppSpec,
@@ -280,16 +277,10 @@ def provision_app(con: Console, repo: gh.Repo, spec: AppSpec,
         use_existing_app(con, repo, spec, client_id, name, existing_secrets)
         return
 
-    # GitHub's Apps API only resolves *public* Apps by name; this installer
-    # always mints private ones (see build_manifest), and GET /apps/{slug}
-    # 404s on those even for the owning account's own token -- confirmed
-    # hands-on, not a scope/rate-limit fluke. There is no automated way to
-    # tell whether you already own '{name}', so ask instead of guessing and
-    # walking into a mint that GitHub will reject as a name collision. Under
-    # --yes there's no one to ask -- pass --{spec.key}-client-id instead. Ask
-    # this before "create a new one?" -- "Set up now? [Y/n]" read as "create
-    # a new App", and answering "n" (meaning "no, I have one already") ended
-    # up skipping the App entirely instead of reaching the reuse question.
+    # GET /apps/{slug} 404s on private Apps even for their own owner, so we
+    # can't detect an existing one -- ask instead of risking a name-collision
+    # mint. Ask this before "create a new one?": reversed, "no" read as "no,
+    # don't set one up" and skipped the App entirely.
     if not con.assume_yes:
         settings_url = settings_app_url(repo.owner, repo.is_org, name)
         if con.confirm(f"Do you already have a GitHub App named '{name}'? "

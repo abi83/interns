@@ -1,8 +1,5 @@
-"""Business logic for the caller-stub / config files a consumer repo needs:
-which are missing or drifted from the `abi83/interns` template, and the PR
-body that explains the change. `cli.py` owns deciding whether to open that
-PR and rendering the result; this module only decides *what* would change.
-"""
+"""Which caller-stub / config files a consumer repo is missing or has
+drifted from the `abi83/interns` template, and the PR body describing it."""
 
 from __future__ import annotations
 
