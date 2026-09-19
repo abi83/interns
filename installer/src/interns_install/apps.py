@@ -14,8 +14,12 @@ import json
 import secrets
 import threading
 import urllib.parse
+import webbrowser
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, HTTPServer
+
+from . import gh
+from .console import Console
 
 # Permission matrix is fixed by the pipeline's needs (see README / #10):
 # push branches, open and review PRs, edit issues and labels, read check runs.
@@ -189,3 +193,150 @@ class ManifestServer:
     def __exit__(self, *exc):
         self._httpd.shutdown()
         self._httpd.server_close()
+
+
+def _forget(secret: str) -> None:  # noqa: ARG001 - see docstring
+    """Called once a decoded secret (a PEM) is no longer needed. This does
+    *not* scrub the string from memory -- in CPython, strings are immutable
+    and may already be copied or interned, so dropping a reference is not a
+    real mitigation. It exists only to make "we're done with this secret"
+    explicit at the call site."""
+
+
+def use_existing_app(con: Console, repo: gh.Repo, spec: AppSpec,
+                     client_id: str | None, slug: str,
+                     existing_secrets: list[str] | None) -> None:
+    """Reuse an account-wide App: write this repo's Client-ID variable and
+    private key secret, and prompt to install it here. Never mints, never
+    reads a key back — the operator pastes a PEM (reused from another repo,
+    or freshly generated on the App's settings page; adding a key does not
+    revoke others).
+    """
+    settings_url = settings_app_url(repo.owner, repo.is_org, slug)
+    have_key = existing_secrets is not None and spec.key_secret in existing_secrets
+
+    if con.dry_run:
+        con.say(f"existing {spec.key} App — {settings_url}")
+        con.mutation(f"set variable {spec.client_id_var} (existing {spec.key} App)")
+        if not have_key:
+            con.mutation(f"{gh.secret_verb(spec.key_secret, existing_secrets)} "
+                         f"secret {spec.key_secret} (pasted PEM)")
+        con.note_manual(f"install the existing {spec.key} App on {repo.slug}")
+        return
+
+    if client_id is None:
+        con.say(f"its Client ID (and 'Generate a private key') is on: {settings_url}")
+        if con.assume_yes:
+            con.note_manual(f"pass --{spec.key}-client-id (from {settings_url}) and set "
+                            f"{spec.key_secret}, then install the App on {repo.slug}")
+            return
+        client_id = con.prompt(f"{spec.client_id_var} — the App's Client ID, "
+                               f"e.g. 'Iv23li...' (blank to skip):")
+        if not client_id:
+            con.note_manual(f"set {spec.client_id_var} / {spec.key_secret} for the existing "
+                            f"{spec.key} App, then install it on {repo.slug}")
+            return
+    else:
+        con.say(f"reusing {spec.key} App {client_id} — {settings_url}")
+
+    if con.mutation(f"set variable {spec.client_id_var} = {client_id}"):
+        gh.set_variable(repo.slug, spec.client_id_var, client_id)
+
+    if have_key:
+        con.say(f"{spec.key_secret} is already set — leaving it (its key stays valid; "
+                "keys held by other repos are unaffected)")
+    elif con.assume_yes:
+        con.note_manual(f"set the {spec.key_secret} secret (a PEM private key for "
+                        f"'{slug}')")
+    else:
+        pem = con.prompt_multiline_secret(
+            f"Paste a private key (PEM) for the '{slug}' App. This repo needs its "
+            f"own copy in {spec.key_secret}; GitHub Actions secrets aren't shared "
+            f"between repos. Reuse a .pem you saved for another repo, or generate "
+            f"one at {settings_url}. Blank to set the secret yourself later:")
+        if pem and con.mutation(
+                f"{gh.secret_verb(spec.key_secret, existing_secrets)} secret {spec.key_secret}"):
+            gh.set_secret(repo.slug, spec.key_secret, pem)
+        elif not pem:
+            con.note_manual(f"set the {spec.key_secret} secret (PEM private key)")
+        _forget(pem)
+
+    install_url = f"https://github.com/apps/{slug}/installations/new"
+    con.note_manual(f"confirm the {spec.key} App is installed on {repo.slug}: {install_url}")
+    if not con.assume_yes:
+        con.say(f"opening your browser to install '{slug}' on {repo.slug} — "
+                "pick the repo and click Install")
+        webbrowser.open(install_url)
+
+
+def provision_app(con: Console, repo: gh.Repo, spec: AppSpec,
+                  client_id: str | None,
+                  existing_secrets: list[str] | None) -> None:
+    name = spec.name_for(repo.owner)
+    con.step(f"GitHub App: {name} ({spec.key})")
+
+    if client_id is not None:
+        con.say(f"--{spec.key}-client-id given — reusing App {client_id}, skipping the mint")
+        use_existing_app(con, repo, spec, client_id, name, existing_secrets)
+        return
+
+    # GitHub's Apps API only resolves *public* Apps by name; this installer
+    # always mints private ones (see build_manifest), and GET /apps/{slug}
+    # 404s on those even for the owning account's own token -- confirmed
+    # hands-on, not a scope/rate-limit fluke. There is no automated way to
+    # tell whether you already own '{name}', so ask instead of guessing and
+    # walking into a mint that GitHub will reject as a name collision. Under
+    # --yes there's no one to ask -- pass --{spec.key}-client-id instead. Ask
+    # this before "create a new one?" -- "Set up now? [Y/n]" read as "create
+    # a new App", and answering "n" (meaning "no, I have one already") ended
+    # up skipping the App entirely instead of reaching the reuse question.
+    if not con.assume_yes:
+        settings_url = settings_app_url(repo.owner, repo.is_org, name)
+        if con.confirm(f"Do you already have a GitHub App named '{name}'? "
+                       f"(check {settings_url} if unsure)", default=False):
+            use_existing_app(con, repo, spec, None, name, existing_secrets)
+            return
+
+    if not con.confirm(f"Create a new App '{name}' now?", default=True):
+        con.note_manual(f"create the {spec.key} App (or point at an existing one with "
+                        f"--{spec.key}-client-id) and set {spec.client_id_var} / {spec.key_secret}")
+        return
+
+    action_url = settings_new_url(repo.owner, repo.is_org)
+
+    if con.dry_run:
+        con.mutation(f"open {action_url} to create App '{name}' via manifest")
+        con.mutation(f"{gh.secret_verb(spec.key_secret, existing_secrets)} secret {spec.key_secret}")
+        con.mutation(f"set variable {spec.client_id_var}")
+        con.note_manual(f"install the {spec.key} App on {repo.slug}")
+        return
+
+    with ManifestServer(action_url, lambda redirect: build_manifest(
+        name, repo.slug, redirect, spec.description, spec.permissions)) as server:
+        con.say(f"opening your browser to create '{name}' — "
+                "click 'Create GitHub App'")
+        con.say(f"if nothing opened, visit: {server.base_url}")
+        webbrowser.open(server.base_url)
+        code = server.wait_for_code()
+
+    conv = gh.convert_manifest(code)
+    client_id = str(conv["client_id"])
+    slug = conv.get("slug", name)
+    pem = conv["pem"]
+
+    # Resilient ordering: the private key is returned exactly once, so it goes
+    # straight into the secret before we do anything else.
+    if con.mutation(f"{gh.secret_verb(spec.key_secret, existing_secrets)} secret {spec.key_secret}"):
+        gh.set_secret(repo.slug, spec.key_secret, pem)
+    _forget(pem)
+
+    if con.mutation(f"set variable {spec.client_id_var} = {client_id}"):
+        gh.set_variable(repo.slug, spec.client_id_var, client_id)
+
+    con.say(f"App '{slug}' created (client id {client_id})")
+    install_url = f"https://github.com/apps/{slug}/installations/new"
+    con.note_manual(f"install the {spec.key} App on {repo.slug}: {install_url}")
+    if not con.assume_yes:
+        con.say(f"opening your browser to install '{slug}' on {repo.slug} — "
+                "pick the repo and click Install")
+        webbrowser.open(install_url)

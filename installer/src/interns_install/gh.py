@@ -108,6 +108,19 @@ def list_secret_names(repo: str) -> list[str] | None:
     return [s["name"] for s in (data or {}).get("secrets", [])]
 
 
+def secret_verb(name: str, existing: list[str] | None) -> str:
+    """What a `set_secret(name, ...)` call would do, for status messages --
+    "set" when we can't tell (scope-blind), else "add" or "overwrite"."""
+    if existing is None:
+        return "set"
+    return "overwrite" if name in existing else "add"
+
+
+def default_branch(repo: str) -> str:
+    data = api(f"repos/{repo}")
+    return data.get("default_branch", "main") if isinstance(data, dict) else "main"
+
+
 def set_secret(repo: str, name: str, value: str) -> None:
     # `--body` takes its argument as the literal value -- "-" is not a stdin
     # sentinel to gh, so passing it wrote the literal string "-" every time
