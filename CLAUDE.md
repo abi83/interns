@@ -1,7 +1,5 @@
 # CLAUDE.md
 
-Guidance for agents working in this repo.
-
 ## Stack
 
 Python, stdlib only. Bash scripts are being migrated to Python (abi83/interns#155).
@@ -33,7 +31,7 @@ section headers. When in doubt, cut it.
 
 This pipeline runs in any consumer repo. Keep code, comments, and docs free of
 references to specific consumer repos or their issue numbers — refer to "the
-consumer repo" generically. Cross-repo links belong in the README only.
+consumer repo" generically.
 
 ## Issue tracking
 
