@@ -16,6 +16,7 @@ from server import (
     PushRefusedError,
     RelatedIssue,
     _fetch_issue,
+    _load_label_names,
     _roll_up_size,
     _write_github_output,
     apply_estimation_outcome,
@@ -77,6 +78,54 @@ def _make_proc(stdout: str = "", returncode: int = 0, stderr: str = "") -> Magic
 
 
 # ---------------------------------------------------------------------------
+# _load_label_names
+# ---------------------------------------------------------------------------
+
+
+def test_load_label_names_missing_file(tmp_path):
+    with patch.object(server, "_LABELS_JSON", tmp_path / "does-not-exist.json"):
+        assert _load_label_names() == []
+
+
+def test_load_label_names_corrupt_json(tmp_path):
+    bad_file = tmp_path / "labels.json"
+    bad_file.write_text("{not valid json")
+    with patch.object(server, "_LABELS_JSON", bad_file):
+        assert _load_label_names() == []
+
+
+def test_load_label_names_missing_name_key(tmp_path):
+    bad_file = tmp_path / "labels.json"
+    bad_file.write_text(json.dumps({"labels": [{"color": "fff"}]}))
+    with patch.object(server, "_LABELS_JSON", bad_file):
+        assert _load_label_names() == []
+
+
+def test_load_label_names_valid_file(tmp_path):
+    good_file = tmp_path / "labels.json"
+    good_file.write_text(json.dumps({"labels": [{"name": "bug"}, {"name": "type:bug"}]}))
+    with patch.object(server, "_LABELS_JSON", good_file):
+        assert _load_label_names() == ["bug", "type:bug"]
+
+
+def test_known_labels_are_loaded_once_at_import_time(tmp_path):
+    """_KNOWN_LABELS/_LABEL_DESCRIPTION are computed once at import, from the
+    labels.json on disk at that time. Changing the file afterwards has no
+    effect on the module-level cache -- this is intentional (labels.json only
+    changes via a separate PR, never mid-process), so _load_label_names is not
+    re-run on every tool call.
+    """
+    original = list(server._KNOWN_LABELS)
+    good_file = tmp_path / "labels.json"
+    good_file.write_text(json.dumps({"labels": [{"name": "brand-new-label"}]}))
+    with patch.object(server, "_LABELS_JSON", good_file):
+        # A fresh call reflects the new file...
+        assert _load_label_names() == ["brand-new-label"]
+        # ...but the cached module-level constants computed at import do not.
+        assert server._KNOWN_LABELS == original
+
+
+# ---------------------------------------------------------------------------
 # _fetch_issue
 # ---------------------------------------------------------------------------
 
@@ -110,6 +159,14 @@ def test_fetch_issue_null_body():
         with patch.object(server, "_REPO", "owner/repo"):
             issue = _fetch_issue(42)
     assert issue.body == ""
+
+
+def test_fetch_issue_surfaces_gh_error():
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.return_value = _make_proc(returncode=1, stderr="gh: could not resolve to a repository")
+        with patch.object(server, "_REPO", "owner/repo"):
+            with pytest.raises(GhCommandError, match="could not resolve"):
+                _fetch_issue(42)
 
 
 def test_fetch_issue_no_parent():
@@ -172,6 +229,14 @@ def test_list_issues_with_label():
     assert "bug" in cmd
 
 
+def test_list_issues_surfaces_gh_error():
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.return_value = _make_proc(returncode=1, stderr="gh: repository not found")
+        with patch.object(server, "_REPO", "owner/repo"):
+            with pytest.raises(GhCommandError, match="repository not found"):
+                list_issues()
+
+
 # ---------------------------------------------------------------------------
 # comment_issue
 # ---------------------------------------------------------------------------
@@ -190,6 +255,14 @@ def test_comment_issue():
     assert "42" in cmd
     assert "--body" in cmd
     assert "Hello" in cmd
+
+
+def test_comment_issue_surfaces_gh_error():
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.return_value = _make_proc(returncode=1, stderr="gh: issue not found")
+        with patch.object(server, "_REPO", "owner/repo"):
+            with pytest.raises(GhCommandError, match="issue not found"):
+                comment_issue(issue_number=42, body="Hello")
 
 
 # ---------------------------------------------------------------------------
@@ -225,6 +298,14 @@ def test_edit_issue_with_title():
 def test_edit_issue_rejects_multiline_title():
     with pytest.raises(InvalidInputError, match="single line"):
         edit_issue(issue_number=5, body="Some body content here", title="Line one\nLine two")
+
+
+def test_edit_issue_surfaces_gh_error():
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.return_value = _make_proc(returncode=1, stderr="gh: issue not found")
+        with patch.object(server, "_REPO", "owner/repo"):
+            with pytest.raises(GhCommandError, match="issue not found"):
+                edit_issue(issue_number=5, body="New body content here")
 
 
 # ---------------------------------------------------------------------------
@@ -276,6 +357,25 @@ def test_edit_issue_labels_noop():
     assert result == "Nothing to do"
 
 
+def test_edit_issue_labels_surfaces_gh_error_on_label_list():
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.return_value = _make_proc(returncode=1, stderr="gh: not authenticated")
+        with patch.object(server, "_REPO", "owner/repo"):
+            with pytest.raises(GhCommandError, match="not authenticated"):
+                edit_issue_labels(issue_number=7, add_labels=["bug"])
+
+
+def test_edit_issue_labels_surfaces_gh_error_on_edit():
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.side_effect = [
+            _make_proc("bug"),  # label list succeeds
+            _make_proc(returncode=1, stderr="gh: issue not found"),  # edit fails
+        ]
+        with patch.object(server, "_REPO", "owner/repo"):
+            with pytest.raises(GhCommandError, match="issue not found"):
+                edit_issue_labels(issue_number=7, add_labels=["bug"])
+
+
 # ---------------------------------------------------------------------------
 # comment_pr
 # ---------------------------------------------------------------------------
@@ -292,6 +392,14 @@ def test_comment_pr():
     assert "comment" in cmd
     assert "99" in cmd
     assert "--body" in cmd
+
+
+def test_comment_pr_surfaces_gh_error():
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.return_value = _make_proc(returncode=1, stderr="gh: pull request not found")
+        with patch.object(server, "_REPO", "owner/repo"):
+            with pytest.raises(GhCommandError, match="pull request not found"):
+                comment_pr(pr_number=99, body="LGTM")
 
 
 # ---------------------------------------------------------------------------
@@ -366,6 +474,14 @@ def test_submit_pr_review_rejects_bad_event():
         submit_pr_review(pr_number=10, event="COMMENT", body="hi")
 
 
+def test_submit_pr_review_surfaces_gh_error():
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.return_value = _make_proc(returncode=1, stderr="gh: validation failed")
+        with patch.object(server, "_REPO", "owner/repo"):
+            with pytest.raises(GhCommandError, match="validation failed"):
+                submit_pr_review(pr_number=10, event="APPROVE", body="Looks good")
+
+
 # ---------------------------------------------------------------------------
 # push_branch
 # ---------------------------------------------------------------------------
@@ -424,6 +540,16 @@ def test_push_branch_rejects_protected_paths():
     )
     with patch("server.subprocess.run", side_effect=seq):
         with pytest.raises(PushRefusedError, match="protected paths"):
+            push_branch()
+
+
+def test_push_branch_surfaces_git_error():
+    seq = [
+        _make_proc("my-branch"),  # rev-parse --abbrev-ref HEAD
+        _make_proc(returncode=1, stderr="fatal: unable to access origin"),  # fetch fails
+    ]
+    with patch("server.subprocess.run", side_effect=seq):
+        with pytest.raises(GhCommandError, match="unable to access origin"):
             push_branch()
 
 
@@ -564,6 +690,14 @@ def test_apply_refinement_outcome_invalid():
         apply_refinement_outcome(issue_number=5, outcome="done")
 
 
+def test_apply_refinement_outcome_surfaces_gh_error():
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.return_value = _make_proc(returncode=1, stderr="gh: issue not found")
+        with patch.object(server, "_REPO", "owner/repo"):
+            with pytest.raises(GhCommandError, match="issue not found"):
+                apply_refinement_outcome(issue_number=5, outcome="needs-attention")
+
+
 # ---------------------------------------------------------------------------
 # apply_estimation_outcome
 # ---------------------------------------------------------------------------
@@ -614,6 +748,14 @@ def test_apply_estimation_outcome_missing_scores():
 def test_apply_estimation_outcome_invalid():
     with pytest.raises(InvalidInputError):
         apply_estimation_outcome(issue_number=7, outcome="done")
+
+
+def test_apply_estimation_outcome_surfaces_gh_error():
+    with patch("server.subprocess.run") as mock_run:
+        mock_run.return_value = _make_proc(returncode=1, stderr="gh: issue not found")
+        with patch.object(server, "_REPO", "owner/repo"):
+            with pytest.raises(GhCommandError, match="issue not found"):
+                apply_estimation_outcome(issue_number=7, outcome="needs-attention")
 
 
 def test_write_github_output_no_github_output_env():

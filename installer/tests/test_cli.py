@@ -1,7 +1,7 @@
 import unittest
 from unittest import mock
 
-from interns_install import cli, gh, install_files
+from interns_install import cli, gh, install_files, safety
 from interns_install.cli import (
     _parse_args,
     _stage_install_files,
@@ -141,6 +141,127 @@ class StageInstallFilesTests(unittest.TestCase):
             _stage_install_files(con, self._repo(), "main", issue_templates=False)
         collect.assert_not_called()
         self.assertTrue(con.manual)
+
+
+class MainTests(unittest.TestCase):
+    """End-to-end tests for main()'s wiring: argument parsing through to exit
+    code, with gh/safety/apps mocked at their module boundary so each branch
+    of the try/except structure in main() is exercised on its own."""
+
+    def _patch_happy_path(self):
+        """Patches every collaborator main() calls so a full run succeeds;
+        each test overrides one to force a specific exit path."""
+        return mock.patch.multiple(
+            cli.gh,
+            ensure_available=mock.DEFAULT,
+            current_repo=mock.DEFAULT,
+            auth_scopes=mock.DEFAULT,
+            list_secret_names=mock.DEFAULT,
+            default_branch=mock.DEFAULT,
+        )
+
+    def test_success_path_returns_zero(self):
+        with self._patch_happy_path() as m, \
+             mock.patch.object(cli.safety, "check_branch_protection"), \
+             mock.patch.object(cli.safety, "check_pages"), \
+             mock.patch.object(cli.safety, "check_metrics_branch"), \
+             mock.patch.object(cli, "provision_app"), \
+             mock.patch.object(cli, "_write_oauth_token"), \
+             mock.patch.object(cli, "_handoff"):
+            m["current_repo"].return_value = _repo()
+            m["auth_scopes"].return_value = {"repo", "workflow"}
+            m["list_secret_names"].return_value = []
+            m["default_branch"].return_value = "main"
+            code = cli.main(["--yes"])
+        self.assertEqual(code, 0)
+
+    def test_gh_not_available_exits_one_without_summary(self):
+        with mock.patch.object(cli.gh, "ensure_available", side_effect=gh.GhError("gh not on PATH")), \
+             mock.patch.object(Console, "summary") as summary:
+            code = cli.main(["--yes"])
+        self.assertEqual(code, 1)
+        summary.assert_not_called()
+
+    def test_current_repo_failure_exits_one_without_summary(self):
+        with mock.patch.object(cli.gh, "ensure_available"), \
+             mock.patch.object(cli.gh, "current_repo", side_effect=gh.GhError("no repo here")), \
+             mock.patch.object(Console, "summary") as summary:
+            code = cli.main(["--yes"])
+        self.assertEqual(code, 1)
+        summary.assert_not_called()
+
+    def test_safety_check_gh_error_exits_one_with_summary(self):
+        with self._patch_happy_path() as m, \
+             mock.patch.object(cli.safety, "check_branch_protection",
+                               side_effect=gh.GhError("could not read protection")), \
+             mock.patch.object(Console, "summary") as summary:
+            m["current_repo"].return_value = _repo()
+            m["auth_scopes"].return_value = {"repo", "workflow"}
+            m["list_secret_names"].return_value = []
+            m["default_branch"].return_value = "main"
+            code = cli.main(["--yes"])
+        self.assertEqual(code, 1)
+        summary.assert_called_once()
+
+    def test_safety_check_error_exits_one_with_summary(self):
+        with self._patch_happy_path() as m, \
+             mock.patch.object(cli.safety, "check_branch_protection"), \
+             mock.patch.object(cli.safety, "check_pages",
+                               side_effect=safety.SafetyCheckError("Pages is public")), \
+             mock.patch.object(Console, "summary") as summary:
+            m["current_repo"].return_value = _repo()
+            m["auth_scopes"].return_value = {"repo", "workflow"}
+            m["list_secret_names"].return_value = []
+            m["default_branch"].return_value = "main"
+            code = cli.main(["--yes"])
+        self.assertEqual(code, 1)
+        summary.assert_called_once()
+
+    def test_provisioning_gh_error_exits_one_with_summary(self):
+        with self._patch_happy_path() as m, \
+             mock.patch.object(cli.safety, "check_branch_protection"), \
+             mock.patch.object(cli.safety, "check_pages"), \
+             mock.patch.object(cli.safety, "check_metrics_branch"), \
+             mock.patch.object(cli, "provision_app", side_effect=gh.GhError("mint failed")), \
+             mock.patch.object(Console, "summary") as summary:
+            m["current_repo"].return_value = _repo()
+            m["auth_scopes"].return_value = {"repo", "workflow"}
+            m["list_secret_names"].return_value = []
+            m["default_branch"].return_value = "main"
+            code = cli.main(["--yes"])
+        self.assertEqual(code, 1)
+        summary.assert_called_once()
+
+    def test_provisioning_timeout_exits_one_with_summary(self):
+        with self._patch_happy_path() as m, \
+             mock.patch.object(cli.safety, "check_branch_protection"), \
+             mock.patch.object(cli.safety, "check_pages"), \
+             mock.patch.object(cli.safety, "check_metrics_branch"), \
+             mock.patch.object(cli, "provision_app", side_effect=TimeoutError("callback never arrived")), \
+             mock.patch.object(Console, "summary") as summary:
+            m["current_repo"].return_value = _repo()
+            m["auth_scopes"].return_value = {"repo", "workflow"}
+            m["list_secret_names"].return_value = []
+            m["default_branch"].return_value = "main"
+            code = cli.main(["--yes"])
+        self.assertEqual(code, 1)
+        summary.assert_called_once()
+
+    def test_skip_handoff_does_not_run_workflow_preflight_or_handoff(self):
+        with self._patch_happy_path() as m, \
+             mock.patch.object(cli.safety, "check_branch_protection"), \
+             mock.patch.object(cli.safety, "check_pages"), \
+             mock.patch.object(cli.safety, "check_metrics_branch"), \
+             mock.patch.object(cli, "provision_app"), \
+             mock.patch.object(cli, "_write_oauth_token"), \
+             mock.patch.object(cli, "_handoff") as handoff:
+            m["current_repo"].return_value = _repo()
+            m["list_secret_names"].return_value = []
+            m["default_branch"].return_value = "main"
+            code = cli.main(["--yes", "--skip-handoff"])
+        self.assertEqual(code, 0)
+        m["auth_scopes"].assert_not_called()
+        handoff.assert_not_called()
 
 
 if __name__ == "__main__":

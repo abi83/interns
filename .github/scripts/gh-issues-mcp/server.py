@@ -108,6 +108,9 @@ def _load_label_names() -> list[str]:
         return []
 
 
+# Computed once at import time, not re-read per call: labels.json only changes
+# via a separate PR to this repo, never mid-process, so a stale in-process
+# cache for the lifetime of one server run is an acceptable, intentional trade-off.
 _KNOWN_LABELS = _load_label_names()
 _LABEL_DESCRIPTION = (
     "Label to filter by. Pass '' (or omit) to list all open issues. "
