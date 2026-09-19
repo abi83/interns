@@ -108,11 +108,22 @@ def list_secret_names(repo: str) -> list[str] | None:
     return [s["name"] for s in (data or {}).get("secrets", [])]
 
 
+def secret_verb(name: str, existing: list[str] | None) -> str:
+    """What a `set_secret(name, ...)` call would do, for status messages --
+    "set" when we can't tell (scope-blind), else "add" or "overwrite"."""
+    if existing is None:
+        return "set"
+    return "overwrite" if name in existing else "add"
+
+
+def default_branch(repo: str) -> str:
+    data = api(f"repos/{repo}")
+    return data.get("default_branch", "main") if isinstance(data, dict) else "main"
+
+
 def set_secret(repo: str, name: str, value: str) -> None:
-    # `--body` takes its argument as the literal value -- "-" is not a stdin
-    # sentinel to gh, so passing it wrote the literal string "-" every time
-    # and silently dropped `value`. Omit `--body` entirely; gh then reads
-    # stdin, which is what `input_text` actually provides (#94).
+    # `--body -` is a literal value to gh, not a stdin sentinel -- omit it
+    # entirely so gh falls back to reading stdin, i.e. `input_text` (#94).
     _run(["secret", "set", name, "--repo", repo], input_text=value)
 
 
@@ -124,10 +135,7 @@ def set_variable(repo: str, name: str, value: str) -> None:
 
 def convert_manifest(code: str) -> dict:
     # Plural "app-manifests", not "app-manifest" -- the singular path 404s on
-    # every call (a generic catch-all, not the real route: confirmed via its
-    # generic core rate-limit bucket and docs link, vs. the plural path's
-    # dedicated integration_manifest bucket and the actual manifest-conversion
-    # docs page). This was the entire root cause of #70 (#94).
+    # every call. Root cause of #70 (#94).
     data = api(f"app-manifests/{code}/conversions", method="POST")
     if not isinstance(data, dict) or "pem" not in data:
         raise GhError("manifest conversion did not return a private key")
