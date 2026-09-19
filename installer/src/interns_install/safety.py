@@ -1,23 +1,12 @@
 """Branch-protection and Pages safety checks.
 
-These run locally, using the operator's own admin-scoped `gh` session -- the
-same one interns-install already needs to mint Apps and write secrets.
-Reading or writing branch protection and Pages state needs admin access to
-the repo, which `GITHUB_TOKEN` can never be granted; running the checks here
-instead of in a follow-up Actions workflow means no admin-capable token ever
-has to be stashed as a repo secret.
+Runs locally with the operator's admin-scoped `gh` session -- branch
+protection and Pages both need admin access, which `GITHUB_TOKEN` never has.
 
-Split with `.github/scripts/install/safety-checks.sh`: that script is the
-GITHUB_TOKEN-scoped, in-pipeline check -- it runs on every install.yml
-dispatch and can only verify what GITHUB_TOKEN can read, which is repo
-secret/variable *presence* (not branch protection or Pages, both admin-only).
-This module is the operator-scoped, local-only check -- branch protection,
-Pages, and the metrics branch, none of which GITHUB_TOKEN can read or write.
-Together they cover the full required set; neither owns the other's checks.
-This will collapse into one Python check once safety-checks.sh migrates
-(abi83/interns#155) -- until then, a new requirement must be added to
-whichever module can actually see it, and cross-referenced here if it
-changes what the other one owns.
+Split with `.github/scripts/install/safety-checks.sh`: that script covers
+GITHUB_TOKEN-readable state (secret/variable presence); this module covers
+admin-only state. Collapses into one Python check once that script migrates
+(abi83/interns#155).
 """
 
 from __future__ import annotations

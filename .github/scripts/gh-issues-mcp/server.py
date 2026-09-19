@@ -23,8 +23,7 @@ _LABELS_JSON = pathlib.Path(__file__).parent.parent.parent / "labels.json"
 # Agents are not allowed to push changes to these paths.
 _PROTECTED_PATHS_RE = r"^\.github/(workflows|scripts)/"
 
-# Lifecycle label constants -- named so a typo is a NameError, not a silent
-# orphan label with no lint/compile check catching it.
+# Lifecycle label constants -- a typo here is a NameError, not a silent orphan label.
 STATUS_NEEDS_REFINEMENT = "status:needs-refinement"
 STATUS_REFINED = "status:refined"
 STATUS_NEEDS_ATTENTION = "status:needs-attention"
@@ -45,8 +44,7 @@ class InvalidInputError(ValueError):
 
 
 class PushRefusedError(RuntimeError):
-    """push_branch declined to push for a policy reason (protected branch,
-    nothing to push, or a protected path in the diff)."""
+    """push_branch refused: protected branch, nothing to push, or a protected path."""
 
 
 # ---------------------------------------------------------------------------
@@ -448,11 +446,8 @@ def push_branch() -> str:
 # so refiner/estimator need no Write access and no marker files on disk.
 # ---------------------------------------------------------------------------
 
-# Keyed by (#High, #Mid) across the four scores (Low contributes to neither
-# count). Size climbs with either count: 0 highs stays XS/S/M as mids
-# accumulate; each extra high pushes the floor up a size; 3 or more highs is
-# always XL regardless of the rest. Every (highs, mids) combination with
-# highs + mids <= 4 has an entry.
+# Keyed by (#High, #Mid) across the four scores: size grows with either
+# count, and 3+ highs is always XL.
 _ROLL_UP_TABLE: dict[tuple[int, int], str] = {
     (0, 0): "XS", (0, 1): "S",  (0, 2): "S",  (0, 3): "M",  (0, 4): "M",
     (1, 0): "M",  (1, 1): "M",  (1, 2): "M",  (1, 3): "L",
