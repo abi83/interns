@@ -29,7 +29,7 @@ reviews_fixture() {
   [ "$status" -eq 0 ]
   grep -q '^capped=true$' "$GITHUB_OUTPUT"
   grep -q 'gh pr comment 12 .* Automatic review limit (5) reached — further review is manual' "$STUB_LOG"
-  grep -q 'gh pr edit 12 --repo owner/repo --remove-label pr:in-review --add-label pr:needs-attention' "$STUB_LOG"
+  grep -q 'gh pr edit 12 --repo owner/repo --add-label pr:needs-attention --remove-label pr:in-review' "$STUB_LOG"
 }
 
 @test "over the cap also caps" {

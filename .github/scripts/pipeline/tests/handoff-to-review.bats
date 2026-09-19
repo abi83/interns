@@ -7,7 +7,7 @@ setup() {
   export STUB_PR_LABELS="pr:coding"
   run "$PIPELINE_DIR/handoff-to-review.sh" 7 15
   [ "$status" -eq 0 ]
-  grep -q 'gh pr edit 15 --repo owner/repo --remove-label pr:coding --add-label pr:in-review' "$STUB_LOG"
+  grep -q 'gh pr edit 15 --repo owner/repo --add-label pr:in-review --remove-label pr:coding' "$STUB_LOG"
   ! grep -q 'gh issue' "$STUB_LOG"
 }
 

@@ -203,11 +203,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Also clears status:needs-attention so a human re-dispatch after a
-          # failed run (initial or fix round) leaves no contradictory labels.
-          gh issue edit "${{ steps.issue.outputs.number }}" --repo ${{ github.repository }} \
-            --add-label "status:in-progress" \
-            --remove-label "status:ready" --remove-label "status:needs-attention" || true
+          # set_issue_status also clears status:needs-attention so a human
+          # re-dispatch after a failed run (initial or fix round) leaves no
+          # contradictory labels.
+          source .interns/.github/scripts/pipeline/lib.sh
+          set_issue_status "${{ steps.issue.outputs.number }}" status:in-progress
 
       - name: Resolve agent config
         id: cfg
@@ -246,8 +246,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh pr edit "${{ steps.pr.outputs.pr_number }}" --repo ${{ github.repository }} \
-            --add-label "pr:coding" --remove-label "pr:in-review" || true
+          source .interns/.github/scripts/pipeline/lib.sh
+          set_pr_pipeline_label "${{ steps.pr.outputs.pr_number }}" pr:coding
 
       - name: Gather reviewer feedback (fix round)
         id: feedback

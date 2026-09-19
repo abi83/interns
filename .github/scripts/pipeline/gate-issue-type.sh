@@ -15,8 +15,10 @@
 #   REJECT_COMMENT  comment body posted on a rejected issue
 
 set -euo pipefail
+# shellcheck source=.github/scripts/pipeline/lib.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-labels=$(gh issue view "$ISSUE" --repo "$GITHUB_REPOSITORY" --json labels --jq '[.labels[].name] | join(",")')
+labels=$(issue_labels_csv "$ISSUE")
 
 IFS=',' read -ra want <<<"$ACCEPTED"
 for type in "${want[@]}"; do
@@ -28,7 +30,6 @@ for type in "${want[@]}"; do
 done
 
 echo "Issue #$ISSUE type is not one of {$ACCEPTED} (labels: $labels) — parking on status:needs-attention."
-gh issue edit "$ISSUE" --repo "$GITHUB_REPOSITORY" \
-  --add-label status:needs-attention --remove-label "$REMOVE_STATUS" || true
+edit_issue_labels "$ISSUE" --add status:needs-attention --remove "$REMOVE_STATUS"
 gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body "$REJECT_COMMENT"
 echo "skip=true" >>"$GITHUB_OUTPUT"

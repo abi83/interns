@@ -12,16 +12,22 @@ setup_stubs() {
   cat >"$STUB_BIN/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "gh $*" >>"$STUB_LOG"
+# pipeline.labels reads `--json labels` and parses real JSON, unlike the
+# `--jq`-joined CSV the other callers here still use.
+labels_json() { jq -Rc 'split(",") | map(select(length > 0)) | {labels: map({name: .})}' <<<"$1"; }
+
 case "$1 $2" in
   "issue view")
     case "$*" in
       *--json\ title*) echo "${STUB_ISSUE_TITLE-}" ;;
+      *--json\ labels*) labels_json "${STUB_ISSUE_LABELS-}" ;;
       *) echo "${STUB_ISSUE_LABELS-}" ;;
     esac ;;
   "pr view")
     case "$*" in
       *headRefOid*) echo "${STUB_HEAD_SHA-}" ;;
       *--json\ title*) echo "${STUB_PR_TITLE-}" ;;
+      *--json\ labels*) labels_json "${STUB_PR_LABELS-}" ;;
       *) echo "${STUB_PR_LABELS-}" ;;
     esac ;;
   "pr checks") echo "${STUB_PR_CHECKS-[]}" ;;

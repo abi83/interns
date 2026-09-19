@@ -8,6 +8,13 @@
 
 set -euo pipefail
 
+# pipeline/src/pipeline/labels.py owns the label/status state machine
+# (interns#156); everything below shells out to it.
+_PIPELINE_SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../pipeline/src" && pwd)"
+_labels() {
+  PYTHONPATH="$_PIPELINE_SRC" python3 -m pipeline.labels "$GITHUB_REPOSITORY" "$@"
+}
+
 # URL of the current workflow run, for "see the run" links in comments.
 run_url() {
   echo "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
@@ -24,55 +31,39 @@ format_cost() {
   fi
 }
 
-# Issue lifecycle labels the coder/reviewer phases move between. The
-# issue-pipeline's own labels (needs-refinement, refined, estimated) are left
-# untouched here.
-_ISSUE_STATUS_LABELS=(status:in-progress status:needs-attention status:ready)
-
-# Move an issue to one lifecycle status, removing whichever of the others it
-# currently carries (a --remove-label for an absent label would fail the whole
-# edit). Best-effort: a failed edit doesn't abort the caller.
-set_issue_status() {
-  local issue="$1" target="$2" current label
-  local args=(issue edit "$issue" --repo "$GITHUB_REPOSITORY" --add-label "$target")
-  current=$(gh issue view "$issue" --repo "$GITHUB_REPOSITORY" --json labels --jq '[.labels[].name] | join(",")')
-  for label in "${_ISSUE_STATUS_LABELS[@]}"; do
-    [[ "$label" == "$target" ]] && continue
-    [[ ",$current," == *",$label,"* ]] && args+=(--remove-label "$label")
-  done
-  gh "${args[@]}" || true
-  return 0
+# Comma-joined current labels, for the inline "read labels" call sites.
+issue_labels_csv() {
+  _labels issue-labels "$1"
+}
+pr_labels_csv() {
+  _labels pr-labels "$1"
 }
 
-# PR pipeline labels: which agent is on it now (pr:coding / pr:in-review), or
-# pr:needs-attention once the automation has escalated it to a human. Mutually
-# exclusive — set_pr_pipeline_label keeps only the target, so a coder/reviewer
-# pickup or an APPROVE (clear) drops a stale pr:needs-attention.
-_PR_PIPELINE_LABELS=(pr:coding pr:in-review pr:needs-attention)
+# Move an issue to one lifecycle status, removing whichever of the others it
+# currently carries. The issue-pipeline's own labels (needs-refinement,
+# refined, estimated) are left untouched.
+set_issue_status() {
+  _labels set-issue-status "$1" "$2"
+}
 
-# Set the PR's pipeline label, or clear all of them when called with no label
-# (the reviewer is done and no agent is active). Only touches labels that change.
+# Add/remove specific issue labels, skipping a `--remove` that isn't present
+# (which `gh` would otherwise reject).
+edit_issue_labels() {
+  local number="$1"; shift
+  _labels edit-issue-labels "$number" "$@"
+}
+
+# Set the PR's pipeline label (which agent is on it now, or pr:needs-attention
+# once escalated), or clear all of them when called with no label. Mutually
+# exclusive — only the target survives, so a coder/reviewer pickup or a clear
+# drops a stale pr:needs-attention.
 set_pr_pipeline_label() {
-  local pr="$1" target="${2:-}" current label
-  local base=(pr edit "$pr" --repo "$GITHUB_REPOSITORY")
-  local args=("${base[@]}")
-  current=$(gh pr view "$pr" --repo "$GITHUB_REPOSITORY" --json labels --jq '[.labels[].name] | join(",")')
-  for label in "${_PR_PIPELINE_LABELS[@]}"; do
-    if [[ "$label" == "$target" ]]; then
-      [[ ",$current," == *",$label,"* ]] || args+=(--add-label "$label")
-    elif [[ ",$current," == *",$label,"* ]]; then
-      args+=(--remove-label "$label")
-    fi
-  done
-  if [[ ${#args[@]} -gt ${#base[@]} ]]; then
-    gh "${args[@]}" || true
-  fi
-  return 0
+  _labels set-pr-label "$1" "${2:-}"
 }
 
 # Mark a PR as stuck: the pipeline has escalated it to a human and no agent is
 # working it. "list the PRs a human still needs to act on" is then just
 # `gh pr list --label pr:needs-attention`. Cleared by the next pickup or APPROVE.
 escalate_pr() {
-  set_pr_pipeline_label "$1" pr:needs-attention
+  _labels escalate-pr "$1"
 }
