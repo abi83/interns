@@ -17,82 +17,15 @@ best-effort secret check, both fine under `github.token`.
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 import time
 import webbrowser
 
-from . import gh, safety
-from .apps import (
-    APPS,
-    AppSpec,
-    build_manifest,
-    settings_app_url,
-    settings_new_url,
-)
+from . import gh, install_files, safety
+from .apps import APPS, provision_app
 from .console import Console
-from .manifest_server import ManifestServer
 
-WORKFLOW = "install.yml"
-INTERNS_REPO = "abi83/interns"
-
-# Ref to copy the install wrapper from. install.sh exports INTERNS_REF; the
-# default matches the pin baked into the templates.
-INTERNS_REF = os.environ.get("INTERNS_REF") or "v0"
-
-# Templates leave the interns ref as this placeholder so the pin always tracks
-# the installer version -- both in the `uses:` line and in each wrapper's
-# `ref:` fallback (never the consumer's commit SHA, see #73).
-REF_PLACEHOLDER = "__INTERNS_REF__"
-
-# Caller stubs, source path in INTERNS_REPO -> destination path in the
-# consumer (GITHUB_TOKEN can't push .github/workflows/*, see #74). Meant to
-# stay identical to the template, so a drifted copy is re-synced, not just
-# added when absent (#88).
-WRAPPER_FILES = {
-    f"templates/workflows/{WORKFLOW}": f".github/workflows/{WORKFLOW}",
-    "templates/workflows/issue-pipeline.yml": ".github/workflows/issue-pipeline.yml",
-    "templates/workflows/code-pipeline.yml": ".github/workflows/code-pipeline.yml",
-}
-
-# Seeded once, then expected to carry consumer-local edits -- added when
-# missing, never overwritten.
-CONFIG_FILES = {
-    "templates/config/interns.yml": ".github/interns.yml",
-    "templates/config/Makefile": "Makefile",
-}
-
-INSTALL_FILES = {**WRAPPER_FILES, **CONFIG_FILES}
-
-INSTALL_PR_BODY = """\
-## Install the interns pipeline
-
-`interns-install` opened this PR to add the files a consumer repo needs before
-the pipeline can run — `GITHUB_TOKEN` can't push `.github/workflows/*`, so the
-workflow can't add them itself.
-
-- **`.github/workflows/install.yml`** — thin `workflow_dispatch` caller for the
-  reusable install workflow (label sync + secret checks).
-- **`.github/workflows/{issue,code}-pipeline.yml`** — caller stubs that own the
-  triggers and delegate to the reusable cores in `abi83/interns`, pinned to a
-  release tag.
-- **`.github/interns.yml`** — per-agent limits; every key is optional and falls
-  back to the interns default.
-- **`Makefile`** — `test`/`build` targets the coder and reviewer run before a PR
-  is opened or updated. Fill them in with this repo's real commands; left
-  empty, the pipeline treats testing as not yet configured rather than
-  failing every PR.
-
-Missing files are added; a wrapper file (`install.yml`, `issue-pipeline.yml`,
-`code-pipeline.yml`) that's already present but out of date with the current
-template is re-synced too. `.github/interns.yml` and `Makefile` are only
-added when absent — an existing one is left untouched, since it's expected to
-carry consumer-local edits.
-
-After merging,
-re-run `interns-install` (or dispatch **Install interns** from the Actions tab)
-to sync the label manifest.
-"""
+WORKFLOW = install_files.WORKFLOW
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -158,222 +91,31 @@ def _scope_preflight(con: Console, repo: str) -> list[str] | None:
     return existing
 
 
-def _secret_verb(name: str, existing: list[str] | None) -> str:
-    if existing is None:
-        return "set"
-    return "overwrite" if name in existing else "add"
-
-
-def _use_existing_app(con: Console, repo: gh.Repo, spec: AppSpec,
-                      client_id: str | None, slug: str,
-                      existing_secrets: list[str] | None) -> None:
-    """Reuse an account-wide App: write this repo's Client-ID variable and
-    private key secret, and prompt to install it here. Never mints, never
-    reads a key back — the operator pastes a PEM (reused from another repo,
-    or freshly generated on the App's settings page; adding a key does not
-    revoke others).
-    """
-    settings_url = settings_app_url(repo.owner, repo.is_org, slug)
-    have_key = existing_secrets is not None and spec.key_secret in existing_secrets
-
-    if con.dry_run:
-        con.say(f"existing {spec.key} App — {settings_url}")
-        con.mutation(f"set variable {spec.client_id_var} (existing {spec.key} App)")
-        if not have_key:
-            con.mutation(f"{_secret_verb(spec.key_secret, existing_secrets)} "
-                         f"secret {spec.key_secret} (pasted PEM)")
-        con.note_manual(f"install the existing {spec.key} App on {repo.slug}")
-        return
-
-    if client_id is None:
-        con.say(f"its Client ID (and 'Generate a private key') is on: {settings_url}")
-        if con.assume_yes:
-            con.note_manual(f"pass --{spec.key}-client-id (from {settings_url}) and set "
-                            f"{spec.key_secret}, then install the App on {repo.slug}")
-            return
-        client_id = con.prompt(f"{spec.client_id_var} — the App's Client ID, "
-                               f"e.g. 'Iv23li...' (blank to skip):")
-        if not client_id:
-            con.note_manual(f"set {spec.client_id_var} / {spec.key_secret} for the existing "
-                            f"{spec.key} App, then install it on {repo.slug}")
-            return
-    else:
-        con.say(f"reusing {spec.key} App {client_id} — {settings_url}")
-
-    if con.mutation(f"set variable {spec.client_id_var} = {client_id}"):
-        gh.set_variable(repo.slug, spec.client_id_var, client_id)
-
-    if have_key:
-        con.say(f"{spec.key_secret} is already set — leaving it (its key stays valid; "
-                "keys held by other repos are unaffected)")
-    elif con.assume_yes:
-        con.note_manual(f"set the {spec.key_secret} secret (a PEM private key for "
-                        f"'{slug}')")
-    else:
-        pem = con.prompt_multiline_secret(
-            f"Paste a private key (PEM) for the '{slug}' App. This repo needs its "
-            f"own copy in {spec.key_secret}; GitHub Actions secrets aren't shared "
-            f"between repos. Reuse a .pem you saved for another repo, or generate "
-            f"one at {settings_url}. Blank to set the secret yourself later:")
-        if pem and con.mutation(
-                f"{_secret_verb(spec.key_secret, existing_secrets)} secret {spec.key_secret}"):
-            gh.set_secret(repo.slug, spec.key_secret, pem)
-        elif not pem:
-            con.note_manual(f"set the {spec.key_secret} secret (PEM private key)")
-        pem = None  # noqa: F841 - drop the only reference to the key
-
-    install_url = f"https://github.com/apps/{slug}/installations/new"
-    con.note_manual(f"confirm the {spec.key} App is installed on {repo.slug}: {install_url}")
-    if not con.assume_yes:
-        con.say(f"opening your browser to install '{slug}' on {repo.slug} — "
-                "pick the repo and click Install")
-        webbrowser.open(install_url)
-
-
-def _provision_app(con: Console, repo: gh.Repo, spec: AppSpec,
-                   client_id: str | None,
-                   existing_secrets: list[str] | None) -> None:
-    name = spec.name_for(repo.owner)
-    con.step(f"GitHub App: {name} ({spec.key})")
-
-    if client_id is not None:
-        con.say(f"--{spec.key}-client-id given — reusing App {client_id}, skipping the mint")
-        _use_existing_app(con, repo, spec, client_id, name, existing_secrets)
-        return
-
-    # GitHub's Apps API only resolves *public* Apps by name; this installer
-    # always mints private ones (see build_manifest), and GET /apps/{slug}
-    # 404s on those even for the owning account's own token -- confirmed
-    # hands-on, not a scope/rate-limit fluke. There is no automated way to
-    # tell whether you already own '{name}', so ask instead of guessing and
-    # walking into a mint that GitHub will reject as a name collision. Under
-    # --yes there's no one to ask -- pass --{spec.key}-client-id instead. Ask
-    # this before "create a new one?" -- "Set up now? [Y/n]" read as "create
-    # a new App", and answering "n" (meaning "no, I have one already") ended
-    # up skipping the App entirely instead of reaching the reuse question.
-    if not con.assume_yes:
-        settings_url = settings_app_url(repo.owner, repo.is_org, name)
-        if con.confirm(f"Do you already have a GitHub App named '{name}'? "
-                       f"(check {settings_url} if unsure)", default=False):
-            _use_existing_app(con, repo, spec, None, name, existing_secrets)
-            return
-
-    if not con.confirm(f"Create a new App '{name}' now?", default=True):
-        con.note_manual(f"create the {spec.key} App (or point at an existing one with "
-                        f"--{spec.key}-client-id) and set {spec.client_id_var} / {spec.key_secret}")
-        return
-
-    action_url = settings_new_url(repo.owner, repo.is_org)
-
-    if con.dry_run:
-        con.mutation(f"open {action_url} to create App '{name}' via manifest")
-        con.mutation(f"{_secret_verb(spec.key_secret, existing_secrets)} secret {spec.key_secret}")
-        con.mutation(f"set variable {spec.client_id_var}")
-        con.note_manual(f"install the {spec.key} App on {repo.slug}")
-        return
-
-    with ManifestServer(action_url, lambda redirect: build_manifest(
-        name, repo.slug, redirect, spec.description, spec.permissions)) as server:
-        con.say(f"opening your browser to create '{name}' — "
-                "click 'Create GitHub App'")
-        con.say(f"if nothing opened, visit: {server.base_url}")
-        webbrowser.open(server.base_url)
-        code = server.wait_for_code()
-
-    conv = gh.convert_manifest(code)
-    client_id = str(conv["client_id"])
-    slug = conv.get("slug", name)
-    pem = conv["pem"]
-
-    # Resilient ordering: the private key is returned exactly once, so it goes
-    # straight into the secret before we do anything else.
-    if con.mutation(f"{_secret_verb(spec.key_secret, existing_secrets)} secret {spec.key_secret}"):
-        gh.set_secret(repo.slug, spec.key_secret, pem)
-    pem = None  # noqa: F841 - drop the only reference to the key
-
-    if con.mutation(f"set variable {spec.client_id_var} = {client_id}"):
-        gh.set_variable(repo.slug, spec.client_id_var, client_id)
-
-    con.say(f"App '{slug}' created (client id {client_id})")
-    install_url = f"https://github.com/apps/{slug}/installations/new"
-    con.note_manual(f"install the {spec.key} App on {repo.slug}: {install_url}")
-    if not con.assume_yes:
-        con.say(f"opening your browser to install '{slug}' on {repo.slug} — "
-                "pick the repo and click Install")
-        webbrowser.open(install_url)
-
-
 def _write_oauth_token(con: Console, repo: gh.Repo, existing_secrets: list[str] | None) -> None:
     con.step("Claude Code OAuth token")
-    # Separate from the interns-* Apps minted above: without Anthropic's own
-    # Claude Code App installed on the repo, CLAUDE_CODE_OAUTH_TOKEN's token
-    # exchange 401s and every coder/reviewer/refiner run fails -- confirmed
-    # hands-on, and previously not surfaced anywhere in the installer.
+    # Separate App from the interns-* ones above: without it installed, the
+    # OAuth token exchange 401s and every coder/reviewer/refiner run fails.
     install_url = "https://github.com/apps/claude/installations/new"
     con.note_manual(f"install the Claude Code GitHub App on {repo.slug}: {install_url}")
-    if not con.dry_run and not con.assume_yes:
+
+    if con.dry_run:
+        con.mutation(f"{gh.secret_verb('CLAUDE_CODE_OAUTH_TOKEN', existing_secrets)} "
+                     "secret CLAUDE_CODE_OAUTH_TOKEN")
+        return
+
+    if not con.assume_yes:
         con.say("the coder/reviewer/refiner steps also need Anthropic's own "
                  "Claude Code GitHub App installed on this repo")
         con.say(f"opening your browser to install it on {repo.slug} — pick the repo and click Install")
         webbrowser.open(install_url)
-    if con.dry_run:
-        con.mutation(f"{_secret_verb('CLAUDE_CODE_OAUTH_TOKEN', existing_secrets)} "
-                     "secret CLAUDE_CODE_OAUTH_TOKEN")
-        return
+
     token = con.prompt_secret("Paste the CLAUDE_CODE_OAUTH_TOKEN (leave blank to skip):")
     if not token:
         con.note_manual("set the CLAUDE_CODE_OAUTH_TOKEN secret")
         return
-    if con.mutation(f"{_secret_verb('CLAUDE_CODE_OAUTH_TOKEN', existing_secrets)} "
+    if con.mutation(f"{gh.secret_verb('CLAUDE_CODE_OAUTH_TOKEN', existing_secrets)} "
                     "secret CLAUDE_CODE_OAUTH_TOKEN"):
         gh.set_secret(repo.slug, "CLAUDE_CODE_OAUTH_TOKEN", token)
-
-
-def _handoff(con: Console, repo: gh.Repo, args: argparse.Namespace) -> None:
-    con.step("Hand off to install.yml (label sync + secret checks)")
-
-    base = _default_branch(repo)
-    pr_url = _stage_install_files(con, repo, base, args.issue_templates == "true")
-    if pr_url is not None:
-        con.note_manual(
-            f"merge {pr_url}, then re-run interns-install (or dispatch {WORKFLOW} "
-            f"from the Actions tab) to sync the label manifest"
-        )
-        return
-
-    ref = args.handoff_ref or base
-    if not con.confirm(f"Dispatch {WORKFLOW} on {repo.slug}@{ref} now?", default=True):
-        con.note_manual(f"run `gh workflow run {WORKFLOW} --repo {repo.slug} --ref {ref}`")
-        return
-    if con.mutation(f"dispatch {WORKFLOW} on {repo.slug}@{ref}"):
-        gh.dispatch_workflow(repo.slug, WORKFLOW, ref, {})
-
-
-def _collect_missing_files(repo: gh.Repo, base: str,
-                           issue_templates: bool) -> dict[str, tuple[str, str | None]]:
-    """Destination path -> (new content, current sha or None) for every file
-    that needs adding or re-syncing. The sha, when present, tells `put_file`
-    to update rather than create."""
-    wanted: dict[str, tuple[str, str | None]] = {}
-
-    for src, dest in WRAPPER_FILES.items():
-        content = gh.get_file(INTERNS_REPO, src, INTERNS_REF).replace(REF_PLACEHOLDER, INTERNS_REF)
-        existing = gh.get_existing_file(repo.slug, dest, base)
-        if existing is None:
-            wanted[dest] = (content, None)
-        elif existing[0] != content:
-            wanted[dest] = (content, existing[1])
-
-    for src, dest in CONFIG_FILES.items():
-        if not gh.path_exists(repo.slug, dest, base):
-            content = gh.get_file(INTERNS_REPO, src, INTERNS_REF).replace(REF_PLACEHOLDER, INTERNS_REF)
-            wanted[dest] = (content, None)
-
-    if issue_templates and not gh.path_exists(repo.slug, ".github/ISSUE_TEMPLATE", base):
-        for name in gh.list_dir(INTERNS_REPO, "templates/issue", INTERNS_REF):
-            content = gh.get_file(INTERNS_REPO, f"templates/issue/{name}", INTERNS_REF)
-            wanted[f".github/ISSUE_TEMPLATE/{name}"] = (content, None)
-    return wanted
 
 
 def _stage_install_files(con: Console, repo: gh.Repo, base: str,
@@ -382,10 +124,10 @@ def _stage_install_files(con: Console, repo: gh.Repo, base: str,
     the PR URL, or None when nothing needed changing."""
     if con.dry_run:
         con.mutation(f"open a PR adding/syncing any missing or stale interns install files to {repo.slug}")
-        con.note_manual(f"merge the interns install PR, then re-run interns-install")
+        con.note_manual("merge the interns install PR, then re-run interns-install")
         return "(dry-run)"
 
-    wanted = _collect_missing_files(repo, base, issue_templates)
+    wanted = install_files.collect_missing_files(repo, base, issue_templates)
     if not wanted:
         con.say("all interns install files already present and up to date")
         return None
@@ -411,14 +153,36 @@ def _stage_install_files(con: Console, repo: gh.Repo, base: str,
                     "chore: install interns pipeline caller stubs", branch,
                     sha=file_sha)
     url = gh.create_pr(repo.slug, branch, base,
-                       "Install the interns pipeline", INSTALL_PR_BODY)
+                       "Install the interns pipeline", install_files.INSTALL_PR_BODY)
     con.say(f"opened {url}")
     return url
 
 
-def _default_branch(repo: gh.Repo) -> str:
-    data = gh.api(f"repos/{repo.slug}")
-    return data.get("default_branch", "main") if isinstance(data, dict) else "main"
+def _handoff(con: Console, repo: gh.Repo, args: argparse.Namespace) -> None:
+    con.step("Hand off to install.yml (label sync + secret checks)")
+
+    base = gh.default_branch(repo.slug)
+    pr_url = _stage_install_files(con, repo, base, args.issue_templates == "true")
+    if pr_url is not None:
+        con.note_manual(
+            f"merge {pr_url}, then re-run interns-install (or dispatch {WORKFLOW} "
+            f"from the Actions tab) to sync the label manifest"
+        )
+        return
+
+    ref = args.handoff_ref or base
+    if not con.confirm(f"Dispatch {WORKFLOW} on {repo.slug}@{ref} now?", default=True):
+        con.note_manual(f"run `gh workflow run {WORKFLOW} --repo {repo.slug} --ref {ref}`")
+        return
+    if con.mutation(f"dispatch {WORKFLOW} on {repo.slug}@{ref}"):
+        gh.dispatch_workflow(repo.slug, WORKFLOW, ref, {})
+
+
+def _fatal(con: Console, exc: Exception, *, with_summary: bool) -> int:
+    con.error(str(exc))
+    if with_summary:
+        con.summary()
+    return 1
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -429,8 +193,7 @@ def main(argv: list[str] | None = None) -> int:
         gh.ensure_available()
         repo = gh.current_repo(args.repo)
     except gh.GhError as exc:
-        con.error(str(exc))
-        return 1
+        return _fatal(con, exc, with_summary=False)
 
     con.say(f"target repo: {repo.slug}" + (" (dry run)" if args.dry_run else ""))
 
@@ -439,28 +202,24 @@ def main(argv: list[str] | None = None) -> int:
     existing_secrets = _scope_preflight(con, repo.slug)
 
     try:
-        default_branch = _default_branch(repo)
+        default_branch = gh.default_branch(repo.slug)
         safety.check_branch_protection(con, repo, default_branch,
                                         handled_externally=args.branch_protection_handled_externally)
         safety.check_pages(con, repo)
         safety.check_metrics_branch(con, repo)
     except (gh.GhError, safety.SafetyCheckError) as exc:
-        con.error(str(exc))
-        con.summary()
-        return 1
+        return _fatal(con, exc, with_summary=True)
 
     try:
         client_ids = {"coder": args.coder_client_id, "reviewer": args.reviewer_client_id,
                       "triage": args.triage_client_id}
         for spec in APPS:
-            _provision_app(con, repo, spec, client_ids.get(spec.key), existing_secrets)
+            provision_app(con, repo, spec, client_ids.get(spec.key), existing_secrets)
         _write_oauth_token(con, repo, existing_secrets)
         if not args.skip_handoff:
             _handoff(con, repo, args)
     except (gh.GhError, TimeoutError) as exc:
-        con.error(str(exc))
-        con.summary()
-        return 1
+        return _fatal(con, exc, with_summary=True)
 
     con.summary()
     return 0
