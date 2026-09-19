@@ -6,10 +6,10 @@
 # instructions; if the token can't even list them, that's a warning, not a
 # failure, since GITHUB_TOKEN is never granted the scope to list secrets.
 #
-# Branch protection and GitHub Pages are checked elsewhere: both need admin
-# access to read or write, which GITHUB_TOKEN can never be granted, so
-# interns-install checks and fixes them locally at install time, with the
-# operator's own admin-scoped `gh` session, before this script ever runs.
+# Branch protection and GitHub Pages need admin access GITHUB_TOKEN never
+# has -- interns-install checks and fixes those locally instead (see
+# installer/src/interns_install/safety.py). Collapses into one Python check
+# once this script migrates (abi83/interns#155).
 #
 # Usage: safety-checks.sh
 # Env:   GH_TOKEN            repo token
