@@ -93,10 +93,8 @@ def _scope_preflight(con: Console, repo: str) -> list[str] | None:
 
 def _write_oauth_token(con: Console, repo: gh.Repo, existing_secrets: list[str] | None) -> None:
     con.step("Claude Code OAuth token")
-    # Separate from the interns-* Apps minted above: without Anthropic's own
-    # Claude Code App installed on the repo, CLAUDE_CODE_OAUTH_TOKEN's token
-    # exchange 401s and every coder/reviewer/refiner run fails -- confirmed
-    # hands-on, and previously not surfaced anywhere in the installer.
+    # Separate App from the interns-* ones above: without it installed, the
+    # OAuth token exchange 401s and every coder/reviewer/refiner run fails.
     install_url = "https://github.com/apps/claude/installations/new"
     con.note_manual(f"install the Claude Code GitHub App on {repo.slug}: {install_url}")
 
