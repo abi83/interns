@@ -1,0 +1,21 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "interns-pipeline"
+version = "0.1.0"
+description = "Shared library for the interns pipeline's migrated Python scripts"
+requires-python = ">=3.12"
+license = "MIT"
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest==8.3.5"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pipeline"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
