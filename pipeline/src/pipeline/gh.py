@@ -1,8 +1,4 @@
-"""Shared wrapper over the `gh` CLI for the pipeline's Python scripts.
-
-Consolidates the subprocess-and-typed-error plumbing previously duplicated
-between `installer/gh.py` and `.github/scripts/gh-issues-mcp/server.py`.
-"""
+"""Shared wrapper over the `gh` CLI for the pipeline's Python scripts."""
 
 from __future__ import annotations
 
