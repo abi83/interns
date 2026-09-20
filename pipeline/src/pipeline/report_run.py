@@ -3,8 +3,6 @@ phase drops on the ticket. Cost tracking lives on the issue (refine,
 estimate, coder and reviewer all post there) so spend aggregates from one
 place. Cost is parsed from the claude-code-action execution file; "unknown"
 when the run produced none.
-
-report-run.sh is a thin shim over this module.
 """
 
 from __future__ import annotations

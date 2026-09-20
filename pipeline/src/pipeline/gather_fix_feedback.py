@@ -1,0 +1,95 @@
+"""Checks out a PR's branch and writes the latest review round to
+$GITHUB_OUTPUT as `text` for the coder fix-round prompt: the most recent
+CHANGES_REQUESTED review, its line-anchored comments, and any conversation
+posted after it. Earlier rounds are already addressed in prior commits --
+feeding them back in makes the coder re-litigate resolved points.
+"""
+
+from __future__ import annotations
+
+import subprocess
+import sys
+
+from . import gh
+
+
+class NoChangesRequestedReviewError(RuntimeError):
+    """The PR has no CHANGES_REQUESTED review to gather feedback from."""
+
+
+def checkout_branch(head_ref: str) -> None:
+    subprocess.run(["git", "fetch", "origin", head_ref], check=True)
+    subprocess.run(["git", "checkout", head_ref], check=True)
+
+
+def _latest_changes_requested_review(repo: str, pr: int) -> dict:
+    reviews = [r for r in gh.api_all_pages(f"repos/{repo}/pulls/{pr}/reviews") if r.get("state") == "CHANGES_REQUESTED"]
+    if not reviews:
+        raise NoChangesRequestedReviewError(f"no CHANGES_REQUESTED review found for PR #{pr}")
+    return reviews[-1]
+
+
+def build_feedback_text(repo: str, pr: int) -> str:
+    review = _latest_changes_requested_review(repo, pr)
+    review_id = review["id"]
+    review_ts = review["submitted_at"]
+
+    comments = sorted(
+        (c for c in gh.api_all_pages(f"repos/{repo}/pulls/{pr}/comments")
+         if str(c.get("pull_request_review_id")) == str(review_id)),
+        key=lambda c: c["created_at"],
+    )
+    conversation = sorted(
+        (c for c in gh.api_all_pages(f"repos/{repo}/issues/{pr}/comments") if c["created_at"] > review_ts),
+        key=lambda c: c["created_at"],
+    )
+
+    lines = [
+        f"## Latest REQUEST_CHANGES review — {review_ts}",
+        "",
+        review.get("body") or "(no summary body)",
+        "",
+        "## Inline comments on that review",
+    ]
+    for c in comments:
+        line_no = c.get("line") or c.get("original_line") or "?"
+        lines.append(f"- {c['path']}:{line_no}\n  {c['body']}")
+    lines += ["", "## PR conversation posted after that review"]
+    for c in conversation:
+        lines.append(f"### {c['user']['login']} ({c['created_at']})\n{c['body']}")
+    return "\n".join(lines)
+
+
+def _main(argv: list[str]) -> int:
+    import argparse
+    import os
+
+    parser = argparse.ArgumentParser(prog="python -m pipeline.gather_fix_feedback")
+    parser.add_argument("pr", nargs="?", default="")
+    parser.add_argument("head_ref")
+    parser.add_argument("issue")
+    args = parser.parse_args(argv)
+
+    if not args.pr:
+        print(f"Error: fix round dispatched but no open PR references issue #{args.issue}", file=sys.stderr)
+        return 1
+
+    repo = os.environ["GITHUB_REPOSITORY"]
+    pr = int(args.pr)
+    checkout_branch(args.head_ref)
+
+    try:
+        text = build_feedback_text(repo, pr)
+    except NoChangesRequestedReviewError as exc:
+        print(f"Error: fix round for PR #{pr} but {exc}", file=sys.stderr)
+        return 1
+
+    with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+        f.write("text<<EOF_FEEDBACK\n")
+        f.write(text + "\n")
+        f.write("EOF_FEEDBACK\n")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(_main(sys.argv[1:]))

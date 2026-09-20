@@ -7,8 +7,6 @@ Best-effort -- never raises on a `gh` lookup failure. The caller runs this
 with `if: always()`, so a summary should land even when the Claude step
 itself failed or a `gh` call is rate-limited; every lookup below falls back
 to a plain line instead.
-
-run-summary.sh is a thin shim over this module.
 """
 
 from __future__ import annotations

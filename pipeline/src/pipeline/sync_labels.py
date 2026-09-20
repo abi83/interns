@@ -5,8 +5,6 @@ when they've drifted, leave everything else alone.
 Additive by design -- a label that isn't in the manifest is never deleted,
 so a consumer's own labels survive a sync. Re-running with no manifest
 changes is a no-op.
-
-sync-labels.sh is a thin shim over this module.
 """
 
 from __future__ import annotations

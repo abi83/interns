@@ -2,8 +2,6 @@
 status:needs-attention, mark the PR pr:needs-attention (or just clear its
 label on a fix-round crash, which escalates issue-side), and post a comment
 linking the run.
-
-flag-failure.sh is a thin shim over this module.
 """
 
 from __future__ import annotations

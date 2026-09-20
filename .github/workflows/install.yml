@@ -86,12 +86,21 @@ jobs:
           ref: ${{ steps.ref.outputs.ref }}
           path: .interns
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Sync the label manifest
-        run: .interns/.github/scripts/install/sync-labels.sh .interns/.github/labels.json
+        run: python3 -m pipeline.sync_labels .interns/.github/labels.json
+        env:
+          PYTHONPATH: .interns/pipeline/src
 
       # Branch protection and Pages are checked by interns-install itself,
       # locally, before this workflow ever runs -- both need admin access,
       # which github.token can't be granted. This is just a best-effort
       # presence check for the secrets/variables interns-install writes.
       - name: Verify required secrets and variables
-        run: .interns/.github/scripts/install/safety-checks.sh
+        run: python3 -m pipeline.safety_checks
+        env:
+          PYTHONPATH: .interns/pipeline/src

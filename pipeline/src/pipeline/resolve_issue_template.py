@@ -5,8 +5,6 @@ type it picks one template -- the consumer repo's
 `templates/issue/<type>.md` -- drops the YAML frontmatter and HTML comments,
 and emits the headings in order. The refiner picks the type, then rewrites
 into the matching block; it never resolves a path itself.
-
-resolve-issue-template.sh is a thin shim over this module.
 """
 
 from __future__ import annotations

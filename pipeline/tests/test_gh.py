@@ -179,6 +179,59 @@ class RunUrlTests(unittest.TestCase):
             self.assertEqual(gh.run_url("acme/widgets"), "https://github.com/acme/widgets/actions/runs/123")
 
 
+class PrUrlTests(unittest.TestCase):
+    def test_builds_the_pr_url_from_actions_env(self):
+        with patch.dict("os.environ", {"GITHUB_SERVER_URL": "https://github.com"}):
+            self.assertEqual(gh.pr_url("acme/widgets", 12), "https://github.com/acme/widgets/pull/12")
+
+
+class PrChecksTests(unittest.TestCase):
+    def test_returns_the_parsed_checks(self):
+        checks = [{"name": "test", "bucket": "pass", "link": "https://x"}]
+        with patch("pipeline.gh.subprocess.run", return_value=_proc(stdout=json.dumps(checks))) as mock_run:
+            self.assertEqual(gh.pr_checks("acme/widgets", 5), checks)
+        self.assertEqual(
+            mock_run.call_args[0][0],
+            ["gh", "pr", "checks", "5", "--repo", "acme/widgets", "--json", "name,bucket,link"],
+        )
+
+    def test_empty_list_on_malformed_output(self):
+        with patch("pipeline.gh.subprocess.run", return_value=_proc(stdout="not json")):
+            self.assertEqual(gh.pr_checks("acme/widgets", 5), [])
+
+    def test_empty_list_on_a_non_array_body(self):
+        with patch("pipeline.gh.subprocess.run", return_value=_proc(stdout='{"a": 1}')):
+            self.assertEqual(gh.pr_checks("acme/widgets", 5), [])
+
+
+class ApiAllPagesTests(unittest.TestCase):
+    def test_flattens_every_page(self):
+        with patch("pipeline.gh.subprocess.run", return_value=_proc(stdout='[[1, 2], [3]]')) as mock_run:
+            self.assertEqual(gh.api_all_pages("repos/acme/widgets/pulls/1/reviews"), [1, 2, 3])
+        args = mock_run.call_args[0][0]
+        self.assertIn("--paginate", args)
+        self.assertIn("--slurp", args)
+
+
+class DispatchWorkflowTests(unittest.TestCase):
+    def test_omits_ref_when_none(self):
+        with patch("pipeline.gh.subprocess.run", return_value=_proc()) as mock_run:
+            gh.dispatch_workflow("acme/widgets", "code-pipeline.yml", None, {"phase": "coder"})
+        args = mock_run.call_args[0][0]
+        self.assertNotIn("--ref", args)
+        self.assertEqual(
+            args,
+            ["gh", "workflow", "run", "code-pipeline.yml", "--repo", "acme/widgets", "-f", "phase=coder"],
+        )
+
+    def test_includes_ref_when_given(self):
+        with patch("pipeline.gh.subprocess.run", return_value=_proc()) as mock_run:
+            gh.dispatch_workflow("acme/widgets", "install.yml", "main", {})
+        args = mock_run.call_args[0][0]
+        self.assertIn("--ref", args)
+        self.assertIn("main", args)
+
+
 class SecretVerbTests(unittest.TestCase):
     def test_verb(self):
         self.assertEqual(gh.secret_verb("A", None), "set")

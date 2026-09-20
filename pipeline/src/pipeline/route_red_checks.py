@@ -1,6 +1,4 @@
 """A red PR check goes straight to a human, no coder retry loop (#133).
-
-route-red-checks.sh is a thin shim over this module.
 """
 
 from __future__ import annotations

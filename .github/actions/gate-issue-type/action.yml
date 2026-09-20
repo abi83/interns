@@ -29,8 +29,8 @@ runs:
       env:
         GH_TOKEN: ${{ github.token }}
         GITHUB_REPOSITORY: ${{ github.repository }}
-        ISSUE: ${{ inputs.issue_number }}
-        ACCEPTED: ${{ inputs.accepted_types }}
-        REMOVE_STATUS: ${{ inputs.remove_status }}
-        REJECT_COMMENT: ${{ inputs.reject_comment }}
-      run: ${{ github.action_path }}/../../scripts/pipeline/gate-issue-type.sh
+        PYTHONPATH: ${{ github.action_path }}/../../../pipeline/src
+      run: >
+        python3 -m pipeline.gate_issue_type
+        "${{ inputs.issue_number }}" "${{ inputs.accepted_types }}"
+        "${{ inputs.remove_status }}" "${{ inputs.reject_comment }}"

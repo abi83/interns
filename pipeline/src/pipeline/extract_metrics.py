@@ -3,8 +3,6 @@ pipeline-metrics record (one JSON object), for append_metrics to persist.
 
 Bump SCHEMA_VERSION and .github/pipeline-metrics.schema.json together on any
 breaking shape change.
-
-extract-metrics.sh is a thin shim over this module.
 """
 
 from __future__ import annotations

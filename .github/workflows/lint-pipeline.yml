@@ -30,11 +30,8 @@ jobs:
         with:
           args: -color -ignore interns -ignore job_workflow_ref -ignore create-github-app-token@v3
 
-      # -x so shellcheck follows the `source` of pipeline/lib.sh.
       - name: Lint standalone shell scripts
-        run: |
-          find .github/scripts -name '*.sh' -print0 | xargs -0 -r shellcheck -x
-          shellcheck install.sh
+        run: shellcheck install.sh
 
       - name: Validate the JSON schemas are well-formed
         run: >
@@ -47,15 +44,6 @@ jobs:
         run: >
           pipx run check-jsonschema --schemafile
           .github/labels.schema.json .github/labels.json
-
-  test-scripts:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - name: Install bats
-        run: sudo apt-get update && sudo apt-get install -y bats
-      - name: Run pipeline script tests
-        run: bats .github/scripts/pipeline/tests
 
   test-installer-cli:
     runs-on: ubuntu-latest
