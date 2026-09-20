@@ -10,38 +10,15 @@
 # without this check the workflow can't tell "gave up and commented" from
 # "finished the fix" and would re-run the reviewer.
 #
-# Emits gave_up=true|false on $GITHUB_OUTPUT so the workflow skips the reviewer
-# hand-off when the task was declined.
+# Emits gave_up=true|false on $GITHUB_OUTPUT so the workflow skips the
+# reviewer hand-off when the task was declined.
 #
 # Usage: handle-giveup.sh <issue> <pr-number-or-empty>
+#
+# pipeline/src/pipeline/handle_giveup.py is the only place this logic lives
+# (interns#159) -- this is a thin shim that shells out to it.
 
 set -euo pipefail
-# shellcheck source=.github/scripts/pipeline/lib.sh
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-issue="$1"
-pr="${2:-}"
-sentinel="${GITHUB_WORKSPACE:-.}/.coder-gave-up.md"
-out="${GITHUB_OUTPUT:-/dev/null}"
-
-if [[ ! -f "$sentinel" ]]; then
-  echo "gave_up=false" >>"$out"
-  exit 0
-fi
-
-reason="$(cat "$sentinel")"
-[[ -n "${reason//[[:space:]]/}" ]] || reason="_(no reason given)_"
-
-if [[ -n "$pr" ]]; then
-  set_pr_pipeline_label "$pr"
-fi
-set_issue_status "$issue" status:needs-attention
-
-gh issue comment "$issue" --repo "$GITHUB_REPOSITORY" --body \
-"The coder fix round declined this task and set \`status:needs-attention\` — it was not handed back to the reviewer.
-
-$reason
-
-Run: $(run_url)"
-
-echo "gave_up=true" >>"$out"
+pipeline_src="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../pipeline/src" && pwd)"
+PYTHONPATH="$pipeline_src" python3 -m pipeline.handle_giveup "$@"

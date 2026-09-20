@@ -11,33 +11,11 @@
 # the issue-type gate, which guarantees a type:coding-task or type:bug label.
 #
 # Usage: derive-code-hints.sh <issue-number>
+#
+# pipeline/src/pipeline/derive_code_hints.py is the only place this logic
+# lives (interns#159) -- this is a thin shim that shells out to it.
 
 set -euo pipefail
-# shellcheck source=.github/scripts/pipeline/lib.sh
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-ISSUE="$1"
-REPO="$GITHUB_REPOSITORY"
-
-labels=$(issue_labels_csv "$ISSUE")
-title=$(gh issue view "$ISSUE" --repo "$REPO" --json title --jq .title)
-
-if [[ ",$labels," == *",type:bug,"* ]]; then
-  prefix=fix
-elif [[ ",$labels," == *",type:coding-task,"* ]]; then
-  prefix=feat
-else
-  echo "Error: issue #$ISSUE has neither type:bug nor type:coding-task (labels: $labels)" >&2
-  exit 1
-fi
-
-slug=$(printf '%s' "$title" \
-  | tr '[:upper:]' '[:lower:]' \
-  | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' \
-  | cut -c1-40 \
-  | sed -E 's/-+$//')
-
-{
-  echo "commit_type_hint=${prefix}:"
-  echo "branch=${prefix}/issue-${ISSUE}-${slug}"
-} >>"$GITHUB_OUTPUT"
+pipeline_src="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../pipeline/src" && pwd)"
+PYTHONPATH="$pipeline_src" python3 -m pipeline.derive_code_hints "$@"
