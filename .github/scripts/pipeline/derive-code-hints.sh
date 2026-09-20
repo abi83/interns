@@ -13,11 +13,13 @@
 # Usage: derive-code-hints.sh <issue-number>
 
 set -euo pipefail
+# shellcheck source=.github/scripts/pipeline/lib.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 ISSUE="$1"
 REPO="$GITHUB_REPOSITORY"
 
-labels=$(gh issue view "$ISSUE" --repo "$REPO" --json labels --jq '[.labels[].name] | join(",")')
+labels=$(issue_labels_csv "$ISSUE")
 title=$(gh issue view "$ISSUE" --repo "$REPO" --json title --jq .title)
 
 if [[ ",$labels," == *",type:bug,"* ]]; then

@@ -12,8 +12,10 @@
 #   Env: ISSUE, GITHUB_REPOSITORY, GH_TOKEN
 
 set -euo pipefail
+# shellcheck source=.github/scripts/pipeline/lib.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-labels=$(gh issue view "$ISSUE" --repo "$GITHUB_REPOSITORY" --json labels --jq '[.labels[].name] | join(",")')
+labels=$(issue_labels_csv "$ISSUE")
 
 if [[ ",$labels," != *",type:spike,"* ]]; then
   echo "Issue #$ISSUE is not a spike — no advisory."

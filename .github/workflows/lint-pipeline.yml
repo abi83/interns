@@ -70,3 +70,14 @@ jobs:
       - name: Run interns-install tests
         working-directory: installer
         run: PYTHONPATH=src python -m unittest discover -s tests -v
+
+  test-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run interns-pipeline tests
+        working-directory: pipeline
+        run: PYTHONPATH=src python -m unittest discover -s tests -v

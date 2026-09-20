@@ -1,0 +1,110 @@
+import unittest
+from unittest.mock import patch
+
+from pipeline import gh, labels
+
+
+def _labels_response(names: list[str]) -> dict:
+    return {"labels": [{"name": name} for name in names]}
+
+
+class ReadLabelsTests(unittest.TestCase):
+    def test_issue_labels(self):
+        with patch("pipeline.gh.issue_view", return_value=_labels_response(["type:bug", "status:ready"])):
+            self.assertEqual(labels.issue_labels("o/r", 7), ["type:bug", "status:ready"])
+
+    def test_pr_labels(self):
+        with patch("pipeline.gh.pr_view", return_value=_labels_response(["pr:in-review"])):
+            self.assertEqual(labels.pr_labels("o/r", 3), ["pr:in-review"])
+
+
+class SetIssueStatusTests(unittest.TestCase):
+    def test_adds_target_and_removes_only_present_lifecycle_labels(self):
+        with patch("pipeline.gh.issue_view", return_value=_labels_response(["type:bug", "status:in-progress"])), \
+             patch("pipeline.gh.issue_edit") as mock_edit:
+            labels.set_issue_status("o/r", 7, "status:needs-attention")
+        mock_edit.assert_called_once_with(
+            "o/r", 7, add_labels=["status:needs-attention"], remove_labels=["status:in-progress"]
+        )
+
+    def test_no_lifecycle_label_present_just_adds_target(self):
+        with patch("pipeline.gh.issue_view", return_value=_labels_response(["status:needs-refinement"])), \
+             patch("pipeline.gh.issue_edit") as mock_edit:
+            labels.set_issue_status("o/r", 7, "status:needs-attention")
+        mock_edit.assert_called_once_with("o/r", 7, add_labels=["status:needs-attention"], remove_labels=[])
+
+    def test_target_already_present_is_a_noop(self):
+        with patch("pipeline.gh.issue_view", return_value=_labels_response(["status:ready"])), \
+             patch("pipeline.gh.issue_edit") as mock_edit:
+            labels.set_issue_status("o/r", 7, "status:ready")
+        mock_edit.assert_not_called()
+
+    def test_a_failed_edit_does_not_raise(self):
+        with patch("pipeline.gh.issue_view", return_value=_labels_response([])), \
+             patch("pipeline.gh.issue_edit", side_effect=gh.GhCommandError("boom")):
+            labels.set_issue_status("o/r", 7, "status:ready")  # does not raise
+
+
+class SetPrPipelineLabelTests(unittest.TestCase):
+    def test_no_target_clears_the_present_label(self):
+        with patch("pipeline.gh.pr_view", return_value=_labels_response(["pr:in-review", "size:S"])), \
+             patch("pipeline.gh.pr_edit") as mock_edit:
+            labels.set_pr_pipeline_label("o/r", 3)
+        mock_edit.assert_called_once_with("o/r", 3, add_labels=[], remove_labels=["pr:in-review"])
+
+    def test_swaps_to_the_target_label(self):
+        with patch("pipeline.gh.pr_view", return_value=_labels_response(["pr:in-review"])), \
+             patch("pipeline.gh.pr_edit") as mock_edit:
+            labels.set_pr_pipeline_label("o/r", 3, "pr:coding")
+        mock_edit.assert_called_once_with("o/r", 3, add_labels=["pr:coding"], remove_labels=["pr:in-review"])
+
+    def test_noop_when_nothing_changes(self):
+        with patch("pipeline.gh.pr_view", return_value=_labels_response(["size:S"])), \
+             patch("pipeline.gh.pr_edit") as mock_edit:
+            labels.set_pr_pipeline_label("o/r", 3)
+        mock_edit.assert_not_called()
+
+    def test_pickup_clears_a_stale_needs_attention(self):
+        with patch("pipeline.gh.pr_view", return_value=_labels_response(["pr:needs-attention"])), \
+             patch("pipeline.gh.pr_edit") as mock_edit:
+            labels.set_pr_pipeline_label("o/r", 3, "pr:coding")
+        mock_edit.assert_called_once_with("o/r", 3, add_labels=["pr:coding"], remove_labels=["pr:needs-attention"])
+
+    def test_removing_an_absent_label_is_never_attempted(self):
+        # The label-not-present case `|| true` used to mask: with nothing to
+        # remove, gh_edit isn't even called, so there's no failure to swallow.
+        with patch("pipeline.gh.pr_view", return_value=_labels_response([])), \
+             patch("pipeline.gh.pr_edit") as mock_edit:
+            labels.set_pr_pipeline_label("o/r", 3)
+        mock_edit.assert_not_called()
+
+    def test_a_failed_edit_does_not_raise(self):
+        with patch("pipeline.gh.pr_view", return_value=_labels_response(["pr:in-review"])), \
+             patch("pipeline.gh.pr_edit", side_effect=gh.GhCommandError("boom")):
+            labels.set_pr_pipeline_label("o/r", 3, "pr:coding")  # does not raise
+
+
+class EscalatePrTests(unittest.TestCase):
+    def test_swaps_an_agent_label_for_needs_attention(self):
+        with patch("pipeline.gh.pr_view", return_value=_labels_response(["pr:in-review"])), \
+             patch("pipeline.gh.pr_edit") as mock_edit:
+            labels.escalate_pr("o/r", 3)
+        mock_edit.assert_called_once_with("o/r", 3, add_labels=["pr:needs-attention"], remove_labels=["pr:in-review"])
+
+
+class CliTests(unittest.TestCase):
+    def test_issue_labels_prints_csv(self):
+        with patch("pipeline.gh.issue_view", return_value=_labels_response(["a", "b"])), \
+             patch("sys.stdout") as mock_stdout:
+            labels._main(["o/r", "issue-labels", "7"])
+        mock_stdout.write.assert_any_call("a,b")
+
+    def test_set_pr_label_with_no_target(self):
+        with patch("pipeline.gh.pr_view", return_value=_labels_response(["pr:coding"])), \
+             patch("pipeline.gh.pr_edit") as mock_edit:
+            labels._main(["o/r", "set-pr-label", "3"])
+        mock_edit.assert_called_once_with("o/r", 3, add_labels=[], remove_labels=["pr:coding"])
+
+
+if __name__ == "__main__":
+    unittest.main()
