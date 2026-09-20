@@ -6,7 +6,10 @@
 #
 # Two things are excluded from the wait: this workflow run's own checks (they
 # never finish before the gate does) and anything in `checks.ignore` in
-# .github/interns.yml (non-blocking advisory checks).
+# .github/interns.yml (non-blocking advisory checks), read via
+# pipeline/src/pipeline/config.py -- the file's only reader (interns#158). A
+# malformed config now fails the gate loudly instead of silently ignoring
+# nothing.
 #
 # Usage: wait-for-checks.sh <pr-number>
 #   Env: CHECK_TIMEOUT_SECONDS=1200, CHECK_POLL_SECONDS=20, CHECK_SETTLE_SECONDS=30
@@ -19,7 +22,6 @@ TIMEOUT="${CHECK_TIMEOUT_SECONDS:-1200}"
 POLL="${CHECK_POLL_SECONDS:-20}"
 SETTLE="${CHECK_SETTLE_SECONDS:-30}"
 RUN_ID="${GITHUB_RUN_ID:-}"
-CONFIG="${INTERNS_CONFIG:-.github/interns.yml}"
 
 emit() { echo "$1" >> "$GITHUB_OUTPUT"; }
 
@@ -29,11 +31,8 @@ if [[ "${GITHUB_EVENT_NAME:-}" == "workflow_dispatch" ]]; then
   exit 0
 fi
 
-IGNORE='[]'
-if [[ -f "$CONFIG" ]]; then
-  IGNORE=$(yq -o=json -I=0 '.checks.ignore // []' "$CONFIG" 2>/dev/null || echo '[]')
-  jq -e 'type == "array"' <<<"$IGNORE" >/dev/null 2>&1 || IGNORE='[]'
-fi
+pipeline_src="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../pipeline/src" && pwd)"
+IGNORE="$(PYTHONPATH="$pipeline_src" python3 -m pipeline.config checks-ignore)"
 
 # checks JSON -> {total, red: ["name=bucket"...], pending: ["name"...]},
 # dropping this run's own checks and any ignored by name.

@@ -36,7 +36,8 @@ out() { grep "^$1=" "$GITHUB_OUTPUT" | cut -d= -f2-; }
   run "$PIPELINE_DIR/agent-config.sh" reviewer
   [ "$status" -eq 0 ]
   [ "$(out model)" = "claude-sonnet-5" ]
-  [ "$(out max_turns)" = "40" ]
+  # reviewer's own built-in override, from templates/config/interns.yml.
+  [ "$(out max_turns)" = "45" ]
 }
 
 @test "refiner defaults to claude-sonnet-5 for its investigation pass" {
