@@ -10,6 +10,7 @@ append-metrics.sh is a thin shim over this module.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -70,12 +71,12 @@ def _push_attempt(work: Path, records: str, remote: str, run_id: str) -> bool:
         if _run_git(args, work).returncode != 0:
             return False
 
-    if _run_git(["fetch", "-q", "--depth=1", "origin", BRANCH], work).returncode == 0:
-        if _run_git(["checkout", "-q", "-b", BRANCH, "FETCH_HEAD"], work).returncode != 0:
-            return False
-    else:
-        if _run_git(["checkout", "-q", "--orphan", BRANCH], work).returncode != 0:
-            return False
+    fetched = _run_git(["fetch", "-q", "--depth=1", "origin", BRANCH], work).returncode == 0
+    checkout = ["checkout", "-q", "-b", BRANCH, "FETCH_HEAD"] if fetched \
+        else ["checkout", "-q", "--orphan", BRANCH]
+    if _run_git(checkout, work).returncode != 0:
+        return False
+    if not fetched:
         (work / FILE).write_text("")
 
     with open(work / FILE, "a") as f:
@@ -111,21 +112,26 @@ def append_records(files: list[str], *, remote: str, run_id: str,
     raise AppendMetricsError(f"push to {BRANCH} failed after {retries} attempts")
 
 
+def _require_env(name: str) -> str:
+    value = os.environ.get(name)
+    if not value:
+        raise AppendMetricsError(f"{name} unset")
+    return value
+
+
 def _main(argv: list[str]) -> int:
     import argparse
-    import os
 
     parser = argparse.ArgumentParser(prog="python -m pipeline.append_metrics")
     parser.add_argument("files", nargs="+")
     args = parser.parse_args(argv)
 
-    token = os.environ["GH_TOKEN"]
-    repo = os.environ["GITHUB_REPOSITORY"]
-    server = os.environ.get("GITHUB_SERVER_URL", "https://github.com")
-    run_id = os.environ.get("GITHUB_RUN_ID", "unknown")
-    remote = f"https://x-access-token:{token}@{server.removeprefix('https://')}/{repo}.git"
-
     try:
+        token = _require_env("GH_TOKEN")
+        repo = _require_env("GITHUB_REPOSITORY")
+        server = os.environ.get("GITHUB_SERVER_URL", "https://github.com")
+        run_id = os.environ.get("GITHUB_RUN_ID", "unknown")
+        remote = f"https://x-access-token:{token}@{server.removeprefix('https://')}/{repo}.git"
         count = append_records(args.files, remote=remote, run_id=run_id)
     except AppendMetricsError as exc:
         print(f"append-metrics: {exc}", file=sys.stderr)

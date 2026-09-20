@@ -86,6 +86,13 @@ class BuildRecordTests(unittest.TestCase):
             extract_metrics.build_record(str(no_result), job="coder", issue=None, pr=None,
                                           repo="owner/repo", run_id=42, run_attempt=1)
 
+    def test_malformed_json_raises_no_result_event_not_json_decode_error(self):
+        truncated = Path(self._tmpdir.name) / "truncated.json"
+        truncated.write_text('[{"type":"system"')
+        with self.assertRaises(extract_metrics.NoResultEventError):
+            extract_metrics.build_record(str(truncated), job="coder", issue=None, pr=None,
+                                          repo="owner/repo", run_id=42, run_attempt=1)
+
 
 class NumOrNullTests(unittest.TestCase):
     def test_digits_parse(self):
@@ -145,6 +152,20 @@ class CliTests(unittest.TestCase):
     def test_fails_when_the_execution_file_is_missing(self):
         status, out = self._run_capture(["/no/such/file", "--job", "coder"])
         self.assertNotEqual(status, 0)
+        self.assertEqual(out, "")
+
+    def test_missing_github_repository_fails_cleanly_not_a_traceback(self):
+        with patch.dict(os.environ, {}, clear=True), \
+             patch.dict(os.environ, {"GITHUB_RUN_ID": "42"}):
+            status, out = self._run_capture([str(self.exec_file), "--job", "coder"])
+        self.assertEqual(status, 1)
+        self.assertEqual(out, "")
+
+    def test_missing_github_run_id_fails_cleanly_not_a_traceback(self):
+        with patch.dict(os.environ, {}, clear=True), \
+             patch.dict(os.environ, {"GITHUB_REPOSITORY": "owner/repo"}):
+            status, out = self._run_capture([str(self.exec_file), "--job", "coder"])
+        self.assertEqual(status, 1)
         self.assertEqual(out, "")
 
 

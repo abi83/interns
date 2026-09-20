@@ -10,6 +10,7 @@ extract-metrics.sh is a thin shim over this module.
 from __future__ import annotations
 
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -52,7 +53,13 @@ def _models(model_usage: dict) -> dict[str, dict]:
 
 def build_record(exec_file: str, *, job: str, issue: int | None, pr: int | None,
                   repo: str, run_id: int, run_attempt: int) -> dict:
-    events = json.loads(Path(exec_file).read_text())
+    try:
+        events = json.loads(Path(exec_file).read_text())
+    except json.JSONDecodeError as exc:
+        # A killed run can leave a truncated (invalid-JSON) file -- treat it
+        # the same as a well-formed file with no result event, matching the
+        # bash version's `jq -e` failing the same way on either.
+        raise NoResultEventError(f"no result event in {exec_file}") from exc
     results = [e for e in events if e.get("type") == "result"]
     if not results:
         raise NoResultEventError(f"no result event in {exec_file}")
@@ -81,9 +88,15 @@ def _num_or_null(value: str) -> int | None:
     return int(value) if value.isdigit() else None
 
 
+def _require_env(name: str) -> str:
+    value = os.environ.get(name)
+    if not value:
+        raise RuntimeError(f"{name} unset")
+    return value
+
+
 def _main(argv: list[str]) -> int:
     import argparse
-    import os
 
     parser = argparse.ArgumentParser(prog="python -m pipeline.extract_metrics")
     parser.add_argument("exec_file")
@@ -97,13 +110,20 @@ def _main(argv: list[str]) -> int:
         return 1
 
     try:
+        repo = _require_env("GITHUB_REPOSITORY")
+        run_id = int(_require_env("GITHUB_RUN_ID"))
+    except RuntimeError as exc:
+        print(f"extract-metrics: {exc}", file=sys.stderr)
+        return 1
+
+    try:
         record = build_record(
             args.exec_file,
             job=args.job,
             issue=_num_or_null(args.issue),
             pr=_num_or_null(args.pr),
-            repo=os.environ["GITHUB_REPOSITORY"],
-            run_id=int(os.environ["GITHUB_RUN_ID"]),
+            repo=repo,
+            run_id=run_id,
             run_attempt=int(os.environ.get("GITHUB_RUN_ATTEMPT", "1")),
         )
     except NoResultEventError as exc:
