@@ -20,16 +20,22 @@ class Review:
     commit_id: str
 
 
-def reviews_by(repo: str, pr: int, login: str) -> list[Review]:
-    """`login`'s reviews on `pr`, oldest first (GitHub's own order)."""
+def all_reviews(repo: str, pr: int) -> list[Review]:
+    """Every review on `pr`, regardless of author, oldest first (GitHub's own
+    order) -- e.g. for run-summary's coder-phase fix-round count, which
+    counts CHANGES_REQUESTED from any reviewer, not just REVIEWER_BOT."""
     data = gh.api(f"repos/{repo}/pulls/{pr}/reviews?per_page=100")
     if not isinstance(data, list):
         raise gh.GhCommandError(f"unexpected reviews payload for {repo}#{pr}")
     return [
-        Review(login=r["user"]["login"], state=r["state"], commit_id=r.get("commit_id", ""))
+        Review(login=r.get("user", {}).get("login", ""), state=r["state"], commit_id=r.get("commit_id", ""))
         for r in data
-        if r.get("user", {}).get("login") == login
     ]
+
+
+def reviews_by(repo: str, pr: int, login: str) -> list[Review]:
+    """`login`'s reviews on `pr`, oldest first (GitHub's own order)."""
+    return [r for r in all_reviews(repo, pr) if r.login == login]
 
 
 def verdict_for_head(reviews: list[Review], head_sha: str) -> str | None:
