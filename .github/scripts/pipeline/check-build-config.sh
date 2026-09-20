@@ -6,18 +6,16 @@
 # Deterministic and independent of what the coder did or said this run -- it
 # greps the Makefile on disk, it doesn't trust the agent's word for it.
 #
-# Usage: check-build-config.sh
+# pipeline/src/pipeline/check_build_config.py is the only place this logic
+# lives (interns#159) -- this is a thin shim that shells out to it.
+#
+# Usage: check-build-config.sh <repo-root>
 #   Writes `configured=true|false` to $GITHUB_OUTPUT. false when there's no
 #   Makefile at all, or the stub marker is still present in either target.
-#
-# Run from the repo root (the coder's checked-out working directory).
 
 set -euo pipefail
 
-MARKER="INTERNS: not configured"
+repo_root="${1:?usage: check-build-config.sh <repo-root>}"
 
-if [[ -f Makefile ]] && ! grep -qF "$MARKER" Makefile; then
-  echo "configured=true" >>"$GITHUB_OUTPUT"
-else
-  echo "configured=false" >>"$GITHUB_OUTPUT"
-fi
+pipeline_src="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../pipeline/src" && pwd)"
+PYTHONPATH="$pipeline_src" python3 -m pipeline.check_build_config "$repo_root"

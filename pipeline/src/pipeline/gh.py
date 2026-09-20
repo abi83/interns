@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -139,6 +140,22 @@ def pr_edit(repo: str, number: int, *, add_labels: list[str] | None = None,
     for label in remove_labels or []:
         args += ["--remove-label", label]
     _run(args)
+
+
+def issue_comment(repo: str, number: int, body: str) -> None:
+    _run(["issue", "comment", str(number), "--repo", repo, "--body", body])
+
+
+def pr_comment(repo: str, number: int, body: str) -> None:
+    _run(["pr", "comment", str(number), "--repo", repo, "--body", body])
+
+
+def run_url(repo: str) -> str:
+    """Link to the current workflow run, for "see the run" lines in
+    comments. Reads the Actions env the workflow already exports."""
+    server = os.environ["GITHUB_SERVER_URL"]
+    run_id = os.environ["GITHUB_RUN_ID"]
+    return f"{server}/{repo}/actions/runs/{run_id}"
 
 
 def pr_create(repo: str, head: str, base: str, title: str, body: str) -> str:

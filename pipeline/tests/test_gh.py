@@ -137,6 +137,30 @@ class PrViewEditCreateTests(unittest.TestCase):
         )
 
 
+class CommentTests(unittest.TestCase):
+    def test_issue_comment(self):
+        with patch("pipeline.gh.subprocess.run", return_value=_proc()) as mock_run:
+            gh.issue_comment("acme/widgets", 42, "hello")
+        self.assertEqual(
+            mock_run.call_args[0][0],
+            ["gh", "issue", "comment", "42", "--repo", "acme/widgets", "--body", "hello"],
+        )
+
+    def test_pr_comment(self):
+        with patch("pipeline.gh.subprocess.run", return_value=_proc()) as mock_run:
+            gh.pr_comment("acme/widgets", 7, "hello")
+        self.assertEqual(
+            mock_run.call_args[0][0],
+            ["gh", "pr", "comment", "7", "--repo", "acme/widgets", "--body", "hello"],
+        )
+
+
+class RunUrlTests(unittest.TestCase):
+    def test_builds_the_run_url_from_actions_env(self):
+        with patch.dict("os.environ", {"GITHUB_SERVER_URL": "https://github.com", "GITHUB_RUN_ID": "123"}):
+            self.assertEqual(gh.run_url("acme/widgets"), "https://github.com/acme/widgets/actions/runs/123")
+
+
 class SecretVerbTests(unittest.TestCase):
     def test_verb(self):
         self.assertEqual(gh.secret_verb("A", None), "set")
