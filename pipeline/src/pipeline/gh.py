@@ -181,6 +181,16 @@ def list_secret_names(repo: str) -> list[str] | None:
     return [s["name"] for s in secrets]
 
 
+def list_variable_names(repo: str) -> list[str] | None:
+    """None means the token cannot read the variable list (scope-blind)."""
+    try:
+        data = api(f"repos/{repo}/actions/variables?per_page=100")
+    except GhCommandError:
+        return None
+    variables = data.get("variables", []) if isinstance(data, dict) else []
+    return [v["name"] for v in variables]
+
+
 def secret_verb(name: str, existing: list[str] | None) -> str:
     """What a `set_secret(name, ...)` call would do, for status messages --
     "set" when we can't tell (scope-blind), else "add" or "overwrite"."""
@@ -301,3 +311,17 @@ def put_file(repo: str, path: str, content: str, message: str, branch: str,
     if sha is not None:
         fields["sha"] = sha
     api(f"repos/{repo}/contents/{path}", method="PUT", fields=fields)
+
+
+def label_list(repo: str) -> list[dict]:
+    proc = _run(["label", "list", "--repo", repo, "--limit", "500",
+                 "--json", "name,color,description"])
+    return json.loads(proc.stdout)
+
+
+def label_create(repo: str, name: str, color: str, description: str) -> None:
+    _run(["label", "create", name, "--repo", repo, "--color", color, "--description", description])
+
+
+def label_edit(repo: str, name: str, color: str, description: str) -> None:
+    _run(["label", "edit", name, "--repo", repo, "--color", color, "--description", description])
