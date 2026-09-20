@@ -44,12 +44,18 @@ class FlagFailureTests(unittest.TestCase):
         self.assertIn("gh workflow run code-pipeline.yml -f phase=coder -f issue_number=9 -f fix_round=true", body)
         self.assertNotIn("Automated implementation failed", body)
 
-    def test_no_pr_and_no_issue_is_a_noop_before_the_comment(self):
+    def test_fix_round_without_issue_raises(self):
+        with patch("pipeline.flag_failure.labels.set_pr_pipeline_label") as set_pr:
+            with self.assertRaisesRegex(ValueError, "--fix-round requires --issue"):
+                flag_failure.flag_failure("acme/widgets", "implementation", None, 4, True)
+        set_pr.assert_called_once_with("acme/widgets", 4)
+
+    def test_no_pr_and_no_issue_raises(self):
         with patch("pipeline.flag_failure.labels.set_issue_status") as set_issue, \
              patch("pipeline.flag_failure.labels.escalate_pr") as escalate, \
              patch("pipeline.flag_failure.gh.issue_comment") as comment, \
              patch("pipeline.flag_failure.gh.run_url", return_value="https://x/runs/42"):
-            with self.assertRaises(AssertionError):
+            with self.assertRaisesRegex(ValueError, "one of --issue or --pr is required"):
                 flag_failure.flag_failure("acme/widgets", "review", None, None, False)
         set_issue.assert_not_called()
         escalate.assert_not_called()

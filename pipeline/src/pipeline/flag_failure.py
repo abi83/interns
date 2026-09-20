@@ -26,7 +26,8 @@ def flag_failure(repo: str, noun: str, issue: int | None, pr: int | None, fix_ro
         labels.set_issue_status(repo, issue, "status:needs-attention")
 
     if fix_round:
-        assert issue is not None, "--fix-round requires --issue"
+        if issue is None:
+            raise ValueError("--fix-round requires --issue")
         gh.issue_comment(
             repo, issue,
             "Automated fix round failed — issue set to `status:needs-attention`. "
@@ -39,7 +40,8 @@ def flag_failure(repo: str, noun: str, issue: int | None, pr: int | None, fix_ro
     if pr is not None:
         gh.pr_comment(repo, pr, body)
     else:
-        assert issue is not None, "one of --issue or --pr is required"
+        if issue is None:
+            raise ValueError("one of --issue or --pr is required")
         gh.issue_comment(repo, issue, body)
 
 
