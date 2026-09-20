@@ -150,6 +150,12 @@ def pr_comment(repo: str, number: int, body: str) -> None:
     _run(["pr", "comment", str(number), "--repo", repo, "--body", body])
 
 
+def pr_diff_names(repo: str, pr: int) -> list[str]:
+    """Names of the files changed by `pr`."""
+    proc = _run(["pr", "diff", str(pr), "--repo", repo, "--name-only"])
+    return [name for name in proc.stdout.splitlines() if name]
+
+
 def run_url(repo: str) -> str:
     """Link to the current workflow run, for "see the run" lines in
     comments. Reads the Actions env the workflow already exports."""

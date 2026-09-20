@@ -15,35 +15,17 @@
 #   BUILTIN_DIR   dir holding the built-in templates/issue/<type>.md (required)
 #   CONSUMER_DIR  dir checked for per-type overrides (default .github/ISSUE_TEMPLATE)
 #   TYPES         space-separated type names (default "coding-task bug spike")
+#
+# pipeline/src/pipeline/resolve_issue_template.py is the only place this
+# logic lives (interns#159) -- this is a thin shim that shells out to it.
 
 set -euo pipefail
 
-builtin_dir="${BUILTIN_DIR:?BUILTIN_DIR not set}"
-consumer_dir="${CONSUMER_DIR:-.github/ISSUE_TEMPLATE}"
-read -ra types <<<"${TYPES:-coding-task bug spike}"
+: "${BUILTIN_DIR:?BUILTIN_DIR not set}"
 
-# Strip the leading YAML frontmatter block, then keep only markdown heading
-# lines. HTML comments in these templates never start with `#`, so filtering
-# to heading lines drops them for free.
-headings() {
-  awk '
-    NR == 1 && $0 == "---" { fm = 1; next }
-    fm && $0 == "---"      { fm = 0; next }
-    fm                     { next }
-    /^#{1,6} /             { print }
-  ' "$1"
-}
+args=(--builtin-dir "$BUILTIN_DIR")
+[[ -n "${CONSUMER_DIR:-}" ]] && args+=(--consumer-dir "$CONSUMER_DIR")
+[[ -n "${TYPES:-}" ]] && args+=(--types "$TYPES")
 
-{
-  echo 'skeleton<<EOF_SKELETON'
-  for type in "${types[@]}"; do
-    template="$builtin_dir/$type.md"
-    [[ -f "$consumer_dir/$type.md" ]] && template="$consumer_dir/$type.md"
-    [[ -f "$template" ]] || { echo "resolve-issue-template: no template for '$type'" >&2; exit 1; }
-
-    echo "type:$type"
-    headings "$template"
-    echo
-  done
-  echo 'EOF_SKELETON'
-} >>"${GITHUB_OUTPUT:?GITHUB_OUTPUT not set}"
+pipeline_src="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../pipeline/src" && pwd)"
+PYTHONPATH="$pipeline_src" python3 -m pipeline.resolve_issue_template "${args[@]}"

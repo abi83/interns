@@ -14,14 +14,19 @@ from pathlib import Path
 def result_field(exec_file: str | None, field: str) -> str | None:
     """Value of `field` on the log's `result`-type entry -- the one written
     when the agent run finished normally. None when there is no execution
-    file (a timed-out run is SIGKILLed before writing one) or no result
-    entry."""
+    file (a timed-out run is SIGKILLed before writing one), the file isn't
+    valid JSON (a partial write under disk pressure), or there's no result
+    entry -- every caller treats "we have no reliable data" the same way,
+    regardless of which of these produced it."""
     if not exec_file:
         return None
     path = Path(exec_file)
     if not path.is_file():
         return None
-    entries = json.loads(path.read_text())
+    try:
+        entries = json.loads(path.read_text())
+    except json.JSONDecodeError:
+        return None
     for entry in entries:
         if entry.get("type") == "result":
             value = entry.get(field)

@@ -155,6 +155,24 @@ class CommentTests(unittest.TestCase):
         )
 
 
+class PrDiffNamesTests(unittest.TestCase):
+    def test_lists_changed_files(self):
+        with patch("pipeline.gh.subprocess.run", return_value=_proc(stdout="a.ts\nb.ts\n")) as mock_run:
+            self.assertEqual(gh.pr_diff_names("acme/widgets", 7), ["a.ts", "b.ts"])
+        self.assertEqual(
+            mock_run.call_args[0][0],
+            ["gh", "pr", "diff", "7", "--repo", "acme/widgets", "--name-only"],
+        )
+
+    def test_drops_blank_lines(self):
+        with patch("pipeline.gh.subprocess.run", return_value=_proc(stdout="a.ts\n\nb.ts\n")):
+            self.assertEqual(gh.pr_diff_names("acme/widgets", 7), ["a.ts", "b.ts"])
+
+    def test_no_files_is_an_empty_list(self):
+        with patch("pipeline.gh.subprocess.run", return_value=_proc(stdout="")):
+            self.assertEqual(gh.pr_diff_names("acme/widgets", 7), [])
+
+
 class RunUrlTests(unittest.TestCase):
     def test_builds_the_run_url_from_actions_env(self):
         with patch.dict("os.environ", {"GITHUB_SERVER_URL": "https://github.com", "GITHUB_RUN_ID": "123"}):

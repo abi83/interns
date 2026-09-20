@@ -10,6 +10,25 @@ def _reviews_payload(entries: list[tuple[str, str, str]]) -> list[dict]:
             for login, state, commit_id in entries]
 
 
+class AllReviewsTests(unittest.TestCase):
+    def test_includes_every_author(self):
+        payload = _reviews_payload([
+            ("somedev", "COMMENTED", "sha1"),
+            ("reviewer[bot]", "CHANGES_REQUESTED", "sha1"),
+        ])
+        with patch("pipeline.gh.api", return_value=payload):
+            reviews = verdict.all_reviews("o/r", 12)
+        self.assertEqual(reviews, [
+            Review("somedev", "COMMENTED", "sha1"),
+            Review("reviewer[bot]", "CHANGES_REQUESTED", "sha1"),
+        ])
+
+    def test_unexpected_payload_raises(self):
+        with patch("pipeline.gh.api", return_value={"not": "a list"}):
+            with self.assertRaises(gh.GhCommandError):
+                verdict.all_reviews("o/r", 12)
+
+
 class ReviewsByTests(unittest.TestCase):
     def test_filters_to_the_given_login(self):
         payload = _reviews_payload([

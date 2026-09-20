@@ -11,35 +11,11 @@
 #   empty — the reviewer on a PR with no linked issue.
 #   --warn appends a "⚠️ TEXT" line to the same comment, e.g. a nudge that
 #   tests/build aren't configured for this repo.
+#
+# pipeline/src/pipeline/report_run.py is the only place this logic lives
+# (interns#159) -- this is a thin shim that shells out to it.
 
 set -euo pipefail
-# shellcheck source=.github/scripts/pipeline/lib.sh
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-warn=""
-positional=()
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --warn) warn="$2"; shift 2 ;;
-    *) positional+=("$1"); shift ;;
-  esac
-done
-set -- "${positional[@]}"
-
-phase="$1"
-exec_file="$2"
-issue="${3:-}"
-pr="${4:-}"
-
-raw_cost=$(result_field "$exec_file" total_cost_usd 2>/dev/null || true)
-body="$phase [pipeline run]($(run_url)) — cost: \$$(format_cost "$raw_cost")"
-[[ -n "$warn" ]] && body="$body"$'\n\n'"⚠️ $warn"
-
-if [[ -n "$issue" ]]; then
-  gh issue comment "$issue" --repo "$GITHUB_REPOSITORY" --body "$body"
-elif [[ -n "$pr" ]]; then
-  gh pr comment "$pr" --repo "$GITHUB_REPOSITORY" --body "$body"
-else
-  echo "report-run: need an issue or PR number" >&2
-  exit 1
-fi
+pipeline_src="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../pipeline/src" && pwd)"
+PYTHONPATH="$pipeline_src" python3 -m pipeline.report_run "$@"
