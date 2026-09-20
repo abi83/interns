@@ -68,7 +68,49 @@ class LoadRawTests(unittest.TestCase):
             _load({"wiki": {"enabled": False, "comment": "nope"}})
 
 
+# Mirrors templates/config/interns.yml's shape and values -- the file the
+# installer seeds a fresh consumer's .github/interns.yml from, and that
+# resolve_agent_config() falls back to when the consumer's own file doesn't
+# set a key. BuiltinTemplateIntegrationTests below loads the real file
+# directly, to catch this fixture drifting from it.
+_BUILTIN_FIXTURE = {
+    "wiki": {"enabled": False},
+    "checks": {"ignore": []},
+    "defaults": {
+        "model": "claude-sonnet-5",
+        "max_turns": 60,
+        "timeout_minutes": 20,
+        "max_output_tokens": 32000,
+        "cost_warn_usd": 2.0,
+    },
+    "agents": {
+        "refiner": {
+            "max_turns": 35,
+            "disallowed_tools": ["Bash", "Task", "ScheduleWakeup", "WebSearch", "WebFetch", "Write", "Edit", "NotebookEdit"],
+        },
+        "estimator": {
+            "max_turns": 30,
+            "disallowed_tools": ["Bash", "Task", "ScheduleWakeup", "WebSearch", "WebFetch", "Write", "Edit", "NotebookEdit"],
+        },
+        "coder": {
+            "max_turns": 75,
+            "timeout_minutes": 30,
+            "disallowed_tools": ["Task", "ScheduleWakeup", "WebSearch", "WebFetch", "NotebookEdit"],
+        },
+        "reviewer": {
+            "max_turns": 45,
+            "disallowed_tools": ["Task", "ScheduleWakeup", "WebSearch", "WebFetch", "Write", "Edit", "NotebookEdit"],
+        },
+    },
+}
+
+
 class ResolveAgentConfigTests(unittest.TestCase):
+    def setUp(self):
+        patcher = patch("pipeline.config._builtin_data", return_value=_BUILTIN_FIXTURE)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_agent_override_wins_over_defaults(self):
         data = {
             "defaults": {"max_turns": 40, "timeout_minutes": 30},
@@ -87,7 +129,9 @@ class ResolveAgentConfigTests(unittest.TestCase):
     def test_missing_config_falls_back_to_builtin_defaults(self):
         cfg = config.resolve_agent_config({}, "reviewer", "interns.yml")
         self.assertEqual(cfg.model, "claude-sonnet-5")
-        self.assertEqual(cfg.max_turns, 40)
+        # reviewer's own built-in override (45), not the flat built-in
+        # defaults.max_turns (60).
+        self.assertEqual(cfg.max_turns, 45)
 
     def test_refiner_defaults_to_claude_sonnet_5(self):
         cfg = config.resolve_agent_config({}, "refiner", "interns.yml")
@@ -150,6 +194,25 @@ class ResolveAgentConfigTests(unittest.TestCase):
             config.resolve_agent_config(data, "refiner", "interns.yml")
 
 
+class BuiltinTemplateIntegrationTests(unittest.TestCase):
+    """Loads the real templates/config/interns.yml (no mocking) -- catches
+    the shipped template drifting from what resolve_agent_config() actually
+    falls back to, and _BUILTIN_FIXTURE above drifting from the template."""
+
+    def setUp(self):
+        config._builtin_data.cache_clear()
+        self.addCleanup(config._builtin_data.cache_clear)
+
+    def test_real_template_matches_the_fixture(self):
+        self.assertEqual(config._builtin_data(), _BUILTIN_FIXTURE)
+
+    def test_coder_resolves_from_the_real_template_with_no_consumer_file(self):
+        cfg = config.resolve_agent_config({}, "coder", "interns.yml")
+        self.assertEqual(cfg.max_turns, 75)
+        self.assertEqual(cfg.timeout_minutes, 30)
+        self.assertNotIn("Bash", cfg.disallowed_tools)
+
+
 class ChecksIgnoreTests(unittest.TestCase):
     def test_defaults_to_empty(self):
         self.assertEqual(config.checks_ignore({}, "interns.yml"), [])
@@ -166,8 +229,10 @@ class ChecksIgnoreTests(unittest.TestCase):
 
 class CliTests(unittest.TestCase):
     def test_agent_config_prints_key_value_lines(self):
-        with patch("pipeline.config.load_raw", return_value={}), patch("builtins.print") as mock_print:
-            config._main(["agent-config", "coder"])
+        # No --config mock here: a nonexistent consumer file falls through to
+        # the real shipped template via _builtin_data().
+        with patch("builtins.print") as mock_print:
+            config._main(["--config", "/nonexistent/interns.yml", "agent-config", "coder"])
         printed = [call.args[0] for call in mock_print.call_args_list]
         self.assertIn("model=claude-sonnet-5", printed)
 

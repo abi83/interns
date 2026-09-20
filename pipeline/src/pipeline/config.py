@@ -8,37 +8,25 @@ malformed file fails the same way no matter which setting the caller needed.
 
 from __future__ import annotations
 
+import functools
 import json
 import os
 import subprocess
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 
 KNOWN_TOP_KEYS = ("defaults", "agents", "wiki", "checks")
 KNOWN_AGENTS = ("refiner", "estimator", "coder", "reviewer")
 KNOWN_LIMIT_KEYS = ("model", "max_turns", "timeout_minutes", "max_output_tokens", "cost_warn_usd", "disallowed_tools")
 KNOWN_WIKI_KEYS = ("enabled", "url")
 
-# The refiner runs a codebase investigation pass before rewriting the issue
-# body, so the whole pipeline defaults to claude-sonnet-5 rather than a
-# cheaper model. A consumer can still drop it per phase via
-# agents.refiner.model in the config file.
-_BUILTIN_DEFAULTS = {
-    "model": "claude-sonnet-5",
-    "max_turns": 40,
-    "timeout_minutes": 30,
-    "max_output_tokens": 32000,
-    "cost_warn_usd": 1.50,
-}
-
-# coder needs Write/Edit, and coder/reviewer both need Bash (scoped to
-# specific patterns by their own --allowedTools) -- everyone else stays blocked.
-_BUILTIN_DISALLOWED_TOOLS = {
-    "refiner": ["Bash", "Task", "ScheduleWakeup", "WebSearch", "WebFetch", "Write", "Edit", "NotebookEdit"],
-    "estimator": ["Bash", "Task", "ScheduleWakeup", "WebSearch", "WebFetch", "Write", "Edit", "NotebookEdit"],
-    "coder": ["Task", "ScheduleWakeup", "WebSearch", "WebFetch", "NotebookEdit"],
-    "reviewer": ["Task", "ScheduleWakeup", "WebSearch", "WebFetch", "Write", "Edit", "NotebookEdit"],
-}
+# The pipeline's own built-in fallback layer: the same file
+# installer/src/interns_install/install_files.py seeds a fresh consumer's
+# .github/interns.yml from, loaded through the identical schema-validated
+# path as a consumer's file. One file, two consumers -- nothing here to
+# drift from the values a fresh install actually ships.
+_TEMPLATE_CONFIG_PATH = Path(__file__).resolve().parents[3] / "templates" / "config" / "interns.yml"
 
 
 class ConfigError(RuntimeError):
@@ -107,39 +95,44 @@ def _is_num_gt0(value: object) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0
 
 
+@functools.lru_cache(maxsize=1)
+def _builtin_data() -> dict:
+    """The shipped template, loaded and schema-validated exactly like a
+    consumer's own config file."""
+    return load_raw(str(_TEMPLATE_CONFIG_PATH))
+
+
 def resolve_agent_config(data: dict, agent: str, path: str) -> AgentConfig:
-    """Precedence per key: agents.<name>.<key> > defaults.<key> > built-in
-    default. There is no other override layer."""
+    """Precedence per key: agents.<name>.<key> > defaults.<key> from the
+    consumer's file, then the same two layers from the shipped template.
+    There is no other override layer."""
     if agent not in KNOWN_AGENTS:
         raise ConfigError(f"unknown agent '{agent}'")
 
     agent_block = (data.get("agents") or {}).get(agent) or {}
     defaults_block = data.get("defaults") or {}
+    builtin = _builtin_data()
+    builtin_agent_block = (builtin.get("agents") or {}).get(agent) or {}
+    builtin_defaults_block = builtin.get("defaults") or {}
 
     def resolve(key: str):
-        if key in agent_block:
-            return agent_block[key]
-        if key in defaults_block:
-            return defaults_block[key]
+        for block in (agent_block, defaults_block, builtin_agent_block, builtin_defaults_block):
+            if key in block:
+                return block[key]
         return None
 
-    model = resolve("model") or _BUILTIN_DEFAULTS["model"]
+    model = resolve("model")
     max_turns = resolve("max_turns")
-    max_turns = _BUILTIN_DEFAULTS["max_turns"] if max_turns is None else max_turns
     timeout_minutes = resolve("timeout_minutes")
-    timeout_minutes = _BUILTIN_DEFAULTS["timeout_minutes"] if timeout_minutes is None else timeout_minutes
     max_output_tokens = resolve("max_output_tokens")
-    max_output_tokens = _BUILTIN_DEFAULTS["max_output_tokens"] if max_output_tokens is None else max_output_tokens
     cost_warn_usd = resolve("cost_warn_usd")
-    cost_warn_usd = _BUILTIN_DEFAULTS["cost_warn_usd"] if cost_warn_usd is None else cost_warn_usd
 
     disallowed_tools = resolve("disallowed_tools")
-    if disallowed_tools is None:
-        disallowed_tools = _BUILTIN_DISALLOWED_TOOLS[agent]
-    elif not isinstance(disallowed_tools, list):
+    if disallowed_tools is not None and not isinstance(disallowed_tools, list):
         raise ConfigError(
             f"agents.{agent}.disallowed_tools / defaults.disallowed_tools must be a YAML list of tool names"
         )
+    disallowed_tools = disallowed_tools or []
 
     if not model:
         raise ConfigError("model resolved empty")
