@@ -57,6 +57,20 @@ class SyncLabelsTests(unittest.TestCase):
         edit.assert_not_called()
         self.assertIn("0 created, 0 updated, 2 unchanged", result)
 
+    def test_null_description_from_api_matches_an_empty_manifest_description(self):
+        self.manifest_path.write_text(json.dumps({
+            "version": 7,
+            "labels": [{"name": "status:ready", "color": "0e8a16", "description": ""}],
+        }))
+        existing = [{"name": "status:ready", "color": "0e8a16", "description": None}]
+        with patch("pipeline.sync_labels.gh.label_list", return_value=existing), \
+             patch("pipeline.sync_labels.gh.label_create") as create, \
+             patch("pipeline.sync_labels.gh.label_edit") as edit:
+            result = sync_labels.sync_labels("acme/widgets", str(self.manifest_path))
+        create.assert_not_called()
+        edit.assert_not_called()
+        self.assertIn("0 created, 0 updated, 1 unchanged", result)
+
     def test_fails_on_a_malformed_manifest(self):
         self.manifest_path.write_text(json.dumps({"nope": True}))
         with self.assertRaisesRegex(sync_labels.ManifestError, "malformed manifest"):

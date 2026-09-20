@@ -45,7 +45,7 @@ def sync_labels(repo: str, manifest_path: str) -> str:
         if current is None:
             gh.label_create(repo, name, color, description)
             created += 1
-        elif current.get("color", "").lower() == color.lower() and current.get("description", "") == description:
+        elif (current.get("color") or "").lower() == color.lower() and (current.get("description") or "") == description:
             unchanged += 1
         else:
             gh.label_edit(repo, name, color, description)
