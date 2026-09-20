@@ -29,8 +29,8 @@ issue="${2:-}"
 repo="$GITHUB_REPOSITORY"
 pr_url="${GITHUB_SERVER_URL}/${repo}/pull/${pr}"
 
-last_state=$(gh api "repos/$repo/pulls/$pr/reviews" \
-  --jq '[.[] | select(.user.login==env.REVIEWER_BOT)] | last | .state // empty')
+head_sha=$(gh pr view "$pr" --repo "$repo" --json headRefOid --jq .headRefOid)
+last_state=$(verdict_for_head "$pr" "$head_sha")
 
 case "$last_state" in
   APPROVED)
@@ -41,8 +41,7 @@ case "$last_state" in
     fi
     ;;
   CHANGES_REQUESTED)
-    rc_count=$(gh api "repos/$repo/pulls/$pr/reviews" \
-      --jq '[.[] | select(.user.login==env.REVIEWER_BOT and .state=="CHANGES_REQUESTED")] | length')
+    rc_count=$(rounds_requested "$pr")
     if [[ "$rc_count" -gt "$max_fix_rounds" ]]; then
       escalate_pr "$pr"
       [[ -n "$issue" ]] && set_issue_status "$issue" status:needs-attention

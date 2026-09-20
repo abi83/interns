@@ -23,8 +23,7 @@ pr="$1"
 repo="$GITHUB_REPOSITORY"
 max="${MAX_AUTOMATIC_REVIEWS_PER_PR:-5}"
 
-count=$(gh api "repos/$repo/pulls/$pr/reviews" \
-  --jq '[.[] | select(.user.login==env.REVIEWER_BOT)] | length')
+count=$(review_count "$pr")
 
 if [[ "$count" -ge "$max" ]]; then
   echo "capped=true" >> "$GITHUB_OUTPUT"

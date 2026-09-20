@@ -9,10 +9,15 @@
 set -euo pipefail
 
 # pipeline/src/pipeline/labels.py owns the label/status state machine
-# (interns#156); everything below shells out to it.
+# (interns#156), pipeline.verdict the reviewer-verdict/round queries and
+# pipeline.execution the execution-log parsing (interns#157); everything
+# below shells out to one of them.
 _PIPELINE_SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../pipeline/src" && pwd)"
 _labels() {
   PYTHONPATH="$_PIPELINE_SRC" python3 -m pipeline.labels "$GITHUB_REPOSITORY" "$@"
+}
+_verdict() {
+  PYTHONPATH="$_PIPELINE_SRC" python3 -m pipeline.verdict "$GITHUB_REPOSITORY" "$@"
 }
 
 # URL of the current workflow run, for "see the run" links in comments.
@@ -29,6 +34,38 @@ format_cost() {
   else
     printf 'unknown'
   fi
+}
+
+# Value of a field on a claude-code-action execution file's `result` entry
+# (e.g. total_cost_usd, num_turns, result), or empty for a missing/timed-out
+# run.
+result_field() {
+  PYTHONPATH="$_PIPELINE_SRC" python3 -m pipeline.execution "$@"
+}
+
+# REVIEWER_BOT's verdict for the PR's current head: the state of their latest
+# review, or empty when it's stale -- targets a commit an earlier round's fix
+# already moved past.
+verdict_for_head() {
+  _verdict "$1" "$REVIEWER_BOT" verdict-for-head "$2"
+}
+
+# How many CHANGES_REQUESTED reviews REVIEWER_BOT has left on the PR,
+# optionally excluding one against a given commit (e.g. this run's own
+# verdict, already posted against the current head).
+rounds_requested() {
+  local pr="$1" exclude="${2:-}"
+  if [[ -n "$exclude" ]]; then
+    _verdict "$pr" "$REVIEWER_BOT" rounds-requested --exclude-commit "$exclude"
+  else
+    _verdict "$pr" "$REVIEWER_BOT" rounds-requested
+  fi
+}
+
+# How many reviews REVIEWER_BOT has left on the PR in total, regardless of
+# state or which commit they targeted.
+review_count() {
+  _verdict "$1" "$REVIEWER_BOT" review-count
 }
 
 # Comma-joined current labels, for the inline "read labels" call sites.
