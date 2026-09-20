@@ -380,7 +380,7 @@ jobs:
       - name: Check test/build configuration
         id: build_config
         if: steps.guard.outputs.skip != 'true' && always()
-        run: .interns/.github/scripts/pipeline/check-build-config.sh
+        run: .interns/.github/scripts/pipeline/check-build-config.sh "$GITHUB_WORKSPACE"
 
       - name: Report run cost
         if: steps.guard.outputs.skip != 'true' && always() && (steps.claude_initial.outputs.execution_file != '' || steps.claude_fix.outputs.execution_file != '')

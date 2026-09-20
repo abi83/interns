@@ -8,24 +8,13 @@
 #
 # No-op on any other issue type.
 #
+# pipeline/src/pipeline/spike_advisory.py is the only place this logic lives
+# (interns#159) -- this is a thin shim that shells out to it.
+#
 # Usage: spike-advisory.sh
 #   Env: ISSUE, GITHUB_REPOSITORY, GH_TOKEN
 
 set -euo pipefail
-# shellcheck source=.github/scripts/pipeline/lib.sh
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-labels=$(issue_labels_csv "$ISSUE")
-
-if [[ ",$labels," != *",type:spike,"* ]]; then
-  echo "Issue #$ISSUE is not a spike — no advisory."
-  exit 0
-fi
-
-if [[ ",$labels," != *",status:estimated,"* ]]; then
-  echo "Issue #$ISSUE is a spike but not yet estimated — no advisory."
-  exit 0
-fi
-
-gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body \
-  "This is a spike; no coder picks it up. The estimate above is for your planning — do the investigation and close the issue when done."
+pipeline_src="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../pipeline/src" && pwd)"
+PYTHONPATH="$pipeline_src" python3 -m pipeline.spike_advisory "$ISSUE"
