@@ -31,7 +31,7 @@ exec_file="$2"
 issue="${3:-}"
 pr="${4:-}"
 
-raw_cost=$(jq -r '[.[] | select(.type=="result")][0].total_cost_usd // empty' "$exec_file" 2>/dev/null || true)
+raw_cost=$(result_field "$exec_file" total_cost_usd 2>/dev/null || true)
 body="$phase [pipeline run]($(run_url)) — cost: \$$(format_cost "$raw_cost")"
 [[ -n "$warn" ]] && body="$body"$'\n\n'"⚠️ $warn"
 

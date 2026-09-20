@@ -35,17 +35,24 @@ case "$1 $2" in
 esac
 case "$1" in
   api)
-    if [[ "$*" == *"/reviews"* && -n "${STUB_REVIEWS-}" ]]; then
-      # Faithful path: run the real --jq expression against a reviews fixture.
-      jqexpr=; shift
-      while [[ $# -gt 0 ]]; do [[ "$1" == "--jq" ]] && { jqexpr="$2"; break; }; shift; done
-      jq -r "$jqexpr" <<<"$STUB_REVIEWS"
-    else
-      case "$*" in
-        *"| length"*) echo "${STUB_RC_COUNT-0}" ;;
-        *commit_id*) echo "${STUB_LAST_SHA-}" ;;
-        *) echo "${STUB_LAST_STATE-}" ;;
-      esac
+    if [[ "$*" == *"/reviews"* ]]; then
+      if [[ "$*" == *"--jq"* ]]; then
+        # gather-fix-feedback.sh's own direct `gh api --jq` calls.
+        if [[ -n "${STUB_REVIEWS-}" ]]; then
+          jqexpr=; shift
+          while [[ $# -gt 0 ]]; do [[ "$1" == "--jq" ]] && { jqexpr="$2"; break; }; shift; done
+          jq -r "$jqexpr" <<<"$STUB_REVIEWS"
+        else
+          case "$*" in
+            *"| length"*) echo "${STUB_RC_COUNT-0}" ;;
+            *commit_id*) echo "${STUB_LAST_SHA-}" ;;
+            *) echo "${STUB_LAST_STATE-}" ;;
+          esac
+        fi
+      else
+        # pipeline.verdict's plain `gh api <path>` (no --jq) -- raw JSON.
+        echo "${STUB_REVIEWS-[]}"
+      fi
     fi ;;
 esac
 exit "${STUB_GH_EXIT-0}"

@@ -66,11 +66,9 @@ summary() { cat "$GITHUB_STEP_SUMMARY"; }
 @test "review: approved verdict" {
   echo '[{"type":"result","total_cost_usd":0.1,"result":"Looks good, approving."}]' >"$EXEC"
   export STUB_PR_TITLE="feat: widget"
-  export STUB_LAST_STATE="APPROVED"
-  export STUB_RC_COUNT=0
   export STUB_HEAD_SHA="headsha"
-  export STUB_LAST_SHA="headsha"
   export REVIEWER_BOT="reviewer-app[bot]"
+  export STUB_REVIEWS='[{"user":{"login":"reviewer-app[bot]"},"state":"APPROVED","commit_id":"headsha"}]'
   run "$PIPELINE_DIR/run-summary.sh" Review "$EXEC" --pr 99 --issue 42
   [ "$status" -eq 0 ]
   summary | grep -qF '**PR:** [#99](https://github.com/owner/repo/pull/99) — feat: widget'
@@ -81,10 +79,9 @@ summary() { cat "$GITHUB_STEP_SUMMARY"; }
 
 @test "review: no verdict submitted" {
   echo '[{"type":"result","result":"Could not use the review tool, posting here."}]' >"$EXEC"
-  export STUB_LAST_STATE=""
-  export STUB_RC_COUNT=1
   export STUB_HEAD_SHA="headsha"
-  export STUB_LAST_SHA=""
+  export REVIEWER_BOT="reviewer-app[bot]"
+  export STUB_REVIEWS='[{"user":{"login":"reviewer-app[bot]"},"state":"CHANGES_REQUESTED","commit_id":"oldsha"}]'
   run "$PIPELINE_DIR/run-summary.sh" Review "$EXEC" --pr 99
   [ "$status" -eq 0 ]
   summary | grep -qF '**Round:** re-review (after 1 changes-requested)'
@@ -115,10 +112,9 @@ summary() { cat "$GITHUB_STEP_SUMMARY"; }
 
 @test "review: a stale verdict against an old commit is not counted as this run's" {
   echo '[{"type":"result","result":"Stopped early."}]' >"$EXEC"
-  export STUB_LAST_STATE="CHANGES_REQUESTED"
-  export STUB_RC_COUNT=1
   export STUB_HEAD_SHA="newsha"
-  export STUB_LAST_SHA="oldsha"
+  export REVIEWER_BOT="reviewer-app[bot]"
+  export STUB_REVIEWS='[{"user":{"login":"reviewer-app[bot]"},"state":"CHANGES_REQUESTED","commit_id":"oldsha"}]'
   run "$PIPELINE_DIR/run-summary.sh" Review "$EXEC" --pr 99
   [ "$status" -eq 0 ]
   summary | grep -qF '**Outcome:** ⚠️ No verdict submitted — see the final message below.'
