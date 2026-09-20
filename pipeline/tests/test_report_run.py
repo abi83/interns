@@ -1,4 +1,5 @@
 import os
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -43,6 +44,21 @@ class ReportTests(unittest.TestCase):
              patch("pipeline.report_run.gh.run_url", return_value="https://x/runs/1"), \
              patch("pipeline.report_run.gh.issue_comment") as comment:
             report_run.report("acme/widgets", "Coder", "/no/such/file", 55, None, None)
+        self.assertIn("cost: $unknown", comment.call_args[0][2])
+
+    def test_a_malformed_execution_file_yields_an_unknown_cost_not_a_crash(self):
+        # Regression: execution.result_field used to be called unguarded here,
+        # so a present-but-truncated exec file (partial write, disk pressure)
+        # raised json.JSONDecodeError instead of falling back like a missing
+        # file does. The fix lives in execution.result_field itself, not a
+        # local guard -- this exercises the real function, not a mock.
+        with tempfile.TemporaryDirectory() as tmp:
+            exec_file = os.path.join(tmp, "exec.json")
+            with open(exec_file, "w") as f:
+                f.write("")
+            with patch("pipeline.report_run.gh.run_url", return_value="https://x/runs/1"), \
+                 patch("pipeline.report_run.gh.issue_comment") as comment:
+                report_run.report("acme/widgets", "Coder", exec_file, 55, None, None)
         self.assertIn("cost: $unknown", comment.call_args[0][2])
 
     def test_errors_when_given_neither_an_issue_nor_a_pr(self):

@@ -20,6 +20,13 @@ class HeadingsTests(unittest.TestCase):
         text = "## Question to Answer\n"
         self.assertEqual(resolve_issue_template.headings(text), ["## Question to Answer"])
 
+    def test_unclosed_frontmatter_yields_no_headings(self):
+        # Matches the original awk: once the frontmatter state opens it never
+        # closes without a matching `---`, so every remaining line -- real
+        # headings included -- is treated as still inside it and dropped.
+        text = "---\nlabels: type:bug\n## Description\n## Impact\n"
+        self.assertEqual(resolve_issue_template.headings(text), [])
+
 
 class BuildSkeletonTests(unittest.TestCase):
     def setUp(self):

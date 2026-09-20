@@ -13,18 +13,10 @@ run-summary.sh is a thin shim over this module.
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
 from . import execution, gh, labels, report_run, verdict
-
-
-def _result_field(exec_file: str | None, field: str) -> str | None:
-    try:
-        return execution.result_field(exec_file, field)
-    except json.JSONDecodeError:
-        return None
 
 
 def _issue_title(repo: str, issue: str) -> str:
@@ -201,9 +193,9 @@ def _execution_file_written(exec_file: str | None) -> bool:
 def build_summary(repo: str, server_url: str, phase: str, exec_file: str | None, *,
                    issue: str = "", pr: str = "", round_: str = "", cost_warn: str = "",
                    reviewer_bot: str = "") -> str:
-    raw_cost = _result_field(exec_file, "total_cost_usd")
-    num_turns = _result_field(exec_file, "num_turns")
-    final_msg = _result_field(exec_file, "result")
+    raw_cost = execution.result_field(exec_file, "total_cost_usd")
+    num_turns = execution.result_field(exec_file, "num_turns")
+    final_msg = execution.result_field(exec_file, "result")
 
     lines = [f"## {phase} run", ""]
 

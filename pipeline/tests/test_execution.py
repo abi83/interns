@@ -32,6 +32,16 @@ class ResultFieldTests(unittest.TestCase):
     def test_exec_file_that_does_not_exist_is_none(self):
         self.assertIsNone(execution.result_field(str(self.tmp_path / "missing.json"), "total_cost_usd"))
 
+    def test_malformed_json_is_none(self):
+        exec_file = self.tmp_path / "exec.json"
+        exec_file.write_text("")
+        self.assertIsNone(execution.result_field(str(exec_file), "total_cost_usd"))
+
+    def test_truncated_json_is_none(self):
+        exec_file = self.tmp_path / "exec.json"
+        exec_file.write_text('[{"type": "result", "total')
+        self.assertIsNone(execution.result_field(str(exec_file), "total_cost_usd"))
+
     def test_no_result_entry_is_none(self):
         exec_file = _write(self.tmp_path, [{"type": "assistant", "message": "hi"}])
         self.assertIsNone(execution.result_field(exec_file, "total_cost_usd"))

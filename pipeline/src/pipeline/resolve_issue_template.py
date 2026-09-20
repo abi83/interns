@@ -27,11 +27,18 @@ class NoTemplateError(ValueError):
 def headings(text: str) -> list[str]:
     """Markdown heading lines, with the leading YAML frontmatter block
     stripped. HTML comments in these templates never start with `#`, so
-    filtering to heading lines drops them for free."""
+    filtering to heading lines drops them for free.
+
+    An opened-but-never-closed frontmatter block (missing the closing `---`)
+    yields no headings at all, matching the original awk script: it never
+    leaves the frontmatter state, so every remaining line -- headings
+    included -- gets skipped."""
     lines = text.splitlines()
     if lines and lines[0] == "---":
         end = next((i for i in range(1, len(lines)) if lines[i] == "---"), None)
-        lines = lines[end + 1:] if end is not None else lines
+        if end is None:
+            return []
+        lines = lines[end + 1:]
     return [line for line in lines if HEADING_RE.match(line)]
 
 
