@@ -171,14 +171,25 @@ def pr_create(repo: str, head: str, base: str, title: str, body: str) -> str:
     return proc.stdout.strip()
 
 
-def list_secret_names(repo: str) -> list[str] | None:
-    """None means the token cannot read the secret list (scope-blind)."""
+def _paginated_names(path: str, key: str) -> list[str] | None:
+    """Names from every page of a `{key: [...]}` collection endpoint, via
+    `gh api --paginate`. None means the token cannot read it (scope-blind)."""
     try:
-        data = api(f"repos/{repo}/actions/secrets?per_page=100")
+        proc = _run(["api", "-H", "Accept: application/vnd.github+json",
+                     "--paginate", "--jq", f".{key}[].name", path])
     except GhCommandError:
         return None
-    secrets = data.get("secrets", []) if isinstance(data, dict) else []
-    return [s["name"] for s in secrets]
+    return [line for line in proc.stdout.splitlines() if line]
+
+
+def list_secret_names(repo: str) -> list[str] | None:
+    """None means the token cannot read the secret list (scope-blind)."""
+    return _paginated_names(f"repos/{repo}/actions/secrets", "secrets")
+
+
+def list_variable_names(repo: str) -> list[str] | None:
+    """None means the token cannot read the variable list (scope-blind)."""
+    return _paginated_names(f"repos/{repo}/actions/variables", "variables")
 
 
 def secret_verb(name: str, existing: list[str] | None) -> str:
@@ -301,3 +312,17 @@ def put_file(repo: str, path: str, content: str, message: str, branch: str,
     if sha is not None:
         fields["sha"] = sha
     api(f"repos/{repo}/contents/{path}", method="PUT", fields=fields)
+
+
+def label_list(repo: str) -> list[dict]:
+    proc = _run(["label", "list", "--repo", repo, "--limit", "500",
+                 "--json", "name,color,description"])
+    return json.loads(proc.stdout)
+
+
+def label_create(repo: str, name: str, color: str, description: str) -> None:
+    _run(["label", "create", name, "--repo", repo, "--color", color, "--description", description])
+
+
+def label_edit(repo: str, name: str, color: str, description: str) -> None:
+    _run(["label", "edit", name, "--repo", repo, "--color", color, "--description", description])

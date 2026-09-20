@@ -187,15 +187,25 @@ class SecretVerbTests(unittest.TestCase):
 
 
 class ListSecretNamesTests(unittest.TestCase):
-    def test_lists_names(self):
-        body = json.dumps({"secrets": [{"name": "A"}, {"name": "B"}]})
-        with patch("pipeline.gh.subprocess.run", return_value=_proc(stdout=body)):
+    def test_lists_names_across_pages(self):
+        with patch("pipeline.gh.subprocess.run", return_value=_proc(stdout="A\nB\n")):
             self.assertEqual(gh.list_secret_names("acme/widgets"), ["A", "B"])
 
     def test_none_when_scope_blind(self):
         exc = subprocess.CalledProcessError(1, ["gh"], output="", stderr="HTTP 403: Forbidden")
         with patch("pipeline.gh.subprocess.run", side_effect=exc):
             self.assertIsNone(gh.list_secret_names("acme/widgets"))
+
+
+class ListVariableNamesTests(unittest.TestCase):
+    def test_lists_names_across_pages(self):
+        with patch("pipeline.gh.subprocess.run", return_value=_proc(stdout="A\nB\n")):
+            self.assertEqual(gh.list_variable_names("acme/widgets"), ["A", "B"])
+
+    def test_none_when_scope_blind(self):
+        exc = subprocess.CalledProcessError(1, ["gh"], output="", stderr="HTTP 403: Forbidden")
+        with patch("pipeline.gh.subprocess.run", side_effect=exc):
+            self.assertIsNone(gh.list_variable_names("acme/widgets"))
 
 
 class DefaultBranchTests(unittest.TestCase):

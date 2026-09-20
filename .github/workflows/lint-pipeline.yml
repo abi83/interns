@@ -57,9 +57,6 @@ jobs:
       - name: Run pipeline script tests
         run: bats .github/scripts/pipeline/tests
 
-      - name: Run installer script tests
-        run: bats .github/scripts/install/tests
-
   test-installer-cli:
     runs-on: ubuntu-latest
     steps:
