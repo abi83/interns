@@ -38,7 +38,6 @@ def handle_pr_closed(repo: str, pr: int, issue: int | None, merged: bool) -> Non
 
 def _main(argv: list[str]) -> int:
     import argparse
-    import os
 
     parser = argparse.ArgumentParser(prog="python -m pipeline.handle_pr_closed")
     parser.add_argument("pr", type=int)

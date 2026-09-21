@@ -28,7 +28,6 @@ def handoff(repo: str, issue: int, pr: int | None) -> None:
 
 def _main(argv: list[str]) -> int:
     import argparse
-    import os
 
     parser = argparse.ArgumentParser(prog="python -m pipeline.handoff_to_review")
     parser.add_argument("issue", type=int)

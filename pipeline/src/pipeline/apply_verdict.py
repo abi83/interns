@@ -78,7 +78,6 @@ def apply_verdict(repo: str, pr: int, issue: int | None, reviewer_bot: str) -> N
 
 def _main(argv: list[str]) -> int:
     import argparse
-    import os
 
     parser = argparse.ArgumentParser(prog="python -m pipeline.apply_verdict")
     parser.add_argument("pr", type=int)

@@ -33,7 +33,6 @@ def report(repo: str, phase: str, exec_file: str | None, issue: int | None,
 
 def _main(argv: list[str]) -> int:
     import argparse
-    import os
 
     parser = argparse.ArgumentParser(prog="python -m pipeline.report_run")
     parser.add_argument("phase")

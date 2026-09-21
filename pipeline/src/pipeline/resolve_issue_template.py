@@ -13,7 +13,7 @@ import re
 import sys
 from pathlib import Path
 
-from . import cli, prompt
+from . import cli
 
 HEADING_RE = re.compile(r"^#{1,6} .*$")
 

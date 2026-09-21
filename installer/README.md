@@ -32,7 +32,5 @@ uvx --from git+https://github.com/abi83/interns.git@v0.1.0#subdirectory=installe
 
 ## Develop
 
-```sh
-cd installer
-PYTHONPATH=src python -m unittest discover -s tests -v
-```
+Tests, coverage floors and lint run from the repo root; see
+[docs/testing.md](../docs/testing.md).

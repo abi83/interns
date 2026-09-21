@@ -123,7 +123,7 @@ class ReuseAppTests(unittest.TestCase):
         """--yes has no one to ask -- it must fall straight to minting rather
         than silently answering the reuse question for the operator."""
         con = Console(assume_yes=True, dry_run=True)
-        with mock.patch.object(apps, "ManifestServer") as server:
+        with mock.patch.object(apps, "ManifestServer"):
             provision_app(con, _repo(), CODER, None, existing_secrets=[])
         # dry_run short-circuits before ManifestServer is ever constructed;
         # the assertion that matters is the mint path, not this call.

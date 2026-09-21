@@ -1,9 +1,8 @@
 """Tests for gh-issues MCP server."""
 
 import json
-import os
 import subprocess
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -171,7 +170,7 @@ def test_comment_issue():
     with patch("server.subprocess.run") as mock_run:
         mock_run.return_value = _make_proc("https://github.com/.../42#issuecomment-1")
         with patch.object(server, "_REPO", "owner/repo"):
-            result = comment_issue(issue_number=42, body="Hello")
+            comment_issue(issue_number=42, body="Hello")
 
     cmd = mock_run.call_args[0][0]
     assert "gh" in cmd
