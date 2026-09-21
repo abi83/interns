@@ -10,7 +10,7 @@ import subprocess
 from typing import Annotated, Literal
 
 from mcp.server.mcpserver import MCPServer
-from pipeline import gh
+from pipeline import gh, prompt
 from pipeline.gh import GhCommandError
 from pydantic import BaseModel, Field
 
@@ -168,12 +168,11 @@ def _write_github_output(issue: Issue) -> None:
         if not output_path:
             print(f"{key}={value!r}")
             return
-        with open(output_path, "a") as f:
+        with open(output_path, "ab") as f:
             if multiline:
-                sentinel = f"EOF_{key.upper()}"
-                f.write(f"{key}<<{sentinel}\n{value}\n{sentinel}\n")
+                f.write(prompt.github_output_block(key, value.encode()))
             else:
-                f.write(f"{key}={value}\n")
+                f.write(f"{key}={value}\n".encode())
 
     write("number", str(issue.number))
     write("title", issue.title)

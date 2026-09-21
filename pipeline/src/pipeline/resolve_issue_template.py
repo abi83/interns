@@ -13,6 +13,8 @@ import re
 import sys
 from pathlib import Path
 
+from pipeline import prompt
+
 HEADING_RE = re.compile(r"^#{1,6} .*$")
 
 DEFAULT_TYPES = ["coding-task", "bug", "spike"]
@@ -72,8 +74,8 @@ def _main(argv: list[str]) -> int:
     skeleton = build_skeleton(Path(args.builtin_dir), Path(args.consumer_dir), args.types.split())
 
     github_output = os.environ["GITHUB_OUTPUT"]
-    with open(github_output, "a") as f:
-        f.write(f"skeleton<<EOF_SKELETON\n{skeleton}\nEOF_SKELETON\n")
+    with open(github_output, "ab") as f:
+        f.write(prompt.github_output_block("skeleton", skeleton.encode()))
     return 0
 
 
