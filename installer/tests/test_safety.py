@@ -2,7 +2,8 @@ import json
 import unittest
 from unittest import mock
 
-from interns_install import gh, safety
+from pipeline import gh
+from interns_install import safety
 from interns_install.console import Console
 from interns_install.safety import _protection_violation, check_metrics_branch
 

@@ -10,6 +10,8 @@ import subprocess
 from typing import Annotated, Literal
 
 from mcp.server.mcpserver import MCPServer
+from pipeline import gh
+from pipeline.gh import GhCommandError
 from pydantic import BaseModel, Field
 
 mcp = MCPServer("gh-issues")
@@ -33,10 +35,6 @@ STATUS_ESTIMATED = "status:estimated"
 # ---------------------------------------------------------------------------
 # Exceptions
 # ---------------------------------------------------------------------------
-
-
-class GhCommandError(RuntimeError):
-    """A `gh`/`git` subprocess exited non-zero."""
 
 
 class InvalidInputError(ValueError):
@@ -88,16 +86,14 @@ class InlineComment(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
-    """Run a subprocess and re-raise failures with stderr so agents see why."""
-    kwargs.pop("check", None)
-    kwargs.setdefault("capture_output", True)
-    kwargs.setdefault("text", True)
-    result = subprocess.run(cmd, **kwargs)
+def _git(*args: str) -> str:
+    """Run `git` in the consumer workspace; re-raise failures with stderr so
+    agents see why. `gh` calls go through the shared `pipeline.gh` client."""
+    result = subprocess.run(["git", *args], cwd=_WORKSPACE or None, capture_output=True, text=True)
     if result.returncode != 0:
         detail = (result.stderr or result.stdout).strip()
-        raise GhCommandError(detail or f"'{cmd[0]}' exited {result.returncode}")
-    return result
+        raise GhCommandError(detail or f"'git' exited {result.returncode}")
+    return result.stdout.strip()
 
 
 def _load_label_names() -> list[str]:
@@ -142,16 +138,7 @@ query($owner: String!, $repo: String!, $number: Int!) {
 def _fetch_issue(number: int) -> Issue:
     """Run the GraphQL query and parse the response into an Issue model."""
     owner, repo = _REPO.split("/", 1)
-    result = _run(
-        [
-            "gh", "api", "graphql",
-            "-f", f"query={_VIEW_QUERY}",
-            "-F", f"owner={owner}",
-            "-F", f"repo={repo}",
-            "-F", f"number={number}",
-        ],
-    )
-    raw = json.loads(result.stdout)["data"]["repository"]["issue"]
+    raw = gh.graphql(_VIEW_QUERY, owner=owner, repo=repo, number=number)["data"]["repository"]["issue"]
     return Issue(
         number=raw["number"],
         title=raw["title"],
@@ -222,17 +209,7 @@ def list_issues(
 
     Returns a JSON array; each element has number, title, labels, state.
     """
-    cmd = [
-        "gh", "issue", "list",
-        "--repo", _REPO,
-        "--state", "open",
-        "--json", "number,title,labels,state",
-        "--limit", "100",
-    ]
-    if label:
-        cmd += ["--label", label]
-    result = _run(cmd)
-    return result.stdout
+    return json.dumps(gh.issue_list(_REPO, label=label))
 
 
 @mcp.tool()
@@ -259,8 +236,7 @@ def comment_issue(
     body: Annotated[str, Field(description="Comment body (markdown).", min_length=1, max_length=10000)],
 ) -> str:
     """Post a comment on an issue."""
-    result = _run(["gh", "issue", "comment", str(issue_number), "--repo", _REPO, "--body", body])
-    return result.stdout or f"Comment posted on issue #{issue_number}"
+    return gh.issue_comment(_REPO, issue_number, body) or f"Comment posted on issue #{issue_number}"
 
 
 @mcp.tool()
@@ -279,12 +255,9 @@ def edit_issue(
     """
     if title is not None and "\n" in title:
         raise InvalidInputError("Title must be a single line")
-    args = ["gh", "issue", "edit", str(issue_number), "--repo", _REPO, "--body", body]
-    if title is not None:
-        args += ["--title", title]
-    result = _run(args)
+    output = gh.issue_edit(_REPO, issue_number, body=body, title=title)
     updated = ["body"] + (["title"] if title is not None else [])
-    return result.stdout or f"Updated {' and '.join(updated)} on issue #{issue_number}"
+    return output or f"Updated {' and '.join(updated)} on issue #{issue_number}"
 
 
 @mcp.tool()
@@ -303,16 +276,7 @@ def edit_issue_labels(
     if not add_labels and not remove_labels:
         return "Nothing to do"
 
-    valid_result = _run(
-        [
-            "gh", "label", "list",
-            "--repo", _REPO,
-            "--limit", "500",
-            "--json", "name",
-            "--jq", ".[].name",
-        ],
-    )
-    valid = set(valid_result.stdout.splitlines())
+    valid = set(gh.label_names(_REPO))
 
     unknown_add = [lbl for lbl in add_labels if lbl not in valid]
     unknown_remove = [lbl for lbl in remove_labels if lbl not in valid]
@@ -324,19 +288,13 @@ def edit_issue_labels(
             msgs.append(f"Labels don't exist, not removed: {', '.join(unknown_remove)}")
         raise InvalidInputError("\n".join(msgs))
 
-    args = ["gh", "issue", "edit", str(issue_number), "--repo", _REPO]
-    for lbl in add_labels:
-        args += ["--add-label", lbl]
-    for lbl in remove_labels:
-        args += ["--remove-label", lbl]
-
-    result = _run(args)
+    output = gh.issue_edit(_REPO, issue_number, add_labels=add_labels, remove_labels=remove_labels)
     parts = []
     if add_labels:
         parts.append(f"Added: {', '.join(add_labels)}")
     if remove_labels:
         parts.append(f"Removed: {', '.join(remove_labels)}")
-    return result.stdout or "\n".join(parts)
+    return output or "\n".join(parts)
 
 
 # ---------------------------------------------------------------------------
@@ -350,8 +308,7 @@ def comment_pr(
     body: Annotated[str, Field(description="Comment body (markdown).", min_length=1, max_length=10000)],
 ) -> str:
     """Post a comment on a pull request."""
-    result = _run(["gh", "pr", "comment", str(pr_number), "--repo", _REPO, "--body", body])
-    return result.stdout or f"Comment posted on PR #{pr_number}"
+    return gh.pr_comment(_REPO, pr_number, body) or f"Comment posted on PR #{pr_number}"
 
 
 @mcp.tool()
@@ -366,11 +323,8 @@ def open_pr(
     linked to the issue via GitHub's closing-reference mechanism.
     """
     full_body = f"{body}\n\nCloses #{issue_number}"
-    result = _run(
-        ["gh", "pr", "create", "--repo", _REPO, "--title", title, "--body", full_body],
-        cwd=_WORKSPACE or None,
-    )
-    return result.stdout
+    head = _git("rev-parse", "--abbrev-ref", "HEAD")
+    return gh.pr_create(_REPO, head, gh.default_branch(_REPO), title, full_body)
 
 
 @mcp.tool()
@@ -387,15 +341,8 @@ def submit_pr_review(
     if event not in ("APPROVE", "REQUEST_CHANGES"):
         raise InvalidInputError("event must be APPROVE or REQUEST_CHANGES")
     payload = {"event": event, "body": body, "comments": [c.model_dump() for c in (comments or [])]}
-    result = _run(
-        [
-            "gh", "api", "--method", "POST",
-            f"repos/{_REPO}/pulls/{pr_number}/reviews",
-            "--input", "-",
-        ],
-        input=json.dumps(payload),
-    )
-    return result.stdout
+    result = gh.api(f"repos/{_REPO}/pulls/{pr_number}/reviews", method="POST", input_json=json.dumps(payload))
+    return json.dumps(result)
 
 
 # ---------------------------------------------------------------------------
@@ -412,27 +359,22 @@ def push_branch() -> str:
     Squashing happens before the protected-path check so an intermediate-only
     edit to a protected path is collapsed and doesn't trigger a false positive.
     """
-    ws = _WORKSPACE or None
-
-    def git(*args: str) -> str:
-        return _run(["git"] + list(args), cwd=ws).stdout.strip()
-
-    branch = git("rev-parse", "--abbrev-ref", "HEAD")
+    branch = _git("rev-parse", "--abbrev-ref", "HEAD")
     if branch in ("main", "master"):
         raise PushRefusedError(f"Refusing to push {branch} directly")
 
-    git("fetch", "origin", "main", "--quiet")
-    base = git("merge-base", "origin/main", "HEAD")
-    head = git("rev-parse", "HEAD")
+    _git("fetch", "origin", "main", "--quiet")
+    base = _git("merge-base", "origin/main", "HEAD")
+    head = _git("rev-parse", "HEAD")
 
     if base == head:
         raise PushRefusedError("No commits beyond origin/main — nothing to push")
 
-    message = git("log", "-1", "--format=%B")
-    git("reset", "--soft", base)
-    git("commit", "--quiet", "-m", message)
+    message = _git("log", "-1", "--format=%B")
+    _git("reset", "--soft", base)
+    _git("commit", "--quiet", "-m", message)
 
-    changed = git("diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD")
+    changed = _git("diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD")
     protected = [p for p in changed.splitlines() if re.search(_PROTECTED_PATHS_RE, p)]
     if protected:
         paths = "\n".join(f"  {p}" for p in protected)
@@ -440,7 +382,7 @@ def push_branch() -> str:
             f"Cannot push: changes touch protected paths (drop these edits and push again):\n{paths}"
         )
 
-    git("push", "--force-with-lease", "-u", "origin", branch)
+    _git("push", "--force-with-lease", "-u", "origin", branch)
     return f"Branch {branch!r} squashed and pushed to origin"
 
 
@@ -502,12 +444,7 @@ def apply_refinement_outcome(
     else:
         raise InvalidInputError("outcome must be 'refined' or 'needs-attention'")
 
-    args = ["gh", "issue", "edit", str(issue_number), "--repo", _REPO]
-    for lbl in add:
-        args += ["--add-label", lbl]
-    for lbl in remove:
-        args += ["--remove-label", lbl]
-    _run(args)
+    gh.issue_edit(_REPO, issue_number, add_labels=add, remove_labels=remove)
     return f"Refinement outcome '{outcome}' applied to issue #{issue_number}"
 
 
@@ -553,12 +490,7 @@ def apply_estimation_outcome(
     else:
         raise InvalidInputError("outcome must be 'estimated' or 'needs-attention'")
 
-    args = ["gh", "issue", "edit", str(issue_number), "--repo", _REPO]
-    for lbl in add:
-        args += ["--add-label", lbl]
-    for lbl in remove:
-        args += ["--remove-label", lbl]
-    _run(args)
+    gh.issue_edit(_REPO, issue_number, add_labels=add, remove_labels=remove)
 
     if outcome == "estimated":
         return f"Estimation outcome 'estimated' applied to issue #{issue_number} (size:{size})"

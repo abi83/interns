@@ -16,7 +16,11 @@ set -eu
 
 # Exported so interns-install copies the install wrapper from the same ref.
 export INTERNS_REF="${INTERNS_REF:-v0}"
-SPEC="git+https://github.com/abi83/interns.git@${INTERNS_REF}#subdirectory=installer"
+REPO_URL="git+https://github.com/abi83/interns.git@${INTERNS_REF}"
+SPEC="${REPO_URL}#subdirectory=installer"
+# Pinned to the same ref as the installer: the installer imports its gh client
+# from the pipeline package.
+PIPELINE_SPEC="interns-pipeline @ ${REPO_URL}#subdirectory=pipeline"
 
 if ! command -v uv >/dev/null 2>&1; then
   echo "bootstrap: installing uv (https://docs.astral.sh/uv/)"
@@ -39,9 +43,9 @@ fi
 # terminal at all (CI, some sandboxes) -- `exec 3< ...` in an `if` condition
 # is exempt from `set -e`, so that case falls through instead of aborting.
 if [ -t 0 ]; then
-  exec uvx --from "$SPEC" interns-install "$@"
+  exec uvx --from "$SPEC" --with "$PIPELINE_SPEC" interns-install "$@"
 elif exec 3< /dev/tty 2>/dev/null; then
-  exec uvx --from "$SPEC" interns-install "$@" <&3
+  exec uvx --from "$SPEC" --with "$PIPELINE_SPEC" interns-install "$@" <&3
 else
-  exec uvx --from "$SPEC" interns-install "$@"
+  exec uvx --from "$SPEC" --with "$PIPELINE_SPEC" interns-install "$@"
 fi

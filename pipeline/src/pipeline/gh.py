@@ -1,4 +1,5 @@
-"""Shared wrapper over the `gh` CLI for the pipeline's Python scripts."""
+"""Shared wrapper over the `gh` CLI, used by the pipeline scripts, the
+`interns-install` CLI and the gh-issues MCP server."""
 
 from __future__ import annotations
 
@@ -72,6 +73,14 @@ def api(path: str, *, method: str = "GET", fields: dict[str, str] | None = None,
     return json.loads(out) if out else None
 
 
+def graphql(query: str, **variables: str | int) -> dict:
+    """Run a GraphQL query. Variables go as `-F`, so gh types numeric values."""
+    args = ["api", "graphql", "-f", f"query={query}"]
+    for key, value in variables.items():
+        args += ["-F", f"{key}={value}"]
+    return json.loads(_run(args).stdout)
+
+
 def api_all_pages(path: str) -> list:
     """Every item across every page of a paginated array endpoint."""
     proc = _run(["api", "-H", "Accept: application/vnd.github+json", "--paginate", "--slurp", path])
@@ -120,17 +129,30 @@ def issue_view(repo: str, number: int, fields: list[str]) -> dict:
     return json.loads(proc.stdout)
 
 
-def issue_edit(repo: str, number: int, *, add_labels: list[str] | None = None,
-               remove_labels: list[str] | None = None) -> None:
-    """`gh issue edit`. A no-op when there's nothing to add or remove."""
-    if not add_labels and not remove_labels:
-        return
+def issue_edit(repo: str, number: int, *, body: str | None = None, title: str | None = None,
+               add_labels: list[str] | None = None, remove_labels: list[str] | None = None) -> str:
+    """`gh issue edit`. A no-op (empty output) when there's nothing to change."""
+    if body is None and title is None and not add_labels and not remove_labels:
+        return ""
     args = ["issue", "edit", str(number), "--repo", repo]
+    if body is not None:
+        args += ["--body", body]
+    if title is not None:
+        args += ["--title", title]
     for label in add_labels or []:
         args += ["--add-label", label]
     for label in remove_labels or []:
         args += ["--remove-label", label]
-    _run(args)
+    return _run(args).stdout
+
+
+def issue_list(repo: str, *, label: str | None = None, limit: int = 100) -> list[dict]:
+    """Open issues (number, title, labels, state), optionally filtered to `label`."""
+    args = ["issue", "list", "--repo", repo, "--state", "open",
+            "--json", "number,title,labels,state", "--limit", str(limit)]
+    if label:
+        args += ["--label", label]
+    return json.loads(_run(args).stdout)
 
 
 def pr_view(repo: str, number: int, fields: list[str]) -> dict:
@@ -152,12 +174,14 @@ def pr_edit(repo: str, number: int, *, add_labels: list[str] | None = None,
     _run(args)
 
 
-def issue_comment(repo: str, number: int, body: str) -> None:
-    _run(["issue", "comment", str(number), "--repo", repo, "--body", body])
+def issue_comment(repo: str, number: int, body: str) -> str:
+    """Post a comment; returns gh's output (the comment URL)."""
+    return _run(["issue", "comment", str(number), "--repo", repo, "--body", body]).stdout
 
 
-def pr_comment(repo: str, number: int, body: str) -> None:
-    _run(["pr", "comment", str(number), "--repo", repo, "--body", body])
+def pr_comment(repo: str, number: int, body: str) -> str:
+    """Post a comment; returns gh's output (the comment URL)."""
+    return _run(["pr", "comment", str(number), "--repo", repo, "--body", body]).stdout
 
 
 def pr_diff_names(repo: str, pr: int) -> list[str]:
@@ -350,6 +374,10 @@ def label_list(repo: str) -> list[dict]:
     proc = _run(["label", "list", "--repo", repo, "--limit", "500",
                  "--json", "name,color,description"])
     return json.loads(proc.stdout)
+
+
+def label_names(repo: str) -> list[str]:
+    return [entry["name"] for entry in label_list(repo)]
 
 
 def label_create(repo: str, name: str, color: str, description: str) -> None:

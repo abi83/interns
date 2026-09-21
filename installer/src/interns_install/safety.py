@@ -13,7 +13,8 @@ from __future__ import annotations
 
 import json
 
-from . import gh
+from pipeline import gh
+
 from .console import Console
 
 DEFAULT_BOT_LOGINS = ["github-actions[bot]", "claude[bot]"]
