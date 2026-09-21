@@ -18,6 +18,7 @@ def preserve_issue_body(repo: str, issue: int, body: str) -> None:
 
 def _main(argv: list[str]) -> int:
     repo, issue = argv
+    # os.environ, not require_env: an empty issue body is valid
     preserve_issue_body(repo, int(issue), os.environ["ISSUE_BODY"])
     return 0
 
