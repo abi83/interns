@@ -175,7 +175,7 @@ jobs:
             echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          LABELS=$(gh issue view "$NUM" --repo ${{ github.repository }} --json labels --jq '[.labels[].name] | join(",")')
+          LABELS=$(python3 -m pipeline.labels "$GITHUB_REPOSITORY" issue-labels "$NUM")
           # A fix round is an explicit dispatch from the reviewer against an issue
           # that is *already* status:in-progress — the stale-trigger guard below
           # would wrongly skip it, so let it through.

@@ -3,10 +3,9 @@
 Runs locally with the operator's admin-scoped `gh` session -- branch
 protection and Pages both need admin access, which `GITHUB_TOKEN` never has.
 
-Split with `.github/scripts/install/safety-checks.sh`: that script covers
-GITHUB_TOKEN-readable state (secret/variable presence); this module covers
-admin-only state. Collapses into one Python check once that script migrates
-(abi83/interns#155).
+Split with `pipeline/src/pipeline/safety_checks.py`: that module covers
+GITHUB_TOKEN-readable state (secret/variable presence); this one covers
+admin-only state.
 """
 
 from __future__ import annotations
@@ -31,8 +30,8 @@ BASELINE_PROTECTION = {
 METRICS_BRANCH = "metrics"
 METRICS_FILE = "metrics.jsonl"
 
-# append-metrics.sh (see .github/scripts/pipeline/append-metrics.sh) pushes
-# straight to this branch, not via PR -- only guard against deletion.
+# pipeline.append_metrics pushes straight to this branch, not via PR -- only
+# guard against deletion.
 METRICS_PROTECTION = {
     "required_status_checks": None,
     "enforce_admins": False,
