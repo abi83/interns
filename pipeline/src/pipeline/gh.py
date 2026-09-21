@@ -172,6 +172,13 @@ def pr_view(repo: str, number: int, fields: list[str]) -> dict:
     return json.loads(proc.stdout)
 
 
+def pr_list(repo: str, fields: list[str], *, state: str = "open") -> list[dict]:
+    """`gh pr list` restricted to `fields`."""
+    proc = _run(["pr", "list", "--repo", repo, "--state", state, "--limit", "1000",
+                 "--json", ",".join(fields)])
+    return json.loads(proc.stdout)
+
+
 def pr_edit(repo: str, number: int, *, add_labels: list[str] | None = None,
             remove_labels: list[str] | None = None) -> None:
     """`gh pr edit`. A no-op when there's nothing to add or remove."""

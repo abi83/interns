@@ -515,20 +515,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      # A `pull_request` event checks out GitHub's synthetic merge-preview
-      # ref by default, and a `workflow_dispatch` re-run (no --ref) leaves us
-      # on the default branch instead — neither is the PR's actual head. The
-      # coder job hits the same gap for its fix round (see "Checkout PR
-      # branch (fix round)" above) and fixes it the same way.
-      - name: Checkout PR branch
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          PR="${{ github.event.pull_request.number || inputs.pr_number }}"
-          HEAD_REF=$(gh pr view "$PR" --repo ${{ github.repository }} --json headRefName --jq .headRefName)
-          git fetch origin "$HEAD_REF"
-          git checkout "$HEAD_REF"
-
       - name: Resolve pipeline ref
         id: pipeline_ref
         run: echo "ref=${{ inputs.pipeline_ref }}" >> "$GITHUB_OUTPUT"
@@ -542,6 +528,20 @@ jobs:
 
       - name: Set up pipeline Python
         uses: ./.interns/.github/actions/setup-pipeline-python
+
+      # A `pull_request` event checks out GitHub's synthetic merge-preview
+      # ref by default, and a `workflow_dispatch` re-run (no --ref) leaves us
+      # on the default branch instead — neither is the PR's actual head. The
+      # coder job hits the same gap for its fix round (see "Checkout PR
+      # branch (fix round)" above) and fixes it the same way.
+      - name: Checkout PR branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR="${{ github.event.pull_request.number || inputs.pr_number }}"
+          HEAD_REF=$(python3 -m pipeline.gh_query "$GITHUB_REPOSITORY" head-ref "$PR")
+          git fetch origin "$HEAD_REF"
+          git checkout "$HEAD_REF"
 
       - name: Resolve linked issue
         id: linked
@@ -635,7 +635,7 @@ jobs:
           fi
 
           PR="${{ github.event.pull_request.number || inputs.pr_number }}"
-          HEAD_SHA=$(gh pr view "$PR" --repo ${{ github.repository }} --json headRefOid --jq .headRefOid)
+          HEAD_SHA=$(python3 -m pipeline.gh_query "$GITHUB_REPOSITORY" head-sha "$PR")
           # One fetch of the reviewer bot's reviews covers both this check and
           # "Enforce automatic review cap" below -- review_count is threaded
           # through so that step doesn't hit the same endpoint again.

@@ -111,9 +111,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
           ISSUE_BODY: ${{ steps.issue.outputs.body }}
-        run: |
-          printf '<details><summary>Body before refinement</summary>\n\n%s\n\n</details>' "$ISSUE_BODY" \
-            | gh issue comment "$ISSUE_NUMBER" --repo ${{ github.repository }} --body-file -
+        run: python3 -m pipeline.preserve_issue_body "$GITHUB_REPOSITORY" "$ISSUE_NUMBER"
 
       # Inlines the actual instructions instead of telling the agent to Read
       # them -- both files are already on disk from "Checkout pipeline

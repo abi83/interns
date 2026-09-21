@@ -119,6 +119,15 @@ class PrViewEditCreateTests(unittest.TestCase):
         args = mock_run.call_args[0][0]
         self.assertEqual(args, ["gh", "pr", "view", "7", "--repo", "acme/widgets", "--json", "state"])
 
+    def test_list_requests_given_fields_and_state(self):
+        with patch("pipeline.gh.subprocess.run", return_value=_proc(stdout='[{"number": 1}]')) as mock_run:
+            result = gh.pr_list("acme/widgets", ["number"])
+        self.assertEqual(result, [{"number": 1}])
+        self.assertEqual(
+            mock_run.call_args[0][0],
+            ["gh", "pr", "list", "--repo", "acme/widgets", "--state", "open", "--limit", "1000", "--json", "number"],
+        )
+
     def test_edit_is_noop_with_nothing_to_change(self):
         with patch("pipeline.gh.subprocess.run") as mock_run:
             gh.pr_edit("acme/widgets", 7)
