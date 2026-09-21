@@ -3,6 +3,7 @@ rewrite never loses the original text."""
 
 from __future__ import annotations
 
+import os
 import sys
 
 from . import cli, gh
@@ -17,9 +18,9 @@ def preserve_issue_body(repo: str, issue: int, body: str) -> None:
 
 def _main(argv: list[str]) -> int:
     repo, issue = argv
-    preserve_issue_body(repo, int(issue), cli.require_env("ISSUE_BODY"))
+    preserve_issue_body(repo, int(issue), os.environ["ISSUE_BODY"])
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(_main(sys.argv[1:]))
+    sys.exit(cli.run(_main))

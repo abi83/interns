@@ -30,7 +30,7 @@ def headings(text: str) -> list[str]:
     filtering to heading lines drops them for free.
 
     An opened-but-never-closed frontmatter block (missing the closing `---`)
-    yields no headings at all, because the parser never
+    yields no headings at all, matching the original awk script: it never
     leaves the frontmatter state, so every remaining line -- headings
     included -- gets skipped."""
     lines = text.splitlines()
@@ -72,11 +72,9 @@ def _main(argv: list[str]) -> int:
 
     skeleton = build_skeleton(Path(args.builtin_dir), Path(args.consumer_dir), args.types.split())
 
-    github_output = cli.require_env("GITHUB_OUTPUT")
-    with open(github_output, "ab") as f:
-        f.write(prompt.github_output_block("skeleton", skeleton.encode()))
+    cli.append_output(cli.github_output_block("skeleton", skeleton.encode()))
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(_main(sys.argv[1:]))
+    sys.exit(cli.run(_main))

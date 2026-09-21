@@ -36,6 +36,23 @@ class WriteOutputTests(unittest.TestCase):
                 cli.write_output("c", "x y")
             self.assertEqual(out.read_text(), "a=true\nb=false\nc=x y\n")
 
+    def test_multiline_value_uses_delimiter_form(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "out"
+            out.write_text("")
+            with patch.dict(os.environ, {"GITHUB_OUTPUT": str(out)}):
+                cli.write_output("reason", "a\nevil=1")
+            text = out.read_text()
+            self.assertTrue(text.startswith("reason<<ghadelim_"))
+            self.assertEqual(len(text.splitlines()), 4)
+
+    def test_run_turns_missing_env_into_exit_code_1(self):
+        def main(argv):
+            cli.require_env("NOPE_X")
+
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(cli.run(main), 1)
+
     def test_requires_github_output(self):
         with patch.dict(os.environ, {}, clear=True):
             with self.assertRaisesRegex(cli.MissingEnvError, "GITHUB_OUTPUT unset"):

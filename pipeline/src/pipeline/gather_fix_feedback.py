@@ -87,10 +87,9 @@ def _main(argv: list[str]) -> int:
         print(f"Error: fix round for PR #{pr} but {exc}", file=sys.stderr)
         return 1
 
-    with open(cli.require_env("GITHUB_OUTPUT"), "ab") as f:
-        f.write(prompt.github_output_block("text", text.encode()))
+    cli.append_output(cli.github_output_block("text", text.encode()))
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(_main(sys.argv[1:]))
+    sys.exit(cli.run(_main))

@@ -41,4 +41,4 @@ def _main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(_main(sys.argv[1:]))
+    sys.exit(cli.run(_main))

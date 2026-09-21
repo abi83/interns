@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from pipeline import append_metrics
+from pipeline import cli, append_metrics
 
 
 def _git(args, cwd):
@@ -192,7 +192,7 @@ class CliTests(unittest.TestCase):
             tmp = Path(tmp_s)
             record = _record_file(tmp, {"job": "coder"})
             with patch.dict(os.environ, {"GITHUB_REPOSITORY": "owner/repo"}, clear=True):
-                with self.assertRaisesRegex(SystemExit, "unset"):
+                with self.assertRaisesRegex(cli.MissingEnvError, "unset"):
                     append_metrics._main([str(record)])
 
     def test_missing_github_repository_fails_cleanly_not_a_traceback(self):
@@ -200,7 +200,7 @@ class CliTests(unittest.TestCase):
             tmp = Path(tmp_s)
             record = _record_file(tmp, {"job": "coder"})
             with patch.dict(os.environ, {"GH_TOKEN": "t"}, clear=True):
-                with self.assertRaisesRegex(SystemExit, "unset"):
+                with self.assertRaisesRegex(cli.MissingEnvError, "unset"):
                     append_metrics._main([str(record)])
 
 

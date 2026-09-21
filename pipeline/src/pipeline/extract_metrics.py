@@ -57,7 +57,8 @@ def build_record(exec_file: str, *, job: str, issue: int | None, pr: int | None,
         events = json.loads(Path(exec_file).read_text())
     except json.JSONDecodeError as exc:
         # A killed run can leave a truncated (invalid-JSON) file -- treat it
-        # the same as a well-formed file with no result event.
+        # the same as a well-formed file with no result event, matching the
+        # bash version's `jq -e` failing the same way on either.
         raise NoResultEventError(f"no result event in {exec_file}") from exc
     results = [e for e in events if e.get("type") == "result"]
     if not results:
@@ -123,4 +124,4 @@ def _main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(_main(sys.argv[1:]))
+    sys.exit(cli.run(_main))

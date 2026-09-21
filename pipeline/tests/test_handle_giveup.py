@@ -67,13 +67,13 @@ class HandleGiveupTests(unittest.TestCase):
 class CliTests(unittest.TestCase):
     def test_empty_pr_argument_is_treated_as_no_pr(self):
         with patch("pipeline.handle_giveup.handle_giveup") as fn, \
-             patch.dict(os.environ, {"GITHUB_REPOSITORY": "acme/widgets", "GITHUB_WORKSPACE": "/ws"}):
+             patch.dict(os.environ, {"GITHUB_REPOSITORY": "acme/widgets", "GITHUB_WORKSPACE": "/ws", "GITHUB_OUTPUT": "/dev/null"}):
             handle_giveup._main(["7", ""])
         fn.assert_called_once_with("acme/widgets", 7, None, "/ws")
 
     def test_pr_argument_is_parsed_as_int(self):
         with patch("pipeline.handle_giveup.handle_giveup") as fn, \
-             patch.dict(os.environ, {"GITHUB_REPOSITORY": "acme/widgets", "GITHUB_WORKSPACE": "/ws"}):
+             patch.dict(os.environ, {"GITHUB_REPOSITORY": "acme/widgets", "GITHUB_WORKSPACE": "/ws", "GITHUB_OUTPUT": "/dev/null"}):
             handle_giveup._main(["7", "15"])
         fn.assert_called_once_with("acme/widgets", 7, 15, "/ws")
 

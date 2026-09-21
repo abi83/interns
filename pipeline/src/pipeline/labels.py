@@ -18,7 +18,7 @@ import sys
 from collections.abc import Sequence
 from typing import NamedTuple
 
-from . import gh
+from . import cli, gh
 
 STATUS_NEEDS_REFINEMENT = "status:needs-refinement"
 STATUS_REFINED = "status:refined"
@@ -197,4 +197,4 @@ def _main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(_main(sys.argv[1:]))
+    sys.exit(cli.run(_main))

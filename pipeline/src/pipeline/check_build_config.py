@@ -20,7 +20,8 @@ def is_configured(repo_root: str) -> bool:
     """False when there's no Makefile at all, or the stub marker is still
     present in it.
 
-    Reads raw bytes rather than decoded text -- this doesn't care what encoding a consumer's Makefile is in,
+    Reads raw bytes rather than decoded text -- like the bash version's
+    `grep -F`, this doesn't care what encoding a consumer's Makefile is in,
     and decoding it would crash the step on one that isn't valid UTF-8."""
     makefile = Path(repo_root) / "Makefile"
     if not makefile.is_file():
@@ -41,4 +42,4 @@ def _main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(_main(sys.argv[1:]))
+    sys.exit(cli.run(_main))

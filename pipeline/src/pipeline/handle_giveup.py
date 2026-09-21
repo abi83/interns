@@ -53,6 +53,7 @@ def _main(argv: list[str]) -> int:
     parser.add_argument("pr", nargs="?", default="")
     args = parser.parse_args(argv)
 
+    cli.require_env("GITHUB_OUTPUT")  # fail before the give-up side effects, not after
     handle_giveup(
         cli.require_env("GITHUB_REPOSITORY"),
         args.issue,
@@ -63,4 +64,4 @@ def _main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(_main(sys.argv[1:]))
+    sys.exit(cli.run(_main))

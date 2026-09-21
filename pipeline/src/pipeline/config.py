@@ -17,6 +17,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from . import cli
+
 KNOWN_TOP_KEYS = ("defaults", "agents", "wiki", "checks")
 KNOWN_AGENTS = ("refiner", "estimator", "coder", "reviewer")
 KNOWN_LIMIT_KEYS = ("model", "max_turns", "timeout_minutes", "max_output_tokens", "cost_warn_usd", "disallowed_tools")
@@ -224,4 +226,4 @@ def _main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(_main(sys.argv[1:]))
+    sys.exit(cli.run(_main))
