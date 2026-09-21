@@ -19,12 +19,11 @@ from __future__ import annotations
 import argparse
 import sys
 import time
-import webbrowser
 
 from pipeline import gh
 
 from . import gh_admin, install_files, safety
-from .apps import APPS, provision_app
+from .apps import APPS, provision_app, request_install, secret_mutation, write_secret
 from .console import Console
 
 WORKFLOW = install_files.WORKFLOW
@@ -48,8 +47,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
                    help="reuse the triage App with this Client ID instead of minting one")
     p.add_argument("--dry-run", action="store_true",
                    help="print every mutation without performing it")
-    p.add_argument("--issue-templates", nargs="?", const="true", default="false",
-                   metavar="true|false",
+    p.add_argument("--issue-templates", action="store_true",
                    help="also stage the default issue templates when the repo has none")
     p.add_argument("--handoff-ref", metavar="REF",
                    help="ref to dispatch install.yml on (default: target default branch)")
@@ -62,7 +60,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     return p.parse_args(argv)
 
 
-def _workflow_scope_preflight(con: Console) -> None:
+def _workflow_scope_ok(con: Console) -> bool:
     """The handoff unconditionally writes `.github/workflows/install.yml`, which
     GitHub blocks (with an opaque 404) unless a classic token carries the
     `workflow` scope. `auth_scopes()` is empty for a fine-grained PAT, whose
@@ -70,54 +68,42 @@ def _workflow_scope_preflight(con: Console) -> None:
     existing best-effort behaviour in that case."""
     scopes = gh_admin.auth_scopes()
     if not scopes or "workflow" in scopes:
-        return
+        return True
     con.error(
         "your `gh` token is missing the `workflow` scope, required to add "
         "`.github/workflows/install.yml`. Run "
         "`gh auth refresh -h github.com -s workflow` (or regenerate the PAT "
         "with `workflow` checked) and re-run."
     )
-    sys.exit(1)
+    return False
 
 
-def _scope_preflight(con: Console, repo: str) -> list[str] | None:
-    existing = gh.list_secret_names(repo)
-    if existing is None:
-        con.warn(
-            "your token can't list repo secrets — it is probably too narrow to "
-            "write them either. Re-auth with `gh auth login -s repo` (classic) "
-            "or a fine-grained PAT with Secrets: write, then re-run."
-        )
-        if not con.confirm("Continue anyway?", default=False):
-            sys.exit(1)
-    return existing
+def _secrets_scope_ok(con: Console, existing_secrets: list[str] | None) -> bool:
+    if existing_secrets is not None:
+        return True
+    con.warn(
+        "your token can't list repo secrets — it is probably too narrow to "
+        "write them either. Re-auth with `gh auth login -s repo` (classic) "
+        "or a fine-grained PAT with Secrets: write, then re-run."
+    )
+    return con.confirm("Continue anyway?", default=False)
 
 
 def _write_oauth_token(con: Console, repo: gh_admin.Repo, existing_secrets: list[str] | None) -> None:
     con.step("Claude Code OAuth token")
     # Separate App from the interns-* ones above: without it installed, the
     # OAuth token exchange 401s and every coder/reviewer/refiner run fails.
-    install_url = "https://github.com/apps/claude/installations/new"
-    con.note_manual(f"install the Claude Code GitHub App on {repo.slug}: {install_url}")
+    request_install(con, repo, "claude", "Claude Code GitHub App")
 
     if con.dry_run:
-        con.mutation(f"{gh_admin.secret_verb('CLAUDE_CODE_OAUTH_TOKEN', existing_secrets)} "
-                     "secret CLAUDE_CODE_OAUTH_TOKEN")
+        secret_mutation(con, "CLAUDE_CODE_OAUTH_TOKEN", existing_secrets)
         return
-
-    if not con.assume_yes:
-        con.say("the coder/reviewer/refiner steps also need Anthropic's own "
-                 "Claude Code GitHub App installed on this repo")
-        con.say(f"opening your browser to install it on {repo.slug} — pick the repo and click Install")
-        webbrowser.open(install_url)
 
     token = con.prompt_secret("Paste the CLAUDE_CODE_OAUTH_TOKEN (leave blank to skip):")
     if not token:
         con.note_manual("set the CLAUDE_CODE_OAUTH_TOKEN secret")
         return
-    if con.mutation(f"{gh_admin.secret_verb('CLAUDE_CODE_OAUTH_TOKEN', existing_secrets)} "
-                    "secret CLAUDE_CODE_OAUTH_TOKEN"):
-        gh_admin.set_secret(repo.slug, "CLAUDE_CODE_OAUTH_TOKEN", token)
+    write_secret(con, repo, "CLAUDE_CODE_OAUTH_TOKEN", token, existing_secrets)
 
 
 def _stage_install_files(con: Console, repo: gh_admin.Repo, base: str,
@@ -164,7 +150,7 @@ def _handoff(con: Console, repo: gh_admin.Repo, args: argparse.Namespace) -> Non
     con.step("Hand off to install.yml (label sync + secret checks)")
 
     base = gh.default_branch(repo.slug)
-    pr_url = _stage_install_files(con, repo, base, args.issue_templates == "true")
+    pr_url = _stage_install_files(con, repo, base, args.issue_templates)
     if pr_url is not None:
         con.note_manual(
             f"merge {pr_url}, then re-run interns-install (or dispatch {WORKFLOW} "
@@ -199,9 +185,11 @@ def main(argv: list[str] | None = None) -> int:
 
     con.say(f"target repo: {repo.slug}" + (" (dry run)" if args.dry_run else ""))
 
-    if not args.skip_handoff:
-        _workflow_scope_preflight(con)
-    existing_secrets = _scope_preflight(con, repo.slug)
+    if not args.skip_handoff and not _workflow_scope_ok(con):
+        return 1
+    existing_secrets = gh.list_secret_names(repo.slug)
+    if not _secrets_scope_ok(con, existing_secrets):
+        return 1
 
     try:
         default_branch = gh.default_branch(repo.slug)

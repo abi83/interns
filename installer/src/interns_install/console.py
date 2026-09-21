@@ -29,11 +29,10 @@ class Console:
     def mutation(self, msg: str) -> bool:
         """Record an outward change. Returns False when it must be skipped
         (dry run), True when the caller should perform it."""
+        self.planned.append(msg)
         if self.dry_run:
-            self.planned.append(msg)
             print(f"  [dry-run] would {msg}")
             return False
-        self.planned.append(msg)
         print(f"  {msg}")
         return True
 

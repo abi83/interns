@@ -113,9 +113,26 @@ def convert_manifest(code: str) -> dict:
     return data
 
 
-def _forget(secret: str) -> None:  # noqa: ARG001
-    """Marks a PEM as done with, not a real scrub -- CPython strings are
-    immutable and may already be copied elsewhere in memory."""
+def secret_mutation(con: Console, name: str, existing_secrets: list[str] | None) -> bool:
+    """Record the "add/overwrite/set secret" status line; True when the caller
+    should perform the write (False in a dry run)."""
+    return con.mutation(f"{gh_admin.secret_verb(name, existing_secrets)} secret {name}")
+
+
+def write_secret(con: Console, repo: gh_admin.Repo, name: str, value: str,
+                 existing_secrets: list[str] | None) -> None:
+    if secret_mutation(con, name, existing_secrets):
+        gh_admin.set_secret(repo.slug, name, value)
+
+
+def request_install(con: Console, repo: gh_admin.Repo, app_slug: str, what: str) -> None:
+    """Note the manual install step and, when interactive, open the install page."""
+    install_url = f"https://github.com/apps/{app_slug}/installations/new"
+    con.note_manual(f"install the {what} on {repo.slug}: {install_url}")
+    if not (con.assume_yes or con.dry_run):
+        con.say(f"opening your browser to install '{app_slug}' on {repo.slug} — "
+                "pick the repo and click Install")
+        webbrowser.open(install_url)
 
 
 def use_existing_app(con: Console, repo: gh_admin.Repo, spec: AppSpec,
@@ -134,8 +151,7 @@ def use_existing_app(con: Console, repo: gh_admin.Repo, spec: AppSpec,
         con.say(f"existing {spec.key} App — {settings_url}")
         con.mutation(f"set variable {spec.client_id_var} (existing {spec.key} App)")
         if not have_key:
-            con.mutation(f"{gh_admin.secret_verb(spec.key_secret, existing_secrets)} "
-                         f"secret {spec.key_secret} (pasted PEM)")
+            secret_mutation(con, spec.key_secret, existing_secrets)
         con.note_manual(f"install the existing {spec.key} App on {repo.slug}")
         return
 
@@ -169,19 +185,12 @@ def use_existing_app(con: Console, repo: gh_admin.Repo, spec: AppSpec,
             f"own copy in {spec.key_secret}; GitHub Actions secrets aren't shared "
             f"between repos. Reuse a .pem you saved for another repo, or generate "
             f"one at {settings_url}. Blank to set the secret yourself later:")
-        if pem and con.mutation(
-                f"{gh_admin.secret_verb(spec.key_secret, existing_secrets)} secret {spec.key_secret}"):
-            gh_admin.set_secret(repo.slug, spec.key_secret, pem)
-        elif not pem:
+        if pem:
+            write_secret(con, repo, spec.key_secret, pem, existing_secrets)
+        else:
             con.note_manual(f"set the {spec.key_secret} secret (PEM private key)")
-        _forget(pem)
 
-    install_url = f"https://github.com/apps/{slug}/installations/new"
-    con.note_manual(f"confirm the {spec.key} App is installed on {repo.slug}: {install_url}")
-    if not con.assume_yes:
-        con.say(f"opening your browser to install '{slug}' on {repo.slug} — "
-                "pick the repo and click Install")
-        webbrowser.open(install_url)
+    request_install(con, repo, slug, f"{spec.key} App")
 
 
 def provision_app(con: Console, repo: gh_admin.Repo, spec: AppSpec,
@@ -215,7 +224,7 @@ def provision_app(con: Console, repo: gh_admin.Repo, spec: AppSpec,
 
     if con.dry_run:
         con.mutation(f"open {action_url} to create App '{name}' via manifest")
-        con.mutation(f"{gh_admin.secret_verb(spec.key_secret, existing_secrets)} secret {spec.key_secret}")
+        secret_mutation(con, spec.key_secret, existing_secrets)
         con.mutation(f"set variable {spec.client_id_var}")
         con.note_manual(f"install the {spec.key} App on {repo.slug}")
         return
@@ -235,17 +244,10 @@ def provision_app(con: Console, repo: gh_admin.Repo, spec: AppSpec,
 
     # Resilient ordering: the private key is returned exactly once, so it goes
     # straight into the secret before we do anything else.
-    if con.mutation(f"{gh_admin.secret_verb(spec.key_secret, existing_secrets)} secret {spec.key_secret}"):
-        gh_admin.set_secret(repo.slug, spec.key_secret, pem)
-    _forget(pem)
+    write_secret(con, repo, spec.key_secret, pem, existing_secrets)
 
     if con.mutation(f"set variable {spec.client_id_var} = {client_id}"):
         gh_admin.set_variable(repo.slug, spec.client_id_var, client_id)
 
     con.say(f"App '{slug}' created (client id {client_id})")
-    install_url = f"https://github.com/apps/{slug}/installations/new"
-    con.note_manual(f"install the {spec.key} App on {repo.slug}: {install_url}")
-    if not con.assume_yes:
-        con.say(f"opening your browser to install '{slug}' on {repo.slug} — "
-                "pick the repo and click Install")
-        webbrowser.open(install_url)
+    request_install(con, repo, slug, f"{spec.key} App")
