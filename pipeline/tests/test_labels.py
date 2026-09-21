@@ -45,6 +45,50 @@ class SetIssueStatusTests(unittest.TestCase):
             labels.set_issue_status("o/r", 7, "status:ready")  # does not raise
 
 
+class TransitionTests(unittest.TestCase):
+    def test_refined(self):
+        self.assertEqual(
+            labels.refined(labels.TYPE_BUG),
+            labels.Transition(
+                add=[labels.STATUS_REFINED, labels.TYPE_BUG],
+                remove=[labels.STATUS_NEEDS_REFINEMENT, labels.STATUS_NEEDS_ATTENTION],
+            ),
+        )
+
+    def test_estimated_rolls_up_size(self):
+        transition = labels.estimated("Low", "Mid", "Low", "Low")
+        self.assertEqual(transition.add, [labels.STATUS_ESTIMATED, "size:S"])
+        self.assertEqual(transition.remove, [labels.STATUS_REFINED, labels.STATUS_NEEDS_ATTENTION])
+        self.assertEqual(labels.find_size_label(transition.add), "size:S")
+
+    def test_estimated_rejects_bad_score(self):
+        with self.assertRaises(ValueError):
+            labels.estimated("Low", "Medium", "Low", "Low")
+
+    def test_needs_attention_transitions(self):
+        self.assertEqual(labels.refinement_needs_attention().remove, [labels.STATUS_NEEDS_REFINEMENT])
+        self.assertEqual(labels.estimation_needs_attention().remove, [labels.STATUS_REFINED])
+
+    def test_find_size_label_none(self):
+        self.assertIsNone(labels.find_size_label(["type:bug"]))
+
+
+class ApplyTransitionTests(unittest.TestCase):
+    def test_edits_only_what_changes(self):
+        with patch("pipeline.gh.issue_view", return_value=_labels_response([labels.STATUS_REFINED])), \
+             patch("pipeline.gh.issue_edit") as mock_edit:
+            labels.apply_transition("o/r", 7, labels.estimation_needs_attention())
+        mock_edit.assert_called_once_with(
+            "o/r", 7, add_labels=[labels.STATUS_NEEDS_ATTENTION], remove_labels=[labels.STATUS_REFINED]
+        )
+
+    def test_a_failed_edit_raises(self):
+        with patch("pipeline.gh.issue_view", return_value=_labels_response([])), \
+             patch("pipeline.gh.issue_edit", side_effect=gh.GhCommandError("boom")):
+            with self.assertRaises(gh.GhCommandError):
+                labels.apply_transition("o/r", 7, labels.refinement_needs_attention())
+
+
 class SetPrPipelineLabelTests(unittest.TestCase):
     def test_no_target_clears_the_present_label(self):
         with patch("pipeline.gh.pr_view", return_value=_labels_response(["pr:in-review", "size:S"])), \

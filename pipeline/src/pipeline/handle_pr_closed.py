@@ -25,10 +25,10 @@ def handle_pr_closed(repo: str, pr: int, issue: int | None, merged: bool) -> Non
 
     if merged:
         # The issue is already closed by `Closes #N`; just retire the run label.
-        labels.edit_issue_labels(repo, issue, remove=["status:in-progress"])
+        labels.edit_issue_labels(repo, issue, remove=[labels.STATUS_IN_PROGRESS])
         return
 
-    labels.set_issue_status(repo, issue, "status:needs-attention")
+    labels.set_issue_status(repo, issue, labels.STATUS_NEEDS_ATTENTION)
     gh.issue_comment(
         repo, issue,
         f"[PR #{pr}]({actions_env.pr_url(repo, pr)}) was closed without merging — this issue needs a human to "

@@ -33,7 +33,7 @@ def handle_giveup(repo: str, issue: int, pr: int | None, workspace: str, output_
 
     if pr is not None:
         labels.set_pr_pipeline_label(repo, pr)
-    labels.set_issue_status(repo, issue, "status:needs-attention")
+    labels.set_issue_status(repo, issue, labels.STATUS_NEEDS_ATTENTION)
     gh.issue_comment(
         repo, issue,
         "The coder fix round declined this task and set `status:needs-attention` "

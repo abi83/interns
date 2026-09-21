@@ -20,9 +20,6 @@ outputs:
 runs:
   using: composite
   steps:
-    - name: Install uv
-      uses: astral-sh/setup-uv@v7
-
     - name: Resolve issue
       id: resolve
       shell: bash
@@ -30,6 +27,4 @@ runs:
         GH_TOKEN: ${{ github.token }}
         GITHUB_REPOSITORY: ${{ github.repository }}
       run: |
-        uv run \
-          --directory "${{ github.workspace }}/.interns/.github/scripts/gh-issues-mcp" \
-          server.py --fetch "${{ inputs.issue_number }}"
+        python3 -m pipeline.fetch_issue "${{ inputs.issue_number }}"

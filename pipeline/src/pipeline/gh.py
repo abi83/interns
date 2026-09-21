@@ -87,6 +87,13 @@ def api_status(path: str) -> tuple[str, object]:
         return ("missing" if "HTTP 404" in str(exc) else "blocked"), None
 
 
+def _label_flags(add_labels: list[str] | None, remove_labels: list[str] | None) -> list[str]:
+    return [
+        *(arg for label in add_labels or [] for arg in ("--add-label", label)),
+        *(arg for label in remove_labels or [] for arg in ("--remove-label", label)),
+    ]
+
+
 def issue_view(repo: str, number: int, fields: list[str]) -> dict:
     """`gh issue view` restricted to `fields`."""
     proc = run(["issue", "view", str(number), "--repo", repo, "--json", ",".join(fields)])
@@ -103,10 +110,7 @@ def issue_edit(repo: str, number: int, *, body: str | None = None, title: str | 
         args += ["--body", body]
     if title is not None:
         args += ["--title", title]
-    for label in add_labels or []:
-        args += ["--add-label", label]
-    for label in remove_labels or []:
-        args += ["--remove-label", label]
+    args += _label_flags(add_labels, remove_labels)
     return run(args).stdout
 
 
@@ -138,10 +142,7 @@ def pr_edit(repo: str, number: int, *, add_labels: list[str] | None = None,
     if not add_labels and not remove_labels:
         return
     args = ["pr", "edit", str(number), "--repo", repo]
-    for label in add_labels or []:
-        args += ["--add-label", label]
-    for label in remove_labels or []:
-        args += ["--remove-label", label]
+    args += _label_flags(add_labels, remove_labels)
     run(args)
 
 

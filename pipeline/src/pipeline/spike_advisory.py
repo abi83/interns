@@ -23,9 +23,9 @@ def post_advisory(repo: str, issue: int) -> str | None:
     """Posts the advisory and returns it, or None (and posts nothing) when
     the issue isn't an estimated spike."""
     current = set(labels.issue_labels(repo, issue))
-    if "type:spike" not in current:
+    if labels.TYPE_SPIKE not in current:
         return None
-    if "status:estimated" not in current:
+    if labels.STATUS_ESTIMATED not in current:
         return None
     gh.issue_comment(repo, issue, ADVISORY)
     return ADVISORY
