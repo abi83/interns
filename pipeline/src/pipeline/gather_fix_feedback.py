@@ -10,7 +10,7 @@ from __future__ import annotations
 import subprocess
 import sys
 
-from . import cli, gh, prompt, verdict
+from . import cli, gh, verdict
 
 
 class NoChangesRequestedReviewError(RuntimeError):
@@ -65,7 +65,6 @@ def build_feedback_text(repo: str, pr: int) -> str:
 
 def _main(argv: list[str]) -> int:
     import argparse
-    import os
 
     parser = argparse.ArgumentParser(prog="python -m pipeline.gather_fix_feedback")
     parser.add_argument("pr")

@@ -45,7 +45,6 @@ def flag_failure(repo: str, noun: str, issue: int | None, pr: int | None, fix_ro
 
 def _main(argv: list[str]) -> int:
     import argparse
-    import os
 
     parser = argparse.ArgumentParser(prog="python -m pipeline.flag_failure")
     parser.add_argument("--noun", default="")

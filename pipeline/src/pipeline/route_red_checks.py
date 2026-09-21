@@ -22,7 +22,6 @@ def route_red_checks(repo: str, pr: int, issue: int | None, reason: str) -> None
 
 def _main(argv: list[str]) -> int:
     import argparse
-    import os
 
     parser = argparse.ArgumentParser(prog="python -m pipeline.route_red_checks")
     parser.add_argument("pr", type=int)

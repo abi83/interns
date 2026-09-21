@@ -9,7 +9,7 @@ import os
 import sys
 from dataclasses import dataclass, field
 
-from . import cli, gh, prompt
+from . import cli, gh
 
 _VIEW_QUERY = """
 query($owner: String!, $repo: String!, $number: Int!) {
