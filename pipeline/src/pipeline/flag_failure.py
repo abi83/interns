@@ -21,7 +21,7 @@ def flag_failure(repo: str, noun: str, issue: int | None, pr: int | None, fix_ro
         else:
             labels.escalate_pr(repo, pr)
     if issue is not None:
-        labels.set_issue_status(repo, issue, "status:needs-attention")
+        labels.set_issue_status(repo, issue, labels.STATUS_NEEDS_ATTENTION)
 
     if fix_round:
         if issue is None:

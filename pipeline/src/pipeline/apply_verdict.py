@@ -43,14 +43,14 @@ def apply_verdict(repo: str, pr: int, issue: int | None, reviewer_bot: str) -> N
         if rounds > MAX_FIX_ROUNDS:
             labels.escalate_pr(repo, pr)
             if issue is not None:
-                labels.set_issue_status(repo, issue, "status:needs-attention")
+                labels.set_issue_status(repo, issue, labels.STATUS_NEEDS_ATTENTION)
             gh.pr_comment(
                 repo, pr,
                 "Second review still requests changes — the automatic fix round didn't converge. "
                 f"Escalating to a human. See the run: {actions_env.run_url(repo)}",
             )
         elif issue is not None:
-            labels.set_pr_pipeline_label(repo, pr, "pr:coding")
+            labels.set_pr_pipeline_label(repo, pr, labels.PR_CODING)
             # GITHUB_TOKEN label edits don't fire workflow runs (anti-recursion), so
             # dispatch the coder explicitly as a fix round.
             gh.dispatch_workflow(
@@ -68,7 +68,7 @@ def apply_verdict(repo: str, pr: int, issue: int | None, reviewer_bot: str) -> N
 
     labels.escalate_pr(repo, pr)
     if issue is not None:
-        labels.set_issue_status(repo, issue, "status:needs-attention")
+        labels.set_issue_status(repo, issue, labels.STATUS_NEEDS_ATTENTION)
     gh.pr_comment(
         repo, pr,
         "Review run completed without submitting a recognized verdict — likely stopped partway through. "

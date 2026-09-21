@@ -16,11 +16,66 @@ from __future__ import annotations
 
 import sys
 from collections.abc import Sequence
+from typing import NamedTuple
 
 from . import gh
 
-ISSUE_STATUS_LABELS = ("status:in-progress", "status:needs-attention", "status:ready")
-PR_PIPELINE_LABELS = ("pr:coding", "pr:in-review", "pr:needs-attention")
+STATUS_NEEDS_REFINEMENT = "status:needs-refinement"
+STATUS_REFINED = "status:refined"
+STATUS_ESTIMATED = "status:estimated"
+STATUS_IN_PROGRESS = "status:in-progress"
+STATUS_NEEDS_ATTENTION = "status:needs-attention"
+STATUS_READY = "status:ready"
+
+PR_CODING = "pr:coding"
+PR_IN_REVIEW = "pr:in-review"
+PR_NEEDS_ATTENTION = "pr:needs-attention"
+
+TYPE_CODING_TASK = "type:coding-task"
+TYPE_BUG = "type:bug"
+TYPE_SPIKE = "type:spike"
+
+SIZE_PREFIX = "size:"
+
+# Mutually exclusive: an issue carries at most one of these.
+ISSUE_STATUS_LABELS = (STATUS_IN_PROGRESS, STATUS_NEEDS_ATTENTION, STATUS_READY)
+PR_PIPELINE_LABELS = (PR_CODING, PR_IN_REVIEW, PR_NEEDS_ATTENTION)
+
+
+def size_label(size: str) -> str:
+    return f"{SIZE_PREFIX}{size}"
+
+
+def find_size_label(current: Sequence[str]) -> str | None:
+    return next((label for label in current if label.startswith(SIZE_PREFIX)), None)
+
+
+class Transition(NamedTuple):
+    add: list[str]
+    remove: list[str]
+
+
+def refined(type_label: str) -> Transition:
+    """Refinement done: hands the issue to the estimate job via its type label."""
+    return Transition(
+        add=[STATUS_REFINED, type_label],
+        remove=[STATUS_NEEDS_REFINEMENT, STATUS_NEEDS_ATTENTION],
+    )
+
+
+def refinement_needs_attention() -> Transition:
+    return Transition(add=[STATUS_NEEDS_ATTENTION], remove=[STATUS_NEEDS_REFINEMENT])
+
+
+def estimated(size: str) -> Transition:
+    return Transition(
+        add=[STATUS_ESTIMATED, size_label(size)],
+        remove=[STATUS_REFINED, STATUS_NEEDS_ATTENTION],
+    )
+
+
+def estimation_needs_attention() -> Transition:
+    return Transition(add=[STATUS_NEEDS_ATTENTION], remove=[STATUS_REFINED])
 
 
 def _best_effort(action: str, fn, *args, **kwargs) -> None:
@@ -38,26 +93,36 @@ def pr_labels(repo: str, pr: int) -> list[str]:
     return [label["name"] for label in gh.pr_view(repo, pr, ["labels"])["labels"]]
 
 
-def edit_issue_labels(repo: str, issue: int, add: Sequence[str] = (), remove: Sequence[str] = ()) -> None:
+def _changed_labels(current: Sequence[str], add: Sequence[str], remove: Sequence[str]) -> tuple[list[str], list[str]]:
+    have = set(current)
+    return [label for label in add if label not in have], [label for label in remove if label in have]
+
+
+def edit_issue_labels_strict(repo: str, issue: int, add: Sequence[str] = (), remove: Sequence[str] = ()) -> None:
     """Add/remove specific issue labels, skipping any already in the wanted
     state -- in particular a `remove` that isn't present, which `gh` would
-    otherwise reject."""
-    current = set(issue_labels(repo, issue))
-    add_labels = [label for label in add if label not in current]
-    remove_labels = [label for label in remove if label in current]
+    otherwise reject. `gh` failures propagate."""
+    add_labels, remove_labels = _changed_labels(issue_labels(repo, issue), add, remove)
     if add_labels or remove_labels:
-        _best_effort("issue label edit", gh.issue_edit, repo, issue, add_labels=add_labels, remove_labels=remove_labels)
+        gh.issue_edit(repo, issue, add_labels=add_labels, remove_labels=remove_labels)
+
+
+def edit_issue_labels(repo: str, issue: int, add: Sequence[str] = (), remove: Sequence[str] = ()) -> None:
+    """Best-effort `edit_issue_labels_strict`."""
+    _best_effort("issue label edit", edit_issue_labels_strict, repo, issue, add, remove)
 
 
 def edit_pr_labels(repo: str, pr: int, add: Sequence[str] = (), remove: Sequence[str] = ()) -> None:
-    """Add/remove specific PR labels, skipping any already in the wanted
-    state -- in particular a `remove` that isn't present, which `gh` would
-    otherwise reject."""
-    current = set(pr_labels(repo, pr))
-    add_labels = [label for label in add if label not in current]
-    remove_labels = [label for label in remove if label in current]
+    """PR counterpart of `edit_issue_labels` (always best-effort)."""
+    add_labels, remove_labels = _changed_labels(pr_labels(repo, pr), add, remove)
     if add_labels or remove_labels:
         _best_effort("PR label edit", gh.pr_edit, repo, pr, add_labels=add_labels, remove_labels=remove_labels)
+
+
+def apply_transition(repo: str, issue: int, transition: Transition) -> None:
+    """Strict: a failed edit raises, so the calling agent learns the
+    lifecycle didn't advance."""
+    edit_issue_labels_strict(repo, issue, add=transition.add, remove=transition.remove)
 
 
 def set_issue_status(repo: str, issue: int, target: str) -> None:
@@ -82,7 +147,7 @@ def set_pr_pipeline_label(repo: str, pr: int, target: str | None = None) -> None
 def escalate_pr(repo: str, pr: int) -> None:
     """Mark a PR as stuck: the pipeline escalated it to a human and no agent
     is working it. Cleared by the next pickup or an APPROVE."""
-    set_pr_pipeline_label(repo, pr, "pr:needs-attention")
+    set_pr_pipeline_label(repo, pr, PR_NEEDS_ATTENTION)
 
 
 def _main(argv: list[str]) -> int:

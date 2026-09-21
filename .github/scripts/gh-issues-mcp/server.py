@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import os
 import pathlib
@@ -10,7 +11,8 @@ import subprocess
 from typing import Annotated, Literal
 
 from mcp.server.mcpserver import MCPServer
-from pipeline import gh, prompt
+from pipeline import fetch_issue, gh, labels
+from pipeline.size import roll_up_size
 from pipeline.gh import GhCommandError
 from pydantic import BaseModel, Field
 
@@ -24,13 +26,6 @@ _WORKSPACE = os.environ.get("GITHUB_WORKSPACE", "")
 _LABELS_JSON = pathlib.Path(__file__).parent.parent.parent / "labels.json"
 # Agents are not allowed to push changes to these paths.
 _PROTECTED_PATHS_RE = r"^\.github/(workflows|scripts)/"
-
-# Lifecycle label constants -- a typo here is a NameError, not a silent orphan label.
-STATUS_NEEDS_REFINEMENT = "status:needs-refinement"
-STATUS_REFINED = "status:refined"
-STATUS_NEEDS_ATTENTION = "status:needs-attention"
-STATUS_ESTIMATED = "status:estimated"
-
 
 # ---------------------------------------------------------------------------
 # Exceptions
@@ -46,33 +41,8 @@ class PushRefusedError(RuntimeError):
 
 
 # ---------------------------------------------------------------------------
-# Domain models
+# Input models
 # ---------------------------------------------------------------------------
-
-
-class Comment(BaseModel):
-    author: str
-    created_at: str
-    body: str
-
-
-class RelatedIssue(BaseModel):
-    number: int
-    title: str
-    state: str
-
-
-class Issue(BaseModel):
-    number: int
-    title: str
-    body: str
-    state: str
-    labels: list[str]
-    comments: list[Comment]
-    parent: RelatedIssue | None = None
-    sub_issues: list[RelatedIssue] = []
-    blocked_by: list[RelatedIssue] = []
-    blocking: list[RelatedIssue] = []
 
 
 class InlineComment(BaseModel):
@@ -113,88 +83,6 @@ _LABEL_DESCRIPTION = (
     + (f"Valid labels: {', '.join(_KNOWN_LABELS)}." if _KNOWN_LABELS else "")
 )
 
-_VIEW_QUERY = """
-query($owner: String!, $repo: String!, $number: Int!) {
-  repository(owner: $owner, name: $repo) {
-    issue(number: $number) {
-      number
-      title
-      body
-      state
-      labels(first: 20) { nodes { name } }
-      comments(first: 50) {
-        nodes { author { login } createdAt body }
-      }
-      parent          { number title state }
-      subIssues(first: 20) { nodes { number title state } }
-      blockedBy(first: 20) { nodes { number title state } }
-      blocking(first: 20)  { nodes { number title state } }
-    }
-  }
-}
-"""
-
-
-def _fetch_issue(number: int) -> Issue:
-    """Run the GraphQL query and parse the response into an Issue model."""
-    owner, repo = _REPO.split("/", 1)
-    raw = gh.graphql(_VIEW_QUERY, owner=owner, repo=repo, number=number)["data"]["repository"]["issue"]
-    return Issue(
-        number=raw["number"],
-        title=raw["title"],
-        body=raw["body"] or "",
-        state=raw["state"],
-        labels=[n["name"] for n in raw["labels"]["nodes"]],
-        comments=[
-            Comment(
-                author=c["author"]["login"],
-                created_at=c["createdAt"],
-                body=c["body"],
-            )
-            for c in raw["comments"]["nodes"]
-        ],
-        parent=RelatedIssue(**raw["parent"]) if raw.get("parent") else None,
-        sub_issues=[RelatedIssue(**n) for n in raw["subIssues"]["nodes"]],
-        blocked_by=[RelatedIssue(**n) for n in raw["blockedBy"]["nodes"]],
-        blocking=[RelatedIssue(**n) for n in raw["blocking"]["nodes"]],
-    )
-
-
-def _write_github_output(issue: Issue) -> None:
-    """Write issue fields to $GITHUB_OUTPUT for use in workflow steps."""
-    output_path = os.environ.get("GITHUB_OUTPUT", "")
-
-    def write(key: str, value: str, multiline: bool = False) -> None:
-        if not output_path:
-            print(f"{key}={value!r}")
-            return
-        with open(output_path, "ab") as f:
-            if multiline:
-                f.write(prompt.github_output_block(key, value.encode()))
-            else:
-                f.write(f"{key}={value}\n".encode())
-
-    write("number", str(issue.number))
-    write("title", issue.title)
-    write("labels", ", ".join(issue.labels))
-    write("body", issue.body, multiline=True)
-
-    human_comments = [c for c in issue.comments if c.author != "github-actions"]
-    if human_comments:
-        parts = [
-            f"### Comment by {c.author} ({c.created_at})\n{c.body}"
-            for c in human_comments
-        ]
-        comments_text = (
-            "COMMENTS (from the owner, chronological, excluding this pipeline's own"
-            " comments — treat these as clarifications or amendments to the issue above):\n"
-            + "\n\n---\n\n".join(parts)
-        )
-        write("comments", comments_text, multiline=True)
-    else:
-        write("comments", "", multiline=True)
-
-
 # ---------------------------------------------------------------------------
 # Issue read tools
 # ---------------------------------------------------------------------------
@@ -221,7 +109,7 @@ def view_issue(
     Returns a flat JSON object — labels is a list of strings, comments is a list
     of {author, created_at, body} objects.
     """
-    return _fetch_issue(issue_number).model_dump_json()
+    return json.dumps(dataclasses.asdict(fetch_issue.fetch_issue(_REPO, issue_number)))
 
 
 # ---------------------------------------------------------------------------
@@ -287,13 +175,13 @@ def edit_issue_labels(
             msgs.append(f"Labels don't exist, not removed: {', '.join(unknown_remove)}")
         raise InvalidInputError("\n".join(msgs))
 
-    output = gh.issue_edit(_REPO, issue_number, add_labels=add_labels, remove_labels=remove_labels)
+    labels.edit_issue_labels_strict(_REPO, issue_number, add=add_labels, remove=remove_labels)
     parts = []
     if add_labels:
         parts.append(f"Added: {', '.join(add_labels)}")
     if remove_labels:
         parts.append(f"Removed: {', '.join(remove_labels)}")
-    return output or "\n".join(parts)
+    return "\n".join(parts)
 
 
 # ---------------------------------------------------------------------------
@@ -392,39 +280,13 @@ def push_branch() -> str:
 # so refiner/estimator need no Write access and no marker files on disk.
 # ---------------------------------------------------------------------------
 
-# Keyed by (#High, #Mid) across the four scores: size grows with either
-# count, and 3+ highs is always XL.
-_ROLL_UP_TABLE: dict[tuple[int, int], str] = {
-    (0, 0): "XS", (0, 1): "S",  (0, 2): "S",  (0, 3): "M",  (0, 4): "M",
-    (1, 0): "M",  (1, 1): "M",  (1, 2): "M",  (1, 3): "L",
-    (2, 0): "L",  (2, 1): "L",  (2, 2): "L",
-    (3, 0): "XL", (3, 1): "XL",
-    (4, 0): "XL",
-}
-
-
-def _roll_up_size(blast: str, touch: str, human: str, review: str) -> str:
-    """Map four Low|Mid|High scores to XS|S|M|L|XL via the (#High, #Mid) key."""
-    highs = mids = 0
-    for score in (blast, touch, human, review):
-        s = score.strip().lower()
-        if s == "high":
-            highs += 1
-        elif s == "mid":
-            mids += 1
-        elif s == "low":
-            pass
-        else:
-            raise InvalidInputError(f"Not a Low|Mid|High score: {score!r}")
-    return _ROLL_UP_TABLE[(highs, mids)]
-
 
 @mcp.tool()
 def apply_refinement_outcome(
     issue_number: Annotated[int, Field(description="Issue number.")],
     outcome: Annotated[Literal["refined", "needs-attention"], Field(description="Refinement outcome.")],
     type_label: Annotated[
-        Literal["type:coding-task", "type:bug", "type:spike"] | None,
+        Literal[labels.TYPE_CODING_TASK, labels.TYPE_BUG, labels.TYPE_SPIKE] | None,
         Field(description="Required when outcome='refined'. The type label for this issue."),
     ] = None,
 ) -> str:
@@ -438,14 +300,13 @@ def apply_refinement_outcome(
     if outcome == "refined":
         if type_label is None:
             raise InvalidInputError("type_label is required when outcome='refined'")
-        add = [STATUS_REFINED, type_label]
-        remove = [STATUS_NEEDS_REFINEMENT, STATUS_NEEDS_ATTENTION]
+        transition = labels.refined(type_label)
     elif outcome == "needs-attention":
-        add, remove = [STATUS_NEEDS_ATTENTION], [STATUS_NEEDS_REFINEMENT]
+        transition = labels.refinement_needs_attention()
     else:
         raise InvalidInputError("outcome must be 'refined' or 'needs-attention'")
 
-    gh.issue_edit(_REPO, issue_number, add_labels=add, remove_labels=remove)
+    labels.apply_transition(_REPO, issue_number, transition)
     return f"Refinement outcome '{outcome}' applied to issue #{issue_number}"
 
 
@@ -482,27 +343,19 @@ def apply_estimation_outcome(
             raise InvalidInputError(
                 "blast_radius, touch, human_involvement, and review_overhead are all required when outcome='estimated'"
             )
-        size = _roll_up_size(blast_radius, touch, human_involvement, review_overhead)  # type: ignore[arg-type]
-        add = [STATUS_ESTIMATED, f"size:{size}"]
-        remove = [STATUS_REFINED, STATUS_NEEDS_ATTENTION]
+        size = roll_up_size(blast_radius, touch, human_involvement, review_overhead)  # type: ignore[arg-type]
+        transition = labels.estimated(size)
     elif outcome == "needs-attention":
-        add, remove = [STATUS_NEEDS_ATTENTION], [STATUS_REFINED]
-        size = ""
+        transition = labels.estimation_needs_attention()
     else:
         raise InvalidInputError("outcome must be 'estimated' or 'needs-attention'")
 
-    gh.issue_edit(_REPO, issue_number, add_labels=add, remove_labels=remove)
+    labels.apply_transition(_REPO, issue_number, transition)
 
     if outcome == "estimated":
-        return f"Estimation outcome 'estimated' applied to issue #{issue_number} (size:{size})"
+        return f"Estimation outcome 'estimated' applied to issue #{issue_number} ({labels.size_label(size)})"
     return f"Estimation outcome 'needs-attention' applied to issue #{issue_number}"
 
 
 if __name__ == "__main__":
-    import sys
-
-    if len(sys.argv) >= 3 and sys.argv[1] == "--fetch":
-        issue = _fetch_issue(int(sys.argv[2]))
-        _write_github_output(issue)
-    else:
-        mcp.run()
+    mcp.run()

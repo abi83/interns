@@ -22,7 +22,7 @@ def gate(repo: str, issue: int, accepted: list[str], remove_status: str, reject_
     current = labels.issue_labels(repo, issue)
     if any(label in current for label in accepted):
         return True
-    labels.edit_issue_labels(repo, issue, add=["status:needs-attention"], remove=[remove_status])
+    labels.edit_issue_labels(repo, issue, add=[labels.STATUS_NEEDS_ATTENTION], remove=[remove_status])
     gh.issue_comment(repo, issue, reject_comment)
     return False
 

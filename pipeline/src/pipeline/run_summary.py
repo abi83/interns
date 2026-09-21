@@ -157,9 +157,9 @@ def _refinement_section(repo: str, server_url: str, issue: str) -> list[str]:
     lines.append(f"**Issue:** [#{issue}]({server_url}/{repo}/issues/{issue})" + (f" — {title}" if title else ""))
 
     current_labels = _issue_labels(repo, issue)
-    if "status:refined" in current_labels:
+    if labels.STATUS_REFINED in current_labels:
         lines.append("**Outcome:** Body refined")
-    elif "status:needs-attention" in current_labels:
+    elif labels.STATUS_NEEDS_ATTENTION in current_labels:
         lines.append("**Outcome:** ⚠️ Stopped for clarification — see the final message below.")
     else:
         lines.append("**Outcome:** ⚠️ Ended without a terminal state — see the final message below.")
@@ -173,10 +173,10 @@ def _estimation_section(repo: str, server_url: str, issue: str) -> list[str]:
     lines.append(f"**Issue:** [#{issue}]({server_url}/{repo}/issues/{issue})" + (f" — {title}" if title else ""))
 
     current_labels = _issue_labels(repo, issue)
-    size = next((label for label in current_labels if label.startswith("size:")), None)
+    size = labels.find_size_label(current_labels)
     if size:
         lines.append(f"**Outcome:** Estimate posted — `{size}`")
-    elif "status:needs-attention" in current_labels:
+    elif labels.STATUS_NEEDS_ATTENTION in current_labels:
         lines.append("**Outcome:** ⚠️ Stopped for clarification — see the final message below.")
     else:
         lines.append("**Outcome:** ⚠️ Ended without an estimate — see the final message below.")

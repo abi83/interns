@@ -23,9 +23,9 @@ def _slug(title: str) -> str:
 
 def derive_code_hints(repo: str, issue: int) -> tuple[str, str]:
     current = set(labels.issue_labels(repo, issue))
-    if "type:bug" in current:
+    if labels.TYPE_BUG in current:
         prefix = "fix"
-    elif "type:coding-task" in current:
+    elif labels.TYPE_CODING_TASK in current:
         prefix = "feat"
     else:
         raise ValueError(

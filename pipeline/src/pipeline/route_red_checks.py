@@ -17,7 +17,7 @@ def route_red_checks(repo: str, pr: int, issue: int | None, reason: str) -> None
         f"Run: {actions_env.run_url(repo)}",
     )
     if issue is not None:
-        labels.set_issue_status(repo, issue, "status:needs-attention")
+        labels.set_issue_status(repo, issue, labels.STATUS_NEEDS_ATTENTION)
 
 
 def _main(argv: list[str]) -> int:

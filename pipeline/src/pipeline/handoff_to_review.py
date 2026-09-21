@@ -15,9 +15,9 @@ from . import actions_env, gh, labels
 
 def handoff(repo: str, issue: int, pr: int | None) -> None:
     if pr is not None:
-        labels.set_pr_pipeline_label(repo, pr, "pr:in-review")
+        labels.set_pr_pipeline_label(repo, pr, labels.PR_IN_REVIEW)
         return
-    labels.set_issue_status(repo, issue, "status:needs-attention")
+    labels.set_issue_status(repo, issue, labels.STATUS_NEEDS_ATTENTION)
     gh.issue_comment(
         repo, issue,
         "Coder run completed without leaving an open PR referencing this "

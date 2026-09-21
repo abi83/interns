@@ -8,18 +8,13 @@ from unittest.mock import MagicMock, call, patch
 import pytest
 
 import server
+from pipeline import fetch_issue
 from server import (
-    Comment,
     GhCommandError,
     InlineComment,
     InvalidInputError,
-    Issue,
     PushRefusedError,
-    RelatedIssue,
-    _fetch_issue,
     _load_label_names,
-    _roll_up_size,
-    _write_github_output,
     apply_estimation_outcome,
     apply_refinement_outcome,
     comment_issue,
@@ -37,39 +32,6 @@ from server import (
 # Fixtures
 # ---------------------------------------------------------------------------
 
-GRAPHQL_RESPONSE = {
-    "data": {
-        "repository": {
-            "issue": {
-                "number": 42,
-                "title": "Test issue",
-                "body": "Issue body",
-                "state": "OPEN",
-                "labels": {"nodes": [{"name": "bug"}, {"name": "priority:high"}]},
-                "comments": {
-                    "nodes": [
-                        {
-                            "author": {"login": "alice"},
-                            "createdAt": "2024-01-01T00:00:00Z",
-                            "body": "Great issue",
-                        },
-                        {
-                            "author": {"login": "github-actions"},
-                            "createdAt": "2024-01-02T00:00:00Z",
-                            "body": "Pipeline comment",
-                        },
-                    ]
-                },
-                "parent": {"number": 10, "title": "Parent epic", "state": "OPEN"},
-                "subIssues": {"nodes": [{"number": 43, "title": "Sub", "state": "OPEN"}]},
-                "blockedBy": {"nodes": []},
-                "blocking": {"nodes": []},
-            }
-        }
-    }
-}
-
-
 def _make_proc(stdout: str = "", returncode: int = 0, stderr: str = "") -> MagicMock:
     m = MagicMock()
     m.stdout = stdout
@@ -80,6 +42,10 @@ def _make_proc(stdout: str = "", returncode: int = 0, stderr: str = "") -> Magic
 
 def _gh_failure(stderr: str) -> subprocess.CalledProcessError:
     return subprocess.CalledProcessError(1, ["gh"], stderr=stderr)
+
+
+def _issue_labels_proc(*names: str) -> MagicMock:
+    return _make_proc(json.dumps({"labels": [{"name": n} for n in names]}))
 
 
 def _label_names_proc(*names: str) -> MagicMock:
@@ -135,67 +101,13 @@ def test_known_labels_are_loaded_once_at_import_time(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# _fetch_issue
-# ---------------------------------------------------------------------------
-
-
-def test_fetch_issue_returns_model():
-    with patch("server.subprocess.run") as mock_run:
-        mock_run.return_value = _make_proc(json.dumps(GRAPHQL_RESPONSE))
-        with patch.object(server, "_REPO", "owner/repo"):
-            issue = _fetch_issue(42)
-
-    assert isinstance(issue, Issue)
-    assert issue.number == 42
-    assert issue.title == "Test issue"
-    assert issue.body == "Issue body"
-    assert issue.state == "OPEN"
-    assert issue.labels == ["bug", "priority:high"]
-    assert len(issue.comments) == 2
-    assert issue.comments[0].author == "alice"
-    assert issue.parent is not None
-    assert issue.parent.number == 10
-    assert len(issue.sub_issues) == 1
-    assert issue.blocked_by == []
-    assert issue.blocking == []
-
-
-def test_fetch_issue_null_body():
-    response = json.loads(json.dumps(GRAPHQL_RESPONSE))
-    response["data"]["repository"]["issue"]["body"] = None
-    with patch("server.subprocess.run") as mock_run:
-        mock_run.return_value = _make_proc(json.dumps(response))
-        with patch.object(server, "_REPO", "owner/repo"):
-            issue = _fetch_issue(42)
-    assert issue.body == ""
-
-
-def test_fetch_issue_surfaces_gh_error():
-    with patch("server.subprocess.run") as mock_run:
-        mock_run.side_effect = _gh_failure("gh: could not resolve to a repository")
-        with patch.object(server, "_REPO", "owner/repo"):
-            with pytest.raises(GhCommandError, match="could not resolve"):
-                _fetch_issue(42)
-
-
-def test_fetch_issue_no_parent():
-    response = json.loads(json.dumps(GRAPHQL_RESPONSE))
-    response["data"]["repository"]["issue"]["parent"] = None
-    with patch("server.subprocess.run") as mock_run:
-        mock_run.return_value = _make_proc(json.dumps(response))
-        with patch.object(server, "_REPO", "owner/repo"):
-            issue = _fetch_issue(42)
-    assert issue.parent is None
-
-
-# ---------------------------------------------------------------------------
 # view_issue
 # ---------------------------------------------------------------------------
 
 
 def test_view_issue_returns_flat_json():
-    with patch("server._fetch_issue") as mock_fetch:
-        mock_fetch.return_value = Issue(
+    with patch("server.fetch_issue.fetch_issue") as mock_fetch:
+        mock_fetch.return_value = fetch_issue.Issue(
             number=1,
             title="T",
             body="B",
@@ -330,12 +242,13 @@ def test_edit_issue_labels_add():
     with patch("server.subprocess.run") as mock_run:
         mock_run.side_effect = [
             _label_names_proc("bug", "priority:high", "status:ready"),  # label list
+            _issue_labels_proc(),  # current issue labels
             _make_proc(),  # issue edit
         ]
         with patch.object(server, "_REPO", "owner/repo"):
             edit_issue_labels(issue_number=7, add_labels=["bug"])
 
-    edit_call = mock_run.call_args_list[1][0][0]
+    edit_call = mock_run.call_args_list[2][0][0]
     assert "--add-label" in edit_call
     assert "bug" in edit_call
 
@@ -344,12 +257,13 @@ def test_edit_issue_labels_remove():
     with patch("server.subprocess.run") as mock_run:
         mock_run.side_effect = [
             _label_names_proc("bug", "priority:high"),
+            _issue_labels_proc("bug"),
             _make_proc(),
         ]
         with patch.object(server, "_REPO", "owner/repo"):
             edit_issue_labels(issue_number=7, remove_labels=["bug"])
 
-    edit_call = mock_run.call_args_list[1][0][0]
+    edit_call = mock_run.call_args_list[2][0][0]
     assert "--remove-label" in edit_call
 
 
@@ -378,6 +292,7 @@ def test_edit_issue_labels_surfaces_gh_error_on_edit():
     with patch("server.subprocess.run") as mock_run:
         mock_run.side_effect = [
             _label_names_proc("bug"),  # label list succeeds
+            _issue_labels_proc(),
             _gh_failure("gh: issue not found"),  # edit fails
         ]
         with patch.object(server, "_REPO", "owner/repo"):
@@ -593,116 +508,19 @@ def test_push_branch_rejects_scripts_protected_paths():
 
 
 # ---------------------------------------------------------------------------
-# _write_github_output
-# ---------------------------------------------------------------------------
-
-
-def test_write_github_output(tmp_path):
-    output_file = tmp_path / "output"
-    output_file.write_text("")
-    issue = Issue(
-        number=5,
-        title="My issue",
-        body="# Body\nContent",
-        state="OPEN",
-        labels=["bug", "priority:high"],
-        comments=[
-            Comment(author="alice", created_at="2024-01-01T00:00:00Z", body="Nice"),
-            Comment(author="github-actions", created_at="2024-01-02T00:00:00Z", body="Bot"),
-        ],
-    )
-    with patch.dict(os.environ, {"GITHUB_OUTPUT": str(output_file)}):
-        _write_github_output(issue)
-
-    content = output_file.read_text()
-    assert "number=5" in content
-    assert "title=My issue" in content
-    assert "labels=bug, priority:high" in content
-    assert "# Body" in content
-    assert "Nice" in content
-    # Bot comment from github-actions should be excluded
-    assert "Bot" not in content
-
-
-def test_write_github_output_delimiter_in_body_cannot_inject(tmp_path):
-    output_file = tmp_path / "output"
-    output_file.write_text("")
-    body = "intro\nEOF_BODY\nsome_output=injected\nEOF_COMMENTS\nmore"
-    issue = Issue(
-        number=1,
-        title="T",
-        body=body,
-        state="OPEN",
-        labels=[],
-        comments=[Comment(author="alice", created_at="2024-01-01T00:00:00Z", body=body)],
-    )
-    with patch.dict(os.environ, {"GITHUB_OUTPUT": str(output_file)}):
-        _write_github_output(issue)
-
-    lines = output_file.read_text().split("\n")
-    header = next(l for l in lines if l.startswith("body<<"))
-    delim = header.removeprefix("body<<")
-    start = lines.index(header)
-    end = lines.index(delim, start + 1)
-    assert "\n".join(lines[start + 1 : end]) == body
-
-
-# ---------------------------------------------------------------------------
-# _roll_up_size
-# ---------------------------------------------------------------------------
-
-
-def test_roll_up_size_all_low():
-    assert _roll_up_size("Low", "Low", "Low", "Low") == "XS"
-
-
-def test_roll_up_size_one_mid():
-    assert _roll_up_size("Low", "Mid", "Low", "Low") == "S"
-
-
-def test_roll_up_size_two_mid():
-    assert _roll_up_size("Mid", "Low", "Low", "Mid") == "S"
-
-
-def test_roll_up_size_one_high():
-    assert _roll_up_size("High", "Low", "Low", "Low") == "M"
-
-
-def test_roll_up_size_one_high_three_mid():
-    assert _roll_up_size("High", "Mid", "Mid", "Mid") == "L"
-
-
-def test_roll_up_size_three_high():
-    assert _roll_up_size("High", "High", "High", "Low") == "XL"
-
-
-def test_roll_up_size_two_high():
-    assert _roll_up_size("High", "High", "Low", "Low") == "L"
-
-
-def test_roll_up_size_case_insensitive():
-    assert _roll_up_size("low", "MID", "HIGH", "Low") == "M"
-
-
-def test_roll_up_size_invalid_score():
-    with pytest.raises(InvalidInputError, match="Not a Low|Mid|High score"):
-        _roll_up_size("Low", "Medium", "Low", "Low")
-
-
-# ---------------------------------------------------------------------------
 # apply_refinement_outcome
 # ---------------------------------------------------------------------------
 
 
 def test_apply_refinement_outcome_refined():
     with patch("server.subprocess.run") as mock_run:
-        mock_run.return_value = _make_proc()
+        mock_run.side_effect = [_issue_labels_proc("status:needs-refinement"), _make_proc()]
         with patch.object(server, "_REPO", "owner/repo"):
             result = apply_refinement_outcome(
                 issue_number=5, outcome="refined", type_label="type:coding-task"
             )
 
-    cmd = mock_run.call_args[0][0]
+    cmd = mock_run.call_args_list[1][0][0]
     assert "--add-label" in cmd
     assert "status:refined" in cmd
     assert "type:coding-task" in cmd
@@ -718,11 +536,11 @@ def test_apply_refinement_outcome_missing_type_label():
 
 def test_apply_refinement_outcome_needs_attention():
     with patch("server.subprocess.run") as mock_run:
-        mock_run.return_value = _make_proc()
+        mock_run.side_effect = [_issue_labels_proc("status:needs-refinement"), _make_proc()]
         with patch.object(server, "_REPO", "owner/repo"):
             result = apply_refinement_outcome(issue_number=5, outcome="needs-attention")
 
-    cmd = mock_run.call_args[0][0]
+    cmd = mock_run.call_args_list[1][0][0]
     assert "--add-label" in cmd
     assert "status:needs-attention" in cmd
     assert "--remove-label" in cmd
@@ -751,7 +569,7 @@ def test_apply_refinement_outcome_surfaces_gh_error():
 
 def test_apply_estimation_outcome_estimated():
     with patch("server.subprocess.run") as mock_run:
-        mock_run.return_value = _make_proc()
+        mock_run.side_effect = [_issue_labels_proc("status:refined"), _make_proc()]
         with patch.object(server, "_REPO", "owner/repo"):
             result = apply_estimation_outcome(
                 issue_number=7,
@@ -762,7 +580,7 @@ def test_apply_estimation_outcome_estimated():
                 review_overhead="Low",
             )
 
-    cmd = mock_run.call_args[0][0]
+    cmd = mock_run.call_args_list[1][0][0]
     assert "--add-label" in cmd
     assert "status:estimated" in cmd
     assert "size:S" in cmd
@@ -774,11 +592,11 @@ def test_apply_estimation_outcome_estimated():
 
 def test_apply_estimation_outcome_needs_attention():
     with patch("server.subprocess.run") as mock_run:
-        mock_run.return_value = _make_proc()
+        mock_run.side_effect = [_issue_labels_proc("status:refined"), _make_proc()]
         with patch.object(server, "_REPO", "owner/repo"):
             result = apply_estimation_outcome(issue_number=7, outcome="needs-attention")
 
-    cmd = mock_run.call_args[0][0]
+    cmd = mock_run.call_args_list[1][0][0]
     assert "--add-label" in cmd
     assert "status:needs-attention" in cmd
     assert "--remove-label" in cmd
@@ -789,6 +607,14 @@ def test_apply_estimation_outcome_needs_attention():
 def test_apply_estimation_outcome_missing_scores():
     with pytest.raises(InvalidInputError):
         apply_estimation_outcome(issue_number=7, outcome="estimated")
+
+
+def test_apply_estimation_outcome_rejects_bad_score():
+    with pytest.raises(ValueError, match="Not a Low|Mid|High score"):
+        apply_estimation_outcome(
+            issue_number=7, outcome="estimated",
+            blast_radius="Low", touch="Medium", human_involvement="Low", review_overhead="Low",
+        )
 
 
 def test_apply_estimation_outcome_invalid():
@@ -802,30 +628,3 @@ def test_apply_estimation_outcome_surfaces_gh_error():
         with patch.object(server, "_REPO", "owner/repo"):
             with pytest.raises(GhCommandError, match="issue not found"):
                 apply_estimation_outcome(issue_number=7, outcome="needs-attention")
-
-
-def test_write_github_output_no_github_output_env():
-    issue = Issue(number=1, title="T", body="B", state="OPEN", labels=[], comments=[])
-    env = {k: v for k, v in os.environ.items() if k != "GITHUB_OUTPUT"}
-    with patch.dict(os.environ, env, clear=True):
-        _write_github_output(issue)  # must not raise
-
-
-def test_write_github_output_no_human_comments(tmp_path):
-    output_file = tmp_path / "output"
-    output_file.write_text("")
-    issue = Issue(
-        number=1,
-        title="T",
-        body="B",
-        state="OPEN",
-        labels=[],
-        comments=[
-            Comment(author="github-actions", created_at="2024-01-01T00:00:00Z", body="Auto")
-        ],
-    )
-    with patch.dict(os.environ, {"GITHUB_OUTPUT": str(output_file)}):
-        _write_github_output(issue)
-
-    content = output_file.read_text()
-    assert "Auto" not in content
