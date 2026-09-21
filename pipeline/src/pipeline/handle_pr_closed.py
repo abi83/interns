@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import sys
 
-from . import actions_env, gh, labels
+from . import actions_env, cli, gh, labels
 
 
 def handle_pr_closed(repo: str, pr: int, issue: int | None, merged: bool) -> None:
@@ -47,9 +47,9 @@ def _main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
 
     handle_pr_closed(
-        os.environ["GITHUB_REPOSITORY"],
+        cli.require_env("GITHUB_REPOSITORY"),
         args.pr,
-        int(args.issue) if args.issue else None,
+        cli.optional_int(args.issue),
         args.merged == "true",
     )
     return 0

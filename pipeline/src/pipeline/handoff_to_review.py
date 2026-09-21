@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import sys
 
-from . import actions_env, gh, labels
+from . import actions_env, cli, gh, labels
 
 
 def handoff(repo: str, issue: int, pr: int | None) -> None:
@@ -35,8 +35,8 @@ def _main(argv: list[str]) -> int:
     parser.add_argument("pr", nargs="?", default=None)
     args = parser.parse_args(argv)
 
-    pr = int(args.pr) if args.pr else None
-    handoff(os.environ["GITHUB_REPOSITORY"], args.issue, pr)
+    pr = cli.optional_int(args.pr)
+    handoff(cli.require_env("GITHUB_REPOSITORY"), args.issue, pr)
     return 0
 
 

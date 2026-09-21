@@ -14,7 +14,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from . import actions_env, execution, gh, labels, report_run, verdict
+from . import actions_env, cli, execution, gh, labels, report_run, verdict
 
 
 def _issue_title(repo: str, issue: str) -> str:
@@ -238,9 +238,9 @@ def _main(argv: list[str]) -> int:
     parser.add_argument("--cost-warn", dest="cost_warn", default="")
     args = parser.parse_args(argv)
 
-    repo = os.environ["GITHUB_REPOSITORY"]
-    server_url = os.environ["GITHUB_SERVER_URL"]
-    summary_path = os.environ["GITHUB_STEP_SUMMARY"]
+    repo = cli.require_env("GITHUB_REPOSITORY")
+    server_url = cli.require_env("GITHUB_SERVER_URL")
+    summary_path = cli.require_env("GITHUB_STEP_SUMMARY")
     reviewer_bot = os.environ.get("REVIEWER_BOT", "")
 
     summary = build_summary(

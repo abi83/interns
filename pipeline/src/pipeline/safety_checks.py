@@ -15,7 +15,7 @@ from __future__ import annotations
 import os
 import sys
 
-from . import gh
+from . import cli, gh
 
 DEFAULT_REQUIRED_SECRETS = [
     "CLAUDE_CODE_OAUTH_TOKEN",
@@ -65,16 +65,9 @@ def check_vars(repo: str, required: list[str]) -> list[str]:
     return []
 
 
-def _require_env(name: str) -> str:
-    value = os.environ.get(name)
-    if not value:
-        raise SystemExit(f"safety-checks: {name} unset")
-    return value
-
-
 def _main() -> int:
-    repo = _require_env("GITHUB_REPOSITORY")
-    _require_env("GH_TOKEN")
+    repo = cli.require_env("GITHUB_REPOSITORY")
+    cli.require_env("GH_TOKEN")
 
     required_secrets = os.environ.get("REQUIRED_SECRETS", " ".join(DEFAULT_REQUIRED_SECRETS)).split()
     required_vars = os.environ.get("REQUIRED_VARS", " ".join(DEFAULT_REQUIRED_VARS)).split()

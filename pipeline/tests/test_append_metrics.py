@@ -192,16 +192,16 @@ class CliTests(unittest.TestCase):
             tmp = Path(tmp_s)
             record = _record_file(tmp, {"job": "coder"})
             with patch.dict(os.environ, {"GITHUB_REPOSITORY": "owner/repo"}, clear=True):
-                status = append_metrics._main([str(record)])
-        self.assertEqual(status, 1)
+                with self.assertRaisesRegex(SystemExit, "unset"):
+                    append_metrics._main([str(record)])
 
     def test_missing_github_repository_fails_cleanly_not_a_traceback(self):
         with tempfile.TemporaryDirectory() as tmp_s:
             tmp = Path(tmp_s)
             record = _record_file(tmp, {"job": "coder"})
             with patch.dict(os.environ, {"GH_TOKEN": "t"}, clear=True):
-                status = append_metrics._main([str(record)])
-        self.assertEqual(status, 1)
+                with self.assertRaisesRegex(SystemExit, "unset"):
+                    append_metrics._main([str(record)])
 
 
 if __name__ == "__main__":

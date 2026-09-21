@@ -11,6 +11,8 @@ import secrets
 import sys
 from pathlib import Path
 
+from . import cli
+
 
 def github_output_block(name: str, content: bytes) -> bytes:
     """A `$GITHUB_OUTPUT`-formatted `name<<DELIM` block holding `content`.
@@ -50,13 +52,12 @@ def build_output(name: str, files: list[str]) -> bytes:
 
 def _main(argv: list[str]) -> int:
     import argparse
-    import os
 
     parser = argparse.ArgumentParser(prog="python -m pipeline.prompt")
     parser.add_argument("files", nargs="+")
     args = parser.parse_args(argv)
 
-    output_path = os.environ["GITHUB_OUTPUT"]
+    output_path = cli.require_env("GITHUB_OUTPUT")
     with open(output_path, "ab") as f:
         f.write(build_output("text", args.files))
     return 0

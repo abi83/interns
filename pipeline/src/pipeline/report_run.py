@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import sys
 
-from . import actions_env, execution, gh
+from . import actions_env, cli, execution, gh
 
 
 def format_cost(raw: str | None) -> str:
@@ -44,11 +44,11 @@ def _main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
 
     report(
-        os.environ["GITHUB_REPOSITORY"],
+        cli.require_env("GITHUB_REPOSITORY"),
         args.phase,
         args.exec_file,
-        int(args.issue) if args.issue else None,
-        int(args.pr) if args.pr else None,
+        cli.optional_int(args.issue),
+        cli.optional_int(args.pr),
         args.warn,
     )
     return 0

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import sys
 
-from . import gh, labels
+from . import cli, gh, labels
 
 
 def gate(repo: str, issue: int, accepted: list[str], remove_status: str, reject_comment: str) -> bool:
@@ -29,7 +29,6 @@ def gate(repo: str, issue: int, accepted: list[str], remove_status: str, reject_
 
 def _main(argv: list[str]) -> int:
     import argparse
-    import os
 
     parser = argparse.ArgumentParser(prog="python -m pipeline.gate_issue_type")
     parser.add_argument("issue", type=int)
@@ -39,9 +38,8 @@ def _main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
 
     accepted = [label for label in args.accepted.split(",") if label]
-    ok = gate(os.environ["GITHUB_REPOSITORY"], args.issue, accepted, args.remove_status, args.reject_comment)
-    with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-        f.write(f"skip={'false' if ok else 'true'}\n")
+    ok = gate(cli.require_env("GITHUB_REPOSITORY"), args.issue, accepted, args.remove_status, args.reject_comment)
+    cli.write_output("skip", not ok)
     return 0
 
 

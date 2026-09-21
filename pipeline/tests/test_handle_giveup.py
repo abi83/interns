@@ -13,6 +13,9 @@ class HandleGiveupTests(unittest.TestCase):
         self.workspace = Path(self._tmpdir.name)
         self.output_file = self.workspace / "output"
         self.output_file.write_text("")
+        env = patch.dict(os.environ, {"GITHUB_OUTPUT": str(self.output_file)})
+        env.start()
+        self.addCleanup(env.stop)
 
     def tearDown(self):
         self._tmpdir.cleanup()
@@ -21,7 +24,7 @@ class HandleGiveupTests(unittest.TestCase):
         with patch("pipeline.handle_giveup.labels.set_issue_status") as set_issue, \
              patch("pipeline.handle_giveup.labels.set_pr_pipeline_label") as set_pr, \
              patch("pipeline.handle_giveup.gh.issue_comment") as comment:
-            result = handle_giveup.handle_giveup("acme/widgets", 7, 15, str(self.workspace), str(self.output_file))
+            result = handle_giveup.handle_giveup("acme/widgets", 7, 15, str(self.workspace))
         self.assertFalse(result)
         self.assertEqual(self.output_file.read_text(), "gave_up=false\n")
         set_issue.assert_not_called()
@@ -36,7 +39,7 @@ class HandleGiveupTests(unittest.TestCase):
              patch("pipeline.handle_giveup.labels.set_pr_pipeline_label") as set_pr, \
              patch("pipeline.handle_giveup.gh.issue_comment") as comment, \
              patch("pipeline.handle_giveup.actions_env.run_url", return_value="https://x/runs/1"):
-            result = handle_giveup.handle_giveup("acme/widgets", 7, 15, str(self.workspace), str(self.output_file))
+            result = handle_giveup.handle_giveup("acme/widgets", 7, 15, str(self.workspace))
         self.assertTrue(result)
         self.assertEqual(self.output_file.read_text(), "gave_up=true\n")
         set_pr.assert_called_once_with("acme/widgets", 15)
@@ -53,7 +56,7 @@ class HandleGiveupTests(unittest.TestCase):
              patch("pipeline.handle_giveup.labels.set_pr_pipeline_label") as set_pr, \
              patch("pipeline.handle_giveup.gh.issue_comment") as comment, \
              patch("pipeline.handle_giveup.actions_env.run_url", return_value="https://x/runs/1"):
-            result = handle_giveup.handle_giveup("acme/widgets", 7, None, str(self.workspace), str(self.output_file))
+            result = handle_giveup.handle_giveup("acme/widgets", 7, None, str(self.workspace))
         self.assertTrue(result)
         set_pr.assert_not_called()
         set_issue.assert_called_once_with("acme/widgets", 7, "status:needs-attention")
@@ -64,15 +67,15 @@ class HandleGiveupTests(unittest.TestCase):
 class CliTests(unittest.TestCase):
     def test_empty_pr_argument_is_treated_as_no_pr(self):
         with patch("pipeline.handle_giveup.handle_giveup") as fn, \
-             patch.dict(os.environ, {"GITHUB_REPOSITORY": "acme/widgets", "GITHUB_WORKSPACE": "/ws", "GITHUB_OUTPUT": "/out"}):
+             patch.dict(os.environ, {"GITHUB_REPOSITORY": "acme/widgets", "GITHUB_WORKSPACE": "/ws"}):
             handle_giveup._main(["7", ""])
-        fn.assert_called_once_with("acme/widgets", 7, None, "/ws", "/out")
+        fn.assert_called_once_with("acme/widgets", 7, None, "/ws")
 
     def test_pr_argument_is_parsed_as_int(self):
         with patch("pipeline.handle_giveup.handle_giveup") as fn, \
-             patch.dict(os.environ, {"GITHUB_REPOSITORY": "acme/widgets", "GITHUB_WORKSPACE": "/ws", "GITHUB_OUTPUT": "/out"}):
+             patch.dict(os.environ, {"GITHUB_REPOSITORY": "acme/widgets", "GITHUB_WORKSPACE": "/ws"}):
             handle_giveup._main(["7", "15"])
-        fn.assert_called_once_with("acme/widgets", 7, 15, "/ws", "/out")
+        fn.assert_called_once_with("acme/widgets", 7, 15, "/ws")
 
 
 if __name__ == "__main__":

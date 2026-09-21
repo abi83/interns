@@ -13,7 +13,7 @@ import re
 import sys
 from pathlib import Path
 
-from pipeline import prompt
+from . import cli, prompt
 
 HEADING_RE = re.compile(r"^#{1,6} .*$")
 
@@ -30,7 +30,7 @@ def headings(text: str) -> list[str]:
     filtering to heading lines drops them for free.
 
     An opened-but-never-closed frontmatter block (missing the closing `---`)
-    yields no headings at all, matching the original awk script: it never
+    yields no headings at all, because the parser never
     leaves the frontmatter state, so every remaining line -- headings
     included -- gets skipped."""
     lines = text.splitlines()
@@ -63,7 +63,6 @@ def build_skeleton(builtin_dir: Path, consumer_dir: Path, types: list[str]) -> s
 
 def _main(argv: list[str]) -> int:
     import argparse
-    import os
 
     parser = argparse.ArgumentParser(prog="python -m pipeline.resolve_issue_template")
     parser.add_argument("--builtin-dir", required=True)
@@ -73,7 +72,7 @@ def _main(argv: list[str]) -> int:
 
     skeleton = build_skeleton(Path(args.builtin_dir), Path(args.consumer_dir), args.types.split())
 
-    github_output = os.environ["GITHUB_OUTPUT"]
+    github_output = cli.require_env("GITHUB_OUTPUT")
     with open(github_output, "ab") as f:
         f.write(prompt.github_output_block("skeleton", skeleton.encode()))
     return 0

@@ -9,7 +9,7 @@ import os
 import sys
 from dataclasses import dataclass, field
 
-from . import gh, prompt
+from . import cli, gh, prompt
 
 _VIEW_QUERY = """
 query($owner: String!, $repo: String!, $number: Int!) {
@@ -121,7 +121,7 @@ def _main(argv: list[str]) -> int:
     if len(argv) != 1:
         print("usage: python -m pipeline.fetch_issue <issue-number>", file=sys.stderr)
         return 2
-    write_github_output(fetch_issue(os.environ["GITHUB_REPOSITORY"], int(argv[0])))
+    write_github_output(fetch_issue(cli.require_env("GITHUB_REPOSITORY"), int(argv[0])))
     return 0
 
 

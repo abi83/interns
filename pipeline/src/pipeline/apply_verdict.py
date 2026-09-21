@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import sys
 
-from . import actions_env, gh, labels, verdict
+from . import actions_env, cli, gh, labels, verdict
 
 MAX_FIX_ROUNDS = 1
 
@@ -86,10 +86,10 @@ def _main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
 
     apply_verdict(
-        os.environ["GITHUB_REPOSITORY"],
+        cli.require_env("GITHUB_REPOSITORY"),
         args.pr,
-        int(args.issue) if args.issue else None,
-        os.environ["REVIEWER_BOT"],
+        cli.optional_int(args.issue),
+        cli.require_env("REVIEWER_BOT"),
     )
     return 0
 

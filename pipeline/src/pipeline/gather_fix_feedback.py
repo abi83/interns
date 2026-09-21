@@ -10,7 +10,7 @@ from __future__ import annotations
 import subprocess
 import sys
 
-from . import gh, prompt, verdict
+from . import cli, gh, prompt, verdict
 
 
 class NoChangesRequestedReviewError(RuntimeError):
@@ -77,7 +77,7 @@ def _main(argv: list[str]) -> int:
         print(f"Error: fix round dispatched but no open PR references issue #{args.issue}", file=sys.stderr)
         return 1
 
-    repo = os.environ["GITHUB_REPOSITORY"]
+    repo = cli.require_env("GITHUB_REPOSITORY")
     pr = int(args.pr)
     checkout_branch(args.head_ref)
 
@@ -87,7 +87,7 @@ def _main(argv: list[str]) -> int:
         print(f"Error: fix round for PR #{pr} but {exc}", file=sys.stderr)
         return 1
 
-    with open(os.environ["GITHUB_OUTPUT"], "ab") as f:
+    with open(cli.require_env("GITHUB_OUTPUT"), "ab") as f:
         f.write(prompt.github_output_block("text", text.encode()))
     return 0
 
