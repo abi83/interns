@@ -66,3 +66,12 @@ jobs:
       - name: Run interns-pipeline tests
         working-directory: pipeline
         run: PYTHONPATH=src python -m unittest discover -s tests -v
+
+  test-gh-issues-mcp:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+      - name: Run gh-issues-mcp tests
+        working-directory: .github/scripts/gh-issues-mcp
+        run: uv run --frozen pytest
