@@ -72,6 +72,16 @@ def api(path: str, *, method: str = "GET", fields: dict[str, str] | None = None,
     return json.loads(out) if out else None
 
 
+def api_all_pages(path: str) -> list:
+    """Every item across every page of a paginated array endpoint."""
+    proc = _run(["api", "-H", "Accept: application/vnd.github+json", "--paginate", "--slurp", path])
+    pages = json.loads(proc.stdout)
+    items: list = []
+    for page in pages:
+        items.extend(page)
+    return items
+
+
 def api_status(path: str) -> tuple[str, object]:
     """GET `path`. Returns ("ok", body), ("missing", None) for a 404 (the
     resource doesn't exist), or ("blocked", None) for any other error --
@@ -164,6 +174,26 @@ def run_url(repo: str) -> str:
     return f"{server}/{repo}/actions/runs/{run_id}"
 
 
+def pr_url(repo: str, number: int, *, server_url: str | None = None) -> str:
+    """Link to PR `number`. Reads GITHUB_SERVER_URL from the Actions env by
+    default; pass `server_url` explicitly for a caller (pipeline.run_summary)
+    that already threads it as a parameter rather than reading os.environ
+    itself, so it stays independently testable."""
+    return f"{server_url or os.environ['GITHUB_SERVER_URL']}/{repo}/pull/{number}"
+
+
+def pr_checks(repo: str, pr: int) -> list[dict]:
+    """Checks on `pr`. Empty list when there's nothing usable yet -- no
+    checks reported, or a transient `gh` failure the polling loop should
+    just retry past."""
+    proc = _run(["pr", "checks", str(pr), "--repo", repo, "--json", "name,bucket,link"], check=False)
+    try:
+        data = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        return []
+    return data if isinstance(data, list) else []
+
+
 def pr_create(repo: str, head: str, base: str, title: str, body: str) -> str:
     """Open a PR and return its URL."""
     proc = _run(["pr", "create", "--repo", repo, "--head", head, "--base", base,
@@ -217,8 +247,10 @@ def set_variable(repo: str, name: str, value: str) -> None:
     _run(["variable", "set", name, "--repo", repo], input_text=value)
 
 
-def dispatch_workflow(repo: str, workflow: str, ref: str, inputs: dict[str, str]) -> None:
-    args = ["workflow", "run", workflow, "--repo", repo, "--ref", ref]
+def dispatch_workflow(repo: str, workflow: str, ref: str | None, inputs: dict[str, str]) -> None:
+    args = ["workflow", "run", workflow, "--repo", repo]
+    if ref:
+        args += ["--ref", ref]
     for key, value in inputs.items():
         args += ["-f", f"{key}={value}"]
     _run(args)

@@ -3,8 +3,6 @@ on the orphan `metrics` branch, one commit per call. Callers serialise
 appends with a concurrency group; on a losing push race this retries by
 re-fetching the branch tip and re-appending. The branch is created on first
 use.
-
-append-metrics.sh is a thin shim over this module.
 """
 
 from __future__ import annotations

@@ -6,8 +6,6 @@ Both are computable from the issue's type:* label and title before the agent
 starts, so the agent shouldn't spend reasoning inventing them. push-branch.sh
 squashes the branch on push, so the branch name is near-cosmetic. Runs after
 the issue-type gate, which guarantees a type:coding-task or type:bug label.
-
-derive-code-hints.sh is a thin shim over this module.
 """
 
 from __future__ import annotations

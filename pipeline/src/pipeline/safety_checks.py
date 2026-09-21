@@ -8,8 +8,6 @@ list secrets.
 Branch protection and GitHub Pages need admin access GITHUB_TOKEN never
 has -- interns-install checks and fixes those locally instead (see
 installer/src/interns_install/safety.py).
-
-safety-checks.sh is a thin shim over this module.
 """
 
 from __future__ import annotations

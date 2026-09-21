@@ -1,7 +1,7 @@
 name: resolve-agent-config
 description: >
   Resolve the effective execution limits (and wiki setting) for one agent job
-  via agent-config.sh: config file, else the built-in default. No other
+  via pipeline.config: config file, else the built-in default. No other
   override layer.
 
 inputs:
@@ -33,6 +33,8 @@ runs:
     - name: Resolve agent config
       id: resolve
       shell: bash
-      # github.action_path is this action's dir; composite `run:` steps
-      # otherwise default their cwd to the caller's workspace root.
-      run: ${{ github.action_path }}/../../scripts/pipeline/agent-config.sh ${{ inputs.agent }}
+      # AGENT goes through env: rather than being interpolated straight into
+      # `run:`, same as gate-issue-type -- see that action for why.
+      env:
+        AGENT: ${{ inputs.agent }}
+      run: python3 -m pipeline.config agent-config "$AGENT" >> "$GITHUB_OUTPUT"

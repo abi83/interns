@@ -1,7 +1,7 @@
 """Parsing of the claude-code-action execution-log JSON.
 
-Shared by report-run.sh and run-summary.sh, which both previously
-hand-duplicated the same `result`-entry extraction (interns#157).
+Shared by pipeline.report_run and pipeline.run_summary, which both
+previously hand-duplicated the same `result`-entry extraction (interns#157).
 """
 
 from __future__ import annotations

@@ -5,8 +5,6 @@ the agent: type:spike is known from the issue's labels before the agent
 runs, so there's nothing for the agent to decide.
 
 No-op on any other issue type, or a spike not yet estimated.
-
-spike-advisory.sh is a thin shim over this module.
 """
 
 from __future__ import annotations

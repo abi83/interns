@@ -1,9 +1,10 @@
 """interns.yml loader and validator -- the only reader of the pipeline config
 file (schema: .github/interns.schema.json).
 
-Both the agent-config resolution (agent-config.sh) and the reviewer's
-checks-ignore list (wait-for-checks.sh) go through `load_raw` here, so a
-malformed file fails the same way no matter which setting the caller needed.
+Both the agent-config resolution (this module's own `agent-config` CLI
+command) and the reviewer's checks-ignore list (pipeline.wait_for_checks) go
+through `load_raw` here, so a malformed file fails the same way no matter
+which setting the caller needed.
 """
 
 from __future__ import annotations

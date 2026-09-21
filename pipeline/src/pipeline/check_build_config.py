@@ -4,8 +4,6 @@ failing every PR or saying nothing.
 
 Deterministic and independent of what the coder did or said this run -- it
 greps the Makefile on disk, it doesn't trust the agent's word for it.
-
-check-build-config.sh is a thin shim over this module.
 """
 
 from __future__ import annotations

@@ -4,8 +4,6 @@ active run -- the pr:* label is the only "which agent" signal, and a red
 check or rejection is read from native PR state, not a label). If no PR was
 left, the agent stopped for clarification or partway through -- flag it for
 a human.
-
-handoff-to-review.sh is a thin shim over this module.
 """
 
 from __future__ import annotations

@@ -10,8 +10,6 @@ without this check the workflow can't tell "gave up and commented" from
 
 Emits gave_up=true|false on $GITHUB_OUTPUT so the workflow skips the
 reviewer hand-off when the task was declined.
-
-handle-giveup.sh is a thin shim over this module.
 """
 
 from __future__ import annotations

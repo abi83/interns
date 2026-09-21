@@ -26,11 +26,17 @@ runs:
     - name: Gate
       id: gate
       shell: bash
+      # Every input goes through env: rather than being interpolated straight
+      # into `run:` -- GitHub substitutes ${{ }} into the YAML *before* bash
+      # sees it, so a "`" or "$(...)" in an interpolated value would run as
+      # shell with this step's GH_TOKEN. This is a reusable composite action,
+      # so a future caller threading dynamic content (an issue title, say)
+      # into reject_comment must stay safe by construction.
       env:
         GH_TOKEN: ${{ github.token }}
         GITHUB_REPOSITORY: ${{ github.repository }}
-        ISSUE: ${{ inputs.issue_number }}
-        ACCEPTED: ${{ inputs.accepted_types }}
+        ISSUE_NUMBER: ${{ inputs.issue_number }}
+        ACCEPTED_TYPES: ${{ inputs.accepted_types }}
         REMOVE_STATUS: ${{ inputs.remove_status }}
         REJECT_COMMENT: ${{ inputs.reject_comment }}
-      run: ${{ github.action_path }}/../../scripts/pipeline/gate-issue-type.sh
+      run: python3 -m pipeline.gate_issue_type "$ISSUE_NUMBER" "$ACCEPTED_TYPES" "$REMOVE_STATUS" "$REJECT_COMMENT"
