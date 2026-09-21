@@ -273,9 +273,15 @@ class DefaultBranchTests(unittest.TestCase):
         with patch("pipeline.gh.subprocess.run", return_value=_proc(stdout='{"default_branch": "trunk"}')):
             self.assertEqual(gh.default_branch("acme/widgets"), "trunk")
 
-    def test_falls_back_to_main_on_unexpected_shape(self):
+    def test_raises_on_unexpected_shape(self):
         with patch("pipeline.gh.subprocess.run", return_value=_proc(stdout="")):
-            self.assertEqual(gh.default_branch("acme/widgets"), "main")
+            with self.assertRaises(gh.GhCommandError):
+                gh.default_branch("acme/widgets")
+
+    def test_raises_when_key_missing(self):
+        with patch("pipeline.gh.subprocess.run", return_value=_proc(stdout="{}")):
+            with self.assertRaises(gh.GhCommandError):
+                gh.default_branch("acme/widgets")
 
 
 class GetFileTests(unittest.TestCase):
@@ -497,6 +503,15 @@ class PrCreateTests(unittest.TestCase):
 
 
 class SharedClientAdditionsTests(unittest.TestCase):
+    def test_error_names_the_subcommand_without_echoing_the_body(self):
+        err = subprocess.CalledProcessError(1, ["gh"], stderr="boom")
+        with patch.object(gh.subprocess, "run", side_effect=err):
+            with self.assertRaises(gh.GhCommandError) as ctx:
+                gh.issue_comment("o/r", 5, "SECRET-BODY")
+        self.assertIn("issue comment 5", str(ctx.exception))
+        self.assertIn("boom", str(ctx.exception))
+        self.assertNotIn("SECRET-BODY", str(ctx.exception))
+
     def test_issue_edit_passes_body_and_title(self):
         with patch.object(gh.subprocess, "run", return_value=_proc("url")) as run:
             out = gh.issue_edit("o/r", 5, body="B", title="T")

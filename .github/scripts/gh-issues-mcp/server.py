@@ -324,6 +324,8 @@ def open_pr(
     """
     full_body = f"{body}\n\nCloses #{issue_number}"
     head = _git("rev-parse", "--abbrev-ref", "HEAD")
+    if head == "HEAD":
+        raise GhCommandError("Cannot open a PR from a detached HEAD; check out a branch first")
     return gh.pr_create(_REPO, head, gh.default_branch(_REPO), title, full_body)
 
 

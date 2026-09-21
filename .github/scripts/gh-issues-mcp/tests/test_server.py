@@ -436,6 +436,13 @@ def test_open_pr_appends_closes():
     assert "Implements the thing" in body
 
 
+def test_open_pr_rejects_detached_head():
+    with patch("server.subprocess.run", return_value=_make_proc("HEAD")):
+        with patch.object(server, "_REPO", "owner/repo"):
+            with pytest.raises(GhCommandError, match="detached HEAD"):
+                open_pr(issue_number=42, title="feat: add thing", body="Implements the thing")
+
+
 def test_open_pr_surfaces_gh_error():
     with patch("server.subprocess.run") as mock_run:
         mock_run.side_effect = [

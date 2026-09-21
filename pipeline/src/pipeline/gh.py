@@ -23,6 +23,17 @@ class GhCommandError(GhError):
     """A `gh` subprocess exited non-zero."""
 
 
+def _subcommand(args: list[str]) -> str:
+    """Leading non-flag tokens of `args` (e.g. `issue edit 5`), so error
+    messages name the command without echoing bodies or query payloads."""
+    tokens = []
+    for arg in args:
+        if arg.startswith("-"):
+            break
+        tokens.append(arg)
+    return " ".join(tokens[:3])
+
+
 def _run(args: list[str], *, input_text: str | None = None, check: bool = True) -> subprocess.CompletedProcess:
     try:
         return subprocess.run(
@@ -36,7 +47,7 @@ def _run(args: list[str], *, input_text: str | None = None, check: bool = True) 
         raise GhNotInstalledError("the `gh` CLI is not installed or not on PATH") from exc
     except subprocess.CalledProcessError as exc:
         detail = (exc.stderr or exc.stdout or "").strip()
-        raise GhCommandError(f"`gh {' '.join(args)}` failed: {detail}") from exc
+        raise GhCommandError(f"`gh {_subcommand(args)}` failed: {detail}") from exc
 
 
 def ensure_available() -> None:
@@ -256,7 +267,9 @@ def secret_verb(name: str, existing: list[str] | None) -> str:
 
 def default_branch(repo: str) -> str:
     data = api(f"repos/{repo}")
-    return data.get("default_branch", "main") if isinstance(data, dict) else "main"
+    if not isinstance(data, dict) or "default_branch" not in data:
+        raise GhCommandError(f"could not read the default branch of {repo}")
+    return data["default_branch"]
 
 
 def set_secret(repo: str, name: str, value: str) -> None:
