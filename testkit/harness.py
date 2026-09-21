@@ -69,7 +69,7 @@ class Scenario:
         self.github_output.touch()
         for tool in ("gh", "git"):
             launcher = bin_dir / tool
-            launcher.write_text(f"#!{sys.executable}\n" + FAKE_CLI.read_text())
+            launcher.write_text(f"#!/bin/sh\nexec '{sys.executable}' '{FAKE_CLI}' {tool} \"$@\"\n")
             launcher.chmod(launcher.stat().st_mode | stat.S_IEXEC)
         self._write_rules()
         self.env = {
@@ -114,7 +114,8 @@ class Scenario:
             command = [sys.executable, "-m", "coverage", "run", "--rcfile", str(ROOT / "pyproject.toml"),
                        f"--source={sources}", *command[1:]]
         proc = subprocess.run(command, cwd=self.workspace, env={**self.env, **(env or {})},
-                              capture_output=True, text=True)
+                              capture_output=True, text=True, stdin=subprocess.DEVNULL)
+        self.assert_all_matched()
         return Result(proc.returncode, proc.stdout, proc.stderr, _parse_github_output(self.github_output.read_text()))
 
     def run(self, module: str, *args: str, env: dict[str, str] | None = None) -> Result:
@@ -125,15 +126,24 @@ class Scenario:
         """Call a gh-issues MCP tool with `kwargs`."""
         return self._launch([sys.executable, str(MCP_TOOL), name, json.dumps(kwargs)], env)
 
+    def _recorded(self) -> list[dict]:
+        path = self.state / "calls.jsonl"
+        return [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
+
+    def assert_all_matched(self) -> None:
+        """Fail on any call that had no canned response, even if the code
+        under test swallowed the resulting error."""
+        unmatched = [c for c in self._recorded() if c["unmatched"]]
+        assert not unmatched, f"calls with no canned response: {[[c['tool'], *c['argv']] for c in unmatched]}"
+
     def calls(self, tool: str, *prefix: str) -> list[list[str]]:
         """argv of every recorded `tool` call starting with `prefix`, in order."""
-        path = self.state / "calls.jsonl"
-        recorded = [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
-        return [c["argv"] for c in recorded if c["tool"] == tool and c["argv"][: len(prefix)] == list(prefix)]
+        return [c["argv"] for c in self._recorded() if c["tool"] == tool and c["argv"][: len(prefix)] == list(prefix)]
 
     def stdin_of(self, tool: str, *prefix: str) -> str:
-        recorded = [json.loads(line) for line in (self.state / "calls.jsonl").read_text().splitlines()]
-        matching = [c for c in recorded if c["tool"] == tool and c["argv"][: len(prefix)] == list(prefix)]
+        """stdin of the last matching call (only `gh api --input -` receives any)."""
+        matching = [c for c in self._recorded() if c["tool"] == tool and c["argv"][: len(prefix)] == list(prefix)]
+        assert matching, f"no recorded {tool} call starting with {list(prefix)}"
         return matching[-1]["stdin"]
 
     def label_edits(self, kind: str) -> list[tuple[str, set[str], set[str]]]:

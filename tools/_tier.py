@@ -26,10 +26,9 @@ def run_tier(tier: str, pytest_args: list[str], extra_env: dict[str, str] | None
     shutil.rmtree(COVERAGE_DIR, ignore_errors=True)
     env = {**os.environ, "COVERAGE_FILE": str(COVERAGE_DIR / "data"), **(extra_env or {})}
 
-    if _run("coverage", "run", "-m", "pytest", *pytest_args, env=env) != 0:
-        return 1
-    if _run("coverage", "combine", "--quiet", env=env) != 0:
-        return 1
+    tests_rc = _run("coverage", "run", "-m", "pytest", *pytest_args, env=env)
+    combine_rc = _run("coverage", "combine", "--quiet", env=env)
     floor = _floor(tier)
     print(f"\n{tier} tier: coverage floor {floor}%")
-    return _run("coverage", "report", f"--fail-under={floor}", env=env)
+    report_rc = _run("coverage", "report", f"--fail-under={floor}", env=env)
+    return tests_rc or combine_rc or report_rc

@@ -1,7 +1,8 @@
 """Fail on new `except ...: return <default>` in the pipeline package.
 
 CLAUDE.md: invalid state throws -- no `catch` that swallows and returns a
-default. Integer returns are exit codes (`return 1`) and don't count.
+default. Non-zero integer returns are exit codes (`return 1`) and don't count;
+`return 0`/`False` swallow.
 Existing sites are grandfathered in GRANDFATHERED; remove an entry when its
 site is fixed, and don't add one -- wire this to the error-handling policy
 once it lands.
@@ -31,7 +32,7 @@ def is_default(value: ast.expr | None) -> bool:
     if value is None:
         return True
     if isinstance(value, ast.Constant):
-        return not isinstance(value.value, (int, float))
+        return not (type(value.value) is int and value.value != 0)
     if isinstance(value, (ast.List, ast.Tuple, ast.Set, ast.Dict)):
         return all(is_default(child) for child in ast.iter_child_nodes(value) if isinstance(child, ast.expr))
     return False
@@ -44,15 +45,22 @@ def swallowing_handlers(source: str) -> list[tuple[str, int]]:
         if not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
         for handler in (n for n in ast.walk(function) if isinstance(n, ast.ExceptHandler)):
-            returns = [s for s in handler.body if isinstance(s, ast.Return)]
-            raises = any(isinstance(s, ast.Raise) for s in handler.body)
-            if returns and not raises and is_default(returns[0].value):
+            inside = [n for statement in handler.body for n in ast.walk(statement)]
+            raises = any(isinstance(n, ast.Raise) for n in inside)
+            returns_default = any(isinstance(n, ast.Return) and is_default(n.value) for n in inside)
+            if returns_default and not raises:
                 found.append((function.name, handler.lineno))
     return found
 
 
 def test_detects_a_swallowed_error():
     source = "def f():\n    try:\n        g()\n    except ValueError:\n        return []\n"
+    assert swallowing_handlers(source) == [("f", 4)]
+
+
+@pytest.mark.parametrize("handler_body", ["return False", "return 0", "if x:\n            return None"])
+def test_detects_falsy_and_nested_defaults(handler_body):
+    source = f"def f():\n    try:\n        g()\n    except ValueError:\n        {handler_body}\n"
     assert swallowing_handlers(source) == [("f", 4)]
 
 

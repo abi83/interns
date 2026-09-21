@@ -23,10 +23,11 @@ def fixture(name: str) -> str:
 
 
 @pytest.fixture
-def scenario(tmp_path, monkeypatch) -> Scenario:
+def scenario(tmp_path, monkeypatch):
     scenario = Scenario(tmp_path)
     scenario.activate(monkeypatch)
-    return scenario
+    yield scenario
+    scenario.assert_all_matched()
 
 
 def test_current_repo_reads_owner_type_from_the_repos_api(scenario):
