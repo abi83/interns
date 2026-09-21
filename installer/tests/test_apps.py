@@ -2,7 +2,7 @@ import unittest
 from unittest import mock
 
 from pipeline import gh
-from interns_install import apps
+from interns_install import gh_admin, apps
 from interns_install.apps import (
     APP_PERMISSIONS,
     APPS,
@@ -56,7 +56,7 @@ CODER = next(s for s in APPS if s.key == "coder")
 
 
 def _repo():
-    return gh.Repo(owner="acme", name="widgets", is_org=False)
+    return gh_admin.Repo(owner="acme", name="widgets", is_org=False)
 
 
 def _confirm_sequence(*answers: bool):
@@ -68,7 +68,7 @@ def _confirm_sequence(*answers: bool):
 class ReuseAppTests(unittest.TestCase):
     def test_flag_writes_variable_and_keeps_existing_key(self):
         con = Console(assume_yes=True)
-        with mock.patch.multiple(apps.gh, set_variable=mock.DEFAULT,
+        with mock.patch.multiple(apps.gh_admin, set_variable=mock.DEFAULT,
                                  set_secret=mock.DEFAULT) as m:
             use_existing_app(con, _repo(), CODER, "Iv1.aaa", "interns-coder",
                              existing_secrets=[CODER.key_secret])
@@ -78,7 +78,7 @@ class ReuseAppTests(unittest.TestCase):
 
     def test_flag_without_key_records_manual_under_yes(self):
         con = Console(assume_yes=True)
-        with mock.patch.multiple(apps.gh, set_variable=mock.DEFAULT,
+        with mock.patch.multiple(apps.gh_admin, set_variable=mock.DEFAULT,
                                  set_secret=mock.DEFAULT) as m:
             use_existing_app(con, _repo(), CODER, "Iv1.aaa", "interns-coder",
                              existing_secrets=[])
@@ -101,7 +101,7 @@ class ReuseAppTests(unittest.TestCase):
         con.prompt = lambda q: "Iv1.existing"
         with mock.patch.object(apps, "ManifestServer") as server, \
              mock.patch.object(apps.webbrowser, "open"), \
-             mock.patch.multiple(apps.gh, set_variable=mock.DEFAULT, set_secret=mock.DEFAULT) as m:
+             mock.patch.multiple(apps.gh_admin, set_variable=mock.DEFAULT, set_secret=mock.DEFAULT) as m:
             provision_app(con, _repo(), CODER, None, existing_secrets=[CODER.key_secret])
         server.assert_not_called()
         m["set_variable"].assert_called_once_with("acme/widgets", CODER.client_id_var, "Iv1.existing")

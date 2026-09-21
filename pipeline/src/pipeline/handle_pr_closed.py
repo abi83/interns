@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import sys
 
-from . import gh, labels
+from . import actions_env, gh, labels
 
 
 def handle_pr_closed(repo: str, pr: int, issue: int | None, merged: bool) -> None:
@@ -31,8 +31,8 @@ def handle_pr_closed(repo: str, pr: int, issue: int | None, merged: bool) -> Non
     labels.set_issue_status(repo, issue, "status:needs-attention")
     gh.issue_comment(
         repo, issue,
-        f"[PR #{pr}]({gh.pr_url(repo, pr)}) was closed without merging — this issue needs a human to "
-        f"decide whether to re-dispatch the coder (re-apply `status:ready`) or drop it. Run: {gh.run_url(repo)}",
+        f"[PR #{pr}]({actions_env.pr_url(repo, pr)}) was closed without merging — this issue needs a human to "
+        f"decide whether to re-dispatch the coder (re-apply `status:ready`) or drop it. Run: {actions_env.run_url(repo)}",
     )
 
 

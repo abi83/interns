@@ -29,7 +29,7 @@ def _patch(**overrides):
         patch("pipeline.run_summary.labels.issue_labels", side_effect=defaults["issue_labels"]),
         patch("pipeline.run_summary.verdict.all_reviews", side_effect=defaults["all_reviews"]),
         patch("pipeline.run_summary.verdict.reviews_by", side_effect=defaults["reviews_by"]),
-        patch("pipeline.run_summary.gh.run_url", side_effect=defaults["run_url"]),
+        patch("pipeline.run_summary.actions_env.run_url", side_effect=defaults["run_url"]),
     )
 
 

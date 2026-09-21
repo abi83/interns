@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import sys
 
-from . import gh, labels, verdict
+from . import actions_env, gh, labels, verdict
 
 
 def check_cap(repo: str, pr: int, reviewer_bot: str, max_reviews: int, *, count: int | None = None) -> bool:
@@ -33,7 +33,7 @@ def check_cap(repo: str, pr: int, reviewer_bot: str, max_reviews: int, *, count:
     labels.escalate_pr(repo, pr)
     gh.pr_comment(
         repo, pr,
-        f"Automatic review limit ({max_reviews}) reached — further review is manual. Run: {gh.run_url(repo)}",
+        f"Automatic review limit ({max_reviews}) reached — further review is manual. Run: {actions_env.run_url(repo)}",
     )
     return True
 

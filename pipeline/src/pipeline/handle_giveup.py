@@ -17,7 +17,7 @@ from __future__ import annotations
 import os
 import sys
 
-from . import gh, labels
+from . import actions_env, gh, labels
 
 SENTINEL_NAME = ".coder-gave-up.md"
 
@@ -39,7 +39,7 @@ def handle_giveup(repo: str, issue: int, pr: int | None, workspace: str, output_
         "The coder fix round declined this task and set `status:needs-attention` "
         "— it was not handed back to the reviewer.\n\n"
         f"{reason}\n\n"
-        f"Run: {gh.run_url(repo)}",
+        f"Run: {actions_env.run_url(repo)}",
     )
     _emit(output_path, True)
     return True

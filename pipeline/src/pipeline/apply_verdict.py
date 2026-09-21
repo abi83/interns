@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import sys
 
-from . import gh, labels, verdict
+from . import actions_env, gh, labels, verdict
 
 MAX_FIX_ROUNDS = 1
 
@@ -33,8 +33,8 @@ def apply_verdict(repo: str, pr: int, issue: int | None, reviewer_bot: str) -> N
         if issue is not None:
             gh.issue_comment(
                 repo, issue,
-                f"Reviewer approved [PR #{pr}]({gh.pr_url(repo, pr)}) — awaiting owner merge. "
-                f"Run: {gh.run_url(repo)}",
+                f"Reviewer approved [PR #{pr}]({actions_env.pr_url(repo, pr)}) — awaiting owner merge. "
+                f"Run: {actions_env.run_url(repo)}",
             )
         return
 
@@ -47,7 +47,7 @@ def apply_verdict(repo: str, pr: int, issue: int | None, reviewer_bot: str) -> N
             gh.pr_comment(
                 repo, pr,
                 "Second review still requests changes — the automatic fix round didn't converge. "
-                f"Escalating to a human. See the run: {gh.run_url(repo)}",
+                f"Escalating to a human. See the run: {actions_env.run_url(repo)}",
             )
         elif issue is not None:
             labels.set_pr_pipeline_label(repo, pr, "pr:coding")
@@ -62,7 +62,7 @@ def apply_verdict(repo: str, pr: int, issue: int | None, reviewer_bot: str) -> N
             gh.pr_comment(
                 repo, pr,
                 "Changes requested but this PR has no linked issue — can't dispatch a coder fix round "
-                f"automatically. See the run: {gh.run_url(repo)}",
+                f"automatically. See the run: {actions_env.run_url(repo)}",
             )
         return
 
@@ -72,7 +72,7 @@ def apply_verdict(repo: str, pr: int, issue: int | None, reviewer_bot: str) -> N
     gh.pr_comment(
         repo, pr,
         "Review run completed without submitting a recognized verdict — likely stopped partway through. "
-        f"See the run: {gh.run_url(repo)}",
+        f"See the run: {actions_env.run_url(repo)}",
     )
 
 

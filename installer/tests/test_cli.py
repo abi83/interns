@@ -2,7 +2,7 @@ import unittest
 from unittest import mock
 
 from pipeline import gh
-from interns_install import cli, install_files, safety
+from interns_install import cli, gh_admin, install_files, safety
 from interns_install.cli import (
     _parse_args,
     _stage_install_files,
@@ -36,21 +36,38 @@ class WorkflowScopePreflightTests(unittest.TestCase):
         return Console(assume_yes=True, dry_run=False)
 
     def test_classic_token_without_workflow_exits(self):
-        with mock.patch.object(gh, "auth_scopes", return_value={"repo"}):
+        with mock.patch.object(gh_admin, "auth_scopes", return_value={"repo"}):
             with self.assertRaises(SystemExit):
                 cli._workflow_scope_preflight(self._con())
 
     def test_classic_token_with_workflow_passes(self):
-        with mock.patch.object(gh, "auth_scopes", return_value={"repo", "workflow"}):
+        with mock.patch.object(gh_admin, "auth_scopes", return_value={"repo", "workflow"}):
             cli._workflow_scope_preflight(self._con())
 
     def test_fine_grained_pat_falls_through(self):
-        with mock.patch.object(gh, "auth_scopes", return_value=set()):
+        with mock.patch.object(gh_admin, "auth_scopes", return_value=set()):
             cli._workflow_scope_preflight(self._con())
 
 
+class _Both:
+    """Enters two `patch.multiple` contexts and merges their mocks."""
+
+    def __init__(self, *patchers):
+        self._patchers = patchers
+
+    def __enter__(self):
+        mocks = {}
+        for patcher in self._patchers:
+            mocks.update(patcher.__enter__())
+        return mocks
+
+    def __exit__(self, *exc):
+        for patcher in reversed(self._patchers):
+            patcher.__exit__(*exc)
+
+
 def _repo():
-    return gh.Repo(owner="acme", name="widgets", is_org=False)
+    return gh_admin.Repo(owner="acme", name="widgets", is_org=False)
 
 
 class WriteOAuthTokenTests(unittest.TestCase):
@@ -92,16 +109,18 @@ class AppClientIdArgTests(unittest.TestCase):
 
 class StageInstallFilesTests(unittest.TestCase):
     def _repo(self):
-        return gh.Repo(owner="acme", name="widgets", is_org=False)
+        return gh_admin.Repo(owner="acme", name="widgets", is_org=False)
 
     def test_opens_one_pr_for_all_missing_files(self):
         con = Console(assume_yes=True)
         with mock.patch.object(install_files, "collect_missing_files",
                                return_value={".github/interns.yml": ("cfg", None)}), \
              mock.patch.multiple(
-                 cli.gh,
+                 cli.gh_admin,
                  branch_head_sha=mock.DEFAULT, create_branch=mock.DEFAULT,
-                 put_file=mock.DEFAULT, pr_create=mock.DEFAULT) as m:
+                 put_file=mock.DEFAULT) as m, \
+             mock.patch.object(cli.gh, "pr_create") as pr_create:
+            m["pr_create"] = pr_create
             m["branch_head_sha"].return_value = "abc123"
             m["pr_create"].return_value = "https://github.com/acme/widgets/pull/7"
             url = _stage_install_files(con, self._repo(), "main", issue_templates=False)
@@ -118,9 +137,11 @@ class StageInstallFilesTests(unittest.TestCase):
         with mock.patch.object(install_files, "collect_missing_files",
                                return_value={".github/workflows/install.yml": ("new", "sha-old")}), \
              mock.patch.multiple(
-                 cli.gh,
+                 cli.gh_admin,
                  branch_head_sha=mock.DEFAULT, create_branch=mock.DEFAULT,
-                 put_file=mock.DEFAULT, pr_create=mock.DEFAULT) as m:
+                 put_file=mock.DEFAULT) as m, \
+             mock.patch.object(cli.gh, "pr_create") as pr_create:
+            m["pr_create"] = pr_create
             m["branch_head_sha"].return_value = "abc123"
             m["pr_create"].return_value = "https://github.com/acme/widgets/pull/8"
             _stage_install_files(con, self._repo(), "main", issue_templates=False)
@@ -152,14 +173,18 @@ class MainTests(unittest.TestCase):
     def _patch_happy_path(self):
         """Patches every collaborator main() calls so a full run succeeds;
         each test overrides one to force a specific exit path."""
-        return mock.patch.multiple(
-            cli.gh,
+        admin = mock.patch.multiple(
+            cli.gh_admin,
             ensure_available=mock.DEFAULT,
             current_repo=mock.DEFAULT,
             auth_scopes=mock.DEFAULT,
+        )
+        shared = mock.patch.multiple(
+            cli.gh,
             list_secret_names=mock.DEFAULT,
             default_branch=mock.DEFAULT,
         )
+        return _Both(admin, shared)
 
     def test_success_path_returns_zero(self):
         with self._patch_happy_path() as m, \
@@ -177,15 +202,15 @@ class MainTests(unittest.TestCase):
         self.assertEqual(code, 0)
 
     def test_gh_not_available_exits_one_without_summary(self):
-        with mock.patch.object(cli.gh, "ensure_available", side_effect=gh.GhError("gh not on PATH")), \
+        with mock.patch.object(cli.gh_admin, "ensure_available", side_effect=gh.GhError("gh not on PATH")), \
              mock.patch.object(Console, "summary") as summary:
             code = cli.main(["--yes"])
         self.assertEqual(code, 1)
         summary.assert_not_called()
 
     def test_current_repo_failure_exits_one_without_summary(self):
-        with mock.patch.object(cli.gh, "ensure_available"), \
-             mock.patch.object(cli.gh, "current_repo", side_effect=gh.GhError("no repo here")), \
+        with mock.patch.object(cli.gh_admin, "ensure_available"), \
+             mock.patch.object(cli.gh_admin, "current_repo", side_effect=gh.GhError("no repo here")), \
              mock.patch.object(Console, "summary") as summary:
             code = cli.main(["--yes"])
         self.assertEqual(code, 1)

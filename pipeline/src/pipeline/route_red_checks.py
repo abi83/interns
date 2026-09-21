@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import sys
 
-from . import gh, labels
+from . import actions_env, gh, labels
 
 
 def route_red_checks(repo: str, pr: int, issue: int | None, reason: str) -> None:
@@ -14,7 +14,7 @@ def route_red_checks(repo: str, pr: int, issue: int | None, reason: str) -> None
         repo, pr,
         f"PR checks are not green ({reason}) — the reviewer won't run. The coder writes and runs "
         "tests before pushing, so this is being sent straight to a human rather than retried. "
-        f"Run: {gh.run_url(repo)}",
+        f"Run: {actions_env.run_url(repo)}",
     )
     if issue is not None:
         labels.set_issue_status(repo, issue, "status:needs-attention")
