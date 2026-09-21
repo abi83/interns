@@ -18,4 +18,5 @@ def pr_url(repo: str, number: int, *, server_url: str | None = None) -> str:
     default; pass `server_url` explicitly for a caller (pipeline.run_summary)
     that already threads it as a parameter rather than reading os.environ
     itself, so it stays independently testable."""
-    return f"{server_url or cli.require_env("GITHUB_SERVER_URL")}/{repo}/pull/{number}"
+    server = server_url or cli.require_env("GITHUB_SERVER_URL")
+    return f"{server}/{repo}/pull/{number}"
