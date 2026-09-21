@@ -2,7 +2,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-from pipeline import safety_checks
+from pipeline import cli, safety_checks
 
 SECRETS = safety_checks.DEFAULT_REQUIRED_SECRETS
 VARS = safety_checks.DEFAULT_REQUIRED_VARS
@@ -56,7 +56,7 @@ class MainTests(unittest.TestCase):
 
     def test_fails_when_gh_token_unset(self):
         with patch.dict(os.environ, {"GITHUB_REPOSITORY": "acme/widgets"}, clear=True):
-            with self.assertRaises(SystemExit):
+            with self.assertRaises(cli.MissingEnvError):
                 safety_checks._main()
 
 

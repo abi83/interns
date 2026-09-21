@@ -17,15 +17,15 @@ from __future__ import annotations
 import os
 import sys
 
-from . import actions_env, gh, labels
+from . import actions_env, cli, gh, labels
 
 SENTINEL_NAME = ".coder-gave-up.md"
 
 
-def handle_giveup(repo: str, issue: int, pr: int | None, workspace: str, output_path: str) -> bool:
+def handle_giveup(repo: str, issue: int, pr: int | None, workspace: str) -> bool:
     sentinel = os.path.join(workspace, SENTINEL_NAME)
     if not os.path.isfile(sentinel):
-        _emit(output_path, False)
+        cli.write_output("gave_up", False)
         return False
 
     with open(sentinel) as f:
@@ -41,13 +41,8 @@ def handle_giveup(repo: str, issue: int, pr: int | None, workspace: str, output_
         f"{reason}\n\n"
         f"Run: {actions_env.run_url(repo)}",
     )
-    _emit(output_path, True)
+    cli.write_output("gave_up", True)
     return True
-
-
-def _emit(output_path: str, gave_up: bool) -> None:
-    with open(output_path, "a") as f:
-        f.write(f"gave_up={'true' if gave_up else 'false'}\n")
 
 
 def _main(argv: list[str]) -> int:
@@ -58,15 +53,15 @@ def _main(argv: list[str]) -> int:
     parser.add_argument("pr", nargs="?", default="")
     args = parser.parse_args(argv)
 
+    cli.require_env("GITHUB_OUTPUT")  # fail before the give-up side effects, not after
     handle_giveup(
-        os.environ["GITHUB_REPOSITORY"],
+        cli.require_env("GITHUB_REPOSITORY"),
         args.issue,
-        int(args.pr) if args.pr else None,
+        cli.optional_int(args.pr),
         os.environ.get("GITHUB_WORKSPACE", "."),
-        os.environ.get("GITHUB_OUTPUT", "/dev/null"),
     )
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(_main(sys.argv[1:]))
+    sys.exit(cli.run(_main))

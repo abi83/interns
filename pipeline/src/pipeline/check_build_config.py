@@ -11,6 +11,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from . import cli
+
 MARKER = b"INTERNS: not configured"
 
 
@@ -29,18 +31,15 @@ def is_configured(repo_root: str) -> bool:
 
 def _main(argv: list[str]) -> int:
     import argparse
-    import os
 
     parser = argparse.ArgumentParser(prog="python -m pipeline.check_build_config")
     parser.add_argument("repo_root")
     args = parser.parse_args(argv)
 
     configured = is_configured(args.repo_root)
-    output_path = os.environ["GITHUB_OUTPUT"]
-    with open(output_path, "a") as f:
-        f.write(f"configured={'true' if configured else 'false'}\n")
+    cli.write_output("configured", configured)
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(_main(sys.argv[1:]))
+    sys.exit(cli.run(_main))

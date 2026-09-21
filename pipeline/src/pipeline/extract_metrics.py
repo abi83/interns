@@ -13,6 +13,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from . import cli
+
 SCHEMA_VERSION = 1
 JOBS = ("refiner", "estimator", "coder", "reviewer")
 
@@ -86,13 +88,6 @@ def _num_or_null(value: str) -> int | None:
     return int(value) if value.isdigit() else None
 
 
-def _require_env(name: str) -> str:
-    value = os.environ.get(name)
-    if not value:
-        raise RuntimeError(f"{name} unset")
-    return value
-
-
 def _main(argv: list[str]) -> int:
     import argparse
 
@@ -107,12 +102,8 @@ def _main(argv: list[str]) -> int:
         print(f"extract-metrics: execution file not found: {args.exec_file}", file=sys.stderr)
         return 1
 
-    try:
-        repo = _require_env("GITHUB_REPOSITORY")
-        run_id = int(_require_env("GITHUB_RUN_ID"))
-    except RuntimeError as exc:
-        print(f"extract-metrics: {exc}", file=sys.stderr)
-        return 1
+    repo = cli.require_env("GITHUB_REPOSITORY")
+    run_id = int(cli.require_env("GITHUB_RUN_ID"))
 
     try:
         record = build_record(
@@ -133,4 +124,4 @@ def _main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(_main(sys.argv[1:]))
+    sys.exit(cli.run(_main))

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import sys
 
-from . import actions_env, gh, labels
+from . import actions_env, cli, gh, labels
 
 
 def flag_failure(repo: str, noun: str, issue: int | None, pr: int | None, fix_round: bool) -> None:
@@ -55,14 +55,14 @@ def _main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
 
     flag_failure(
-        os.environ["GITHUB_REPOSITORY"],
+        cli.require_env("GITHUB_REPOSITORY"),
         args.noun,
-        int(args.issue) if args.issue else None,
-        int(args.pr) if args.pr else None,
+        cli.optional_int(args.issue),
+        cli.optional_int(args.pr),
         args.fix_round,
     )
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(_main(sys.argv[1:]))
+    sys.exit(cli.run(_main))

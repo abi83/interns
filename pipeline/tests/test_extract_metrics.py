@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from pipeline import extract_metrics
+from pipeline import cli, extract_metrics
 
 EXEC_EVENTS = [
     {"type": "system", "subtype": "init", "session_id": "sess-1"},
@@ -157,16 +157,14 @@ class CliTests(unittest.TestCase):
     def test_missing_github_repository_fails_cleanly_not_a_traceback(self):
         with patch.dict(os.environ, {}, clear=True), \
              patch.dict(os.environ, {"GITHUB_RUN_ID": "42"}):
-            status, out = self._run_capture([str(self.exec_file), "--job", "coder"])
-        self.assertEqual(status, 1)
-        self.assertEqual(out, "")
+            with self.assertRaisesRegex(cli.MissingEnvError, "unset"):
+                self._run_capture([str(self.exec_file), "--job", "coder"])
 
     def test_missing_github_run_id_fails_cleanly_not_a_traceback(self):
         with patch.dict(os.environ, {}, clear=True), \
              patch.dict(os.environ, {"GITHUB_REPOSITORY": "owner/repo"}):
-            status, out = self._run_capture([str(self.exec_file), "--job", "coder"])
-        self.assertEqual(status, 1)
-        self.assertEqual(out, "")
+            with self.assertRaisesRegex(cli.MissingEnvError, "unset"):
+                self._run_capture([str(self.exec_file), "--job", "coder"])
 
 
 if __name__ == "__main__":

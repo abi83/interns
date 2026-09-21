@@ -13,7 +13,7 @@ import json
 import os
 import sys
 
-from . import gh
+from . import cli, gh
 
 
 class ManifestError(ValueError):
@@ -73,4 +73,4 @@ def _main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(_main(sys.argv[1:]))
+    sys.exit(cli.run(_main))

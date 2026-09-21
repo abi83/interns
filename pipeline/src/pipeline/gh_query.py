@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from . import gh
+from . import cli, gh
 
 
 def head_ref(repo: str, pr: int) -> str:
@@ -54,4 +54,4 @@ def _main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(_main(sys.argv[1:]))
+    sys.exit(cli.run(_main))

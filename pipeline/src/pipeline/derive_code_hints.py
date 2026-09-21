@@ -13,7 +13,7 @@ from __future__ import annotations
 import re
 import sys
 
-from . import gh, labels
+from . import cli, gh, labels
 
 
 def _slug(title: str) -> str:
@@ -38,24 +38,22 @@ def derive_code_hints(repo: str, issue: int) -> tuple[str, str]:
 
 def _main(argv: list[str]) -> int:
     import argparse
-    import os
 
     parser = argparse.ArgumentParser(prog="python -m pipeline.derive_code_hints")
     parser.add_argument("issue", type=int)
     args = parser.parse_args(argv)
 
-    repo = os.environ["GITHUB_REPOSITORY"]
+    repo = cli.require_env("GITHUB_REPOSITORY")
     try:
         commit_type_hint, branch = derive_code_hints(repo, args.issue)
     except ValueError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 
-    with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-        f.write(f"commit_type_hint={commit_type_hint}\n")
-        f.write(f"branch={branch}\n")
+    cli.write_output("commit_type_hint", commit_type_hint)
+    cli.write_output("branch", branch)
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(_main(sys.argv[1:]))
+    sys.exit(cli.run(_main))

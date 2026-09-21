@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import sys
 
-from . import actions_env, gh, labels, verdict
+from . import actions_env, cli, gh, labels, verdict
 
 
 def check_cap(repo: str, pr: int, reviewer_bot: str, max_reviews: int, *, count: int | None = None) -> bool:
@@ -49,12 +49,11 @@ def _main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
 
     max_reviews = int(os.environ.get("MAX_AUTOMATIC_REVIEWS_PER_PR", "5"))
-    capped = check_cap(os.environ["GITHUB_REPOSITORY"], args.pr, os.environ["REVIEWER_BOT"], max_reviews,
+    capped = check_cap(cli.require_env("GITHUB_REPOSITORY"), args.pr, cli.require_env("REVIEWER_BOT"), max_reviews,
                         count=args.count)
-    with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-        f.write(f"capped={'true' if capped else 'false'}\n")
+    cli.write_output("capped", capped)
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(_main(sys.argv[1:]))
+    sys.exit(cli.run(_main))

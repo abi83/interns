@@ -9,7 +9,7 @@ import os
 import sys
 from dataclasses import dataclass, field
 
-from . import gh, prompt
+from . import cli, gh, prompt
 
 _VIEW_QUERY = """
 query($owner: String!, $repo: String!, $number: Int!) {
@@ -90,11 +90,8 @@ def write_github_output(issue: Issue) -> None:
         if not output_path:
             print(f"{key}={value!r}")
             return
-        with open(output_path, "ab") as f:
-            if multiline:
-                f.write(prompt.github_output_block(key, value.encode()))
-            else:
-                f.write(f"{key}={value}\n".encode())
+        entry = cli.github_output_block(key, value.encode()) if multiline else f"{key}={value}\n".encode()
+        cli.append_output(entry)
 
     write("number", str(issue.number))
     write("title", issue.title)
@@ -121,9 +118,9 @@ def _main(argv: list[str]) -> int:
     if len(argv) != 1:
         print("usage: python -m pipeline.fetch_issue <issue-number>", file=sys.stderr)
         return 2
-    write_github_output(fetch_issue(os.environ["GITHUB_REPOSITORY"], int(argv[0])))
+    write_github_output(fetch_issue(cli.require_env("GITHUB_REPOSITORY"), int(argv[0])))
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(_main(sys.argv[1:]))
+    sys.exit(cli.run(_main))

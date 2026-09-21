@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import sys
 
-from . import gh, labels
+from . import cli, gh, labels
 
 ADVISORY = (
     "This is a spike; no coder picks it up. The estimate above is for your "
@@ -33,17 +33,16 @@ def post_advisory(repo: str, issue: int) -> str | None:
 
 def _main(argv: list[str]) -> int:
     import argparse
-    import os
 
     parser = argparse.ArgumentParser(prog="python -m pipeline.spike_advisory")
     parser.add_argument("issue", type=int)
     args = parser.parse_args(argv)
 
-    repo = os.environ["GITHUB_REPOSITORY"]
+    repo = cli.require_env("GITHUB_REPOSITORY")
     if post_advisory(repo, args.issue) is None:
         print(f"Issue #{args.issue} is not an estimated spike — no advisory.")
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(_main(sys.argv[1:]))
+    sys.exit(cli.run(_main))

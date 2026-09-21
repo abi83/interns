@@ -15,7 +15,7 @@ import sys
 import time
 from dataclasses import dataclass
 
-from . import config, gh
+from . import cli, config, gh
 
 
 @dataclass(frozen=True)
@@ -74,29 +74,25 @@ def _main(argv: list[str]) -> int:
     parser.add_argument("pr", type=int)
     args = parser.parse_args(argv)
 
-    output_path = os.environ["GITHUB_OUTPUT"]
-
     if os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch":
         print("Manual dispatch — skipping the check gate.")
-        with open(output_path, "a") as f:
-            f.write("ok=true\n")
+        cli.write_output("ok", True)
         return 0
 
     config_path = os.environ.get("INTERNS_CONFIG", ".github/interns.yml")
     ignore = config.checks_ignore(config.load_raw(config_path), config_path)
 
     ok, reason = wait_for_checks(
-        os.environ["GITHUB_REPOSITORY"], args.pr, os.environ.get("GITHUB_RUN_ID", ""), ignore,
+        cli.require_env("GITHUB_REPOSITORY"), args.pr, os.environ.get("GITHUB_RUN_ID", ""), ignore,
         timeout=float(os.environ.get("CHECK_TIMEOUT_SECONDS", "1200")),
         poll=float(os.environ.get("CHECK_POLL_SECONDS", "20")),
         settle=float(os.environ.get("CHECK_SETTLE_SECONDS", "30")),
     )
-    with open(output_path, "a") as f:
-        f.write(f"ok={'true' if ok else 'false'}\n")
-        if not ok:
-            f.write(f"reason={reason}\n")
+    cli.write_output("ok", ok)
+    if not ok:
+        cli.write_output("reason", reason)
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(_main(sys.argv[1:]))
+    sys.exit(cli.run(_main))

@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from pipeline import prompt
+from pipeline import cli, prompt
 
 
 def _write(tmp_path: Path, name: str, content: bytes) -> str:
@@ -27,15 +27,15 @@ def _parse_github_output_value(block: bytes, name: bytes) -> bytes:
 
 class GithubOutputBlockTests(unittest.TestCase):
     def test_resamples_the_delimiter_when_it_collides_with_content(self):
-        with patch("pipeline.prompt.secrets.token_hex", side_effect=["deadbeef", "cafef00d"]):
-            out = prompt.github_output_block("text", b"line one\nghadelim_deadbeef\nline two\n")
+        with patch("pipeline.cli.secrets.token_hex", side_effect=["deadbeef", "cafef00d"]):
+            out = cli.github_output_block("text", b"line one\nghadelim_deadbeef\nline two\n")
         self.assertNotIn(b"text<<ghadelim_deadbeef\n", out)
         self.assertIn(b"text<<ghadelim_cafef00d\n", out)
         value = _parse_github_output_value(out, b"text")
         self.assertEqual(value, b"line one\nghadelim_deadbeef\nline two")
 
     def test_content_not_from_a_file_round_trips(self):
-        out = prompt.github_output_block("text", b"arbitrary in-memory content")
+        out = cli.github_output_block("text", b"arbitrary in-memory content")
         self.assertEqual(_parse_github_output_value(out, b"text"), b"arbitrary in-memory content")
 
 

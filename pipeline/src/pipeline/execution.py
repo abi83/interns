@@ -10,6 +10,8 @@ import json
 import sys
 from pathlib import Path
 
+from . import cli
+
 
 def result_field(exec_file: str | None, field: str) -> str | None:
     """Value of `field` on the log's `result`-type entry -- the one written
@@ -46,4 +48,4 @@ def _main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(_main(sys.argv[1:]))
+    sys.exit(cli.run(_main))

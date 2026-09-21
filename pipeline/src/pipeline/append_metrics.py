@@ -16,6 +16,8 @@ import tempfile
 import time
 from pathlib import Path
 
+from . import cli
+
 BRANCH = "metrics"
 FILE = "metrics.jsonl"
 RETRIES = 3
@@ -110,13 +112,6 @@ def append_records(files: list[str], *, remote: str, run_id: str,
     raise AppendMetricsError(f"push to {BRANCH} failed after {retries} attempts")
 
 
-def _require_env(name: str) -> str:
-    value = os.environ.get(name)
-    if not value:
-        raise AppendMetricsError(f"{name} unset")
-    return value
-
-
 def _main(argv: list[str]) -> int:
     import argparse
 
@@ -125,8 +120,8 @@ def _main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
 
     try:
-        token = _require_env("GH_TOKEN")
-        repo = _require_env("GITHUB_REPOSITORY")
+        token = cli.require_env("GH_TOKEN")
+        repo = cli.require_env("GITHUB_REPOSITORY")
         server = os.environ.get("GITHUB_SERVER_URL", "https://github.com")
         run_id = os.environ.get("GITHUB_RUN_ID", "unknown")
         remote = f"https://x-access-token:{token}@{server.removeprefix('https://')}/{repo}.git"
@@ -140,4 +135,4 @@ def _main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(_main(sys.argv[1:]))
+    sys.exit(cli.run(_main))

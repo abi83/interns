@@ -13,7 +13,7 @@ import re
 import sys
 from pathlib import Path
 
-from pipeline import prompt
+from . import cli, prompt
 
 HEADING_RE = re.compile(r"^#{1,6} .*$")
 
@@ -63,7 +63,6 @@ def build_skeleton(builtin_dir: Path, consumer_dir: Path, types: list[str]) -> s
 
 def _main(argv: list[str]) -> int:
     import argparse
-    import os
 
     parser = argparse.ArgumentParser(prog="python -m pipeline.resolve_issue_template")
     parser.add_argument("--builtin-dir", required=True)
@@ -73,11 +72,9 @@ def _main(argv: list[str]) -> int:
 
     skeleton = build_skeleton(Path(args.builtin_dir), Path(args.consumer_dir), args.types.split())
 
-    github_output = os.environ["GITHUB_OUTPUT"]
-    with open(github_output, "ab") as f:
-        f.write(prompt.github_output_block("skeleton", skeleton.encode()))
+    cli.append_output(cli.github_output_block("skeleton", skeleton.encode()))
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(_main(sys.argv[1:]))
+    sys.exit(cli.run(_main))
