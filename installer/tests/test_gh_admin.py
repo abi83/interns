@@ -251,3 +251,18 @@ class PagesTests(unittest.TestCase):
         with patch.object(gh, "api") as api:
             gh_admin.enable_pages("o/r")
         api.assert_called_once_with("repos/o/r/pages", method="POST", fields={"build_type": "workflow"})
+
+
+class SetVariableTests(unittest.TestCase):
+    def test_tolerates_missing_variable_on_delete(self):
+        missing = gh.GhCommandError("`gh variable delete` failed: HTTP 404: Not Found")
+        with patch.object(gh, "run", side_effect=[missing, None]) as run:
+            gh_admin.set_variable("acme/widgets", "V", "1")
+        self.assertEqual(run.call_count, 2)
+
+    def test_raises_on_other_delete_failure(self):
+        denied = gh.GhCommandError("`gh variable delete` failed: HTTP 403: Forbidden")
+        with patch.object(gh, "run", side_effect=denied) as run:
+            with self.assertRaises(gh.GhCommandError):
+                gh_admin.set_variable("acme/widgets", "V", "1")
+        run.assert_called_once()

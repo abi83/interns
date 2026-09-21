@@ -26,7 +26,8 @@ def closing_issue(repo: str, pr: int) -> str:
 
 def pr_for_issue(repo: str, issue: int) -> dict[str, str]:
     """`pr_number` / `head_ref` of the first open PR closing `issue`; both
-    empty when there is none."""
+    empty when there is none. Scans the open-PR list, which `gh.pr_list`
+    refuses (raises) rather than truncate on very large repos."""
     for pr in gh.pr_list(repo, ["number", "headRefName", "closingIssuesReferences"]):
         if any(ref["number"] == issue for ref in pr["closingIssuesReferences"]):
             return {"pr_number": str(pr["number"]), "head_ref": pr["headRefName"]}

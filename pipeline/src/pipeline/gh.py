@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from urllib.parse import quote
 
 
 class GhError(RuntimeError):
@@ -79,12 +80,16 @@ def api_all_pages(path: str) -> list:
 
 def api_status(path: str) -> tuple[str, object]:
     """GET `path`. Returns ("ok", body), ("missing", None) for a 404 (the
-    resource doesn't exist), or ("blocked", None) for any other error --
-    typically a 403 from a token that lacks admin access."""
+    resource doesn't exist), or ("blocked", None) for a 403 (a token that
+    lacks admin access). Any other failure -- network, auth, 5xx -- raises."""
     try:
         return "ok", api(path)
     except GhCommandError as exc:
-        return ("missing" if "HTTP 404" in str(exc) else "blocked"), None
+        if "HTTP 404" in str(exc):
+            return "missing", None
+        if "HTTP 403" in str(exc):
+            return "blocked", None
+        raise
 
 
 def _label_flags(add_labels: list[str] | None, remove_labels: list[str] | None) -> list[str]:
@@ -114,13 +119,17 @@ def issue_edit(repo: str, number: int, *, body: str | None = None, title: str | 
     return run(args).stdout
 
 
-def issue_list(repo: str, *, label: str | None = None, limit: int = 100) -> list[dict]:
-    """Open issues (number, title, labels, state), optionally filtered to `label`."""
-    args = ["issue", "list", "--repo", repo, "--state", "open",
-            "--json", "number,title,labels,state", "--limit", str(limit)]
+def issue_list(repo: str, *, label: str | None = None) -> list[dict]:
+    """Every open issue (number, title, labels, state), optionally filtered to
+    `label`. Pull requests are excluded."""
+    path = f"repos/{repo}/issues?state=open&per_page=100"
     if label:
-        args += ["--label", label]
-    return json.loads(run(args).stdout)
+        path += f"&labels={quote(label, safe='')}"
+    return [
+        {"number": i["number"], "title": i["title"], "labels": i["labels"], "state": i["state"].upper()}
+        for i in api_all_pages(path)
+        if "pull_request" not in i
+    ]
 
 
 def pr_view(repo: str, number: int, fields: list[str]) -> dict:
@@ -129,11 +138,18 @@ def pr_view(repo: str, number: int, fields: list[str]) -> dict:
     return json.loads(proc.stdout)
 
 
+_PR_LIST_LIMIT = 1000
+
+
 def pr_list(repo: str, fields: list[str], *, state: str = "open") -> list[dict]:
-    """`gh pr list` restricted to `fields`."""
-    proc = run(["pr", "list", "--repo", repo, "--state", state, "--limit", "1000",
+    """`gh pr list` restricted to `fields`. Raises rather than silently
+    dropping PRs when the repo has more than the limit `gh` can return."""
+    proc = run(["pr", "list", "--repo", repo, "--state", state, "--limit", str(_PR_LIST_LIMIT),
                  "--json", ",".join(fields)])
-    return json.loads(proc.stdout)
+    prs = json.loads(proc.stdout)
+    if len(prs) >= _PR_LIST_LIMIT:
+        raise GhError(f"{repo} has at least {_PR_LIST_LIMIT} {state} PRs; the list would be truncated")
+    return prs
 
 
 def pr_edit(repo: str, number: int, *, add_labels: list[str] | None = None,
@@ -163,15 +179,21 @@ def pr_diff_names(repo: str, pr: int) -> list[str]:
 
 
 def pr_checks(repo: str, pr: int) -> list[dict]:
-    """Checks on `pr`. Empty list when there's nothing usable yet -- no
-    checks reported, or a transient `gh` failure the polling loop should
-    just retry past."""
+    """Checks on `pr`. Empty when none are reported yet; any other failure
+    or malformed output raises. `gh pr checks` exits non-zero for failing or
+    pending checks but still prints the JSON, so the exit code is ignored."""
     proc = run(["pr", "checks", str(pr), "--repo", repo, "--json", "name,bucket,link"], check=False)
+    if not proc.stdout.strip():
+        if "no checks reported" in proc.stderr:
+            return []
+        raise GhCommandError(f"`gh pr checks` failed: {proc.stderr.strip()}")
     try:
         data = json.loads(proc.stdout)
-    except json.JSONDecodeError:
-        return []
-    return data if isinstance(data, list) else []
+    except json.JSONDecodeError as exc:
+        raise GhCommandError(f"`gh pr checks` returned invalid JSON: {exc}") from exc
+    if not isinstance(data, list):
+        raise GhCommandError("`gh pr checks` returned a non-list body")
+    return data
 
 
 def pr_create(repo: str, head: str, base: str, title: str, body: str) -> str:
@@ -219,9 +241,10 @@ def dispatch_workflow(repo: str, workflow: str, ref: str | None, inputs: dict[st
 
 
 def label_list(repo: str) -> list[dict]:
-    proc = run(["label", "list", "--repo", repo, "--limit", "500",
-                 "--json", "name,color,description"])
-    return json.loads(proc.stdout)
+    return [
+        {"name": l["name"], "color": l["color"], "description": l["description"]}
+        for l in api_all_pages(f"repos/{repo}/labels?per_page=100")
+    ]
 
 
 def label_names(repo: str) -> list[str]:
