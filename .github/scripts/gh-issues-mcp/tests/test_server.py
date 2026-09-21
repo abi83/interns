@@ -585,7 +585,7 @@ def test_push_branch_rejects_scripts_protected_paths():
         "chore: update",
         "",
         "",
-        ".github/scripts/pipeline/lib.sh",
+        ".github/workflows/code-pipeline.yml",
     )
     with patch("server.subprocess.run", side_effect=seq):
         with pytest.raises(PushRefusedError, match="protected paths"):

@@ -3,8 +3,8 @@
   branch            branch name `<prefix>/issue-<n>-<slug>` from the issue title
 
 Both are computable from the issue's type:* label and title before the agent
-starts, so the agent shouldn't spend reasoning inventing them. push-branch.sh
-squashes the branch on push, so the branch name is near-cosmetic. Runs after
+starts, so the agent shouldn't spend reasoning inventing them. The push_branch
+MCP tool squashes the branch on push, so the branch name is near-cosmetic. Runs after
 the issue-type gate, which guarantees a type:coding-task or type:bug label.
 """
 
