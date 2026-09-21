@@ -1,7 +1,8 @@
 import unittest
 from unittest import mock
 
-from interns_install import gh, install_files
+from pipeline import gh
+from interns_install import install_files
 from interns_install.install_files import collect_missing_files
 
 

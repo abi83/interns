@@ -21,7 +21,9 @@ import sys
 import time
 import webbrowser
 
-from . import gh, install_files, safety
+from pipeline import gh
+
+from . import install_files, safety
 from .apps import APPS, provision_app
 from .console import Console
 
@@ -152,7 +154,7 @@ def _stage_install_files(con: Console, repo: gh.Repo, base: str,
         gh.put_file(repo.slug, dest, content,
                     "chore: install interns pipeline caller stubs", branch,
                     sha=file_sha)
-    url = gh.create_pr(repo.slug, branch, base,
+    url = gh.pr_create(repo.slug, branch, base,
                        "Install the interns pipeline", install_files.INSTALL_PR_BODY)
     con.say(f"opened {url}")
     return url

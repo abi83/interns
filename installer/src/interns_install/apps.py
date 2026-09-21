@@ -10,7 +10,8 @@ from __future__ import annotations
 import webbrowser
 from dataclasses import dataclass
 
-from . import gh
+from pipeline import gh
+
 from .console import Console
 from .manifest_server import ManifestServer
 
@@ -100,6 +101,15 @@ def settings_app_url(repo_owner: str, is_org: bool, slug: str) -> str:
     if is_org:
         return f"https://github.com/organizations/{repo_owner}/settings/apps/{slug}"
     return f"https://github.com/settings/apps/{slug}"
+
+
+def convert_manifest(code: str) -> dict:
+    # Plural "app-manifests", not "app-manifest" -- the singular path 404s on
+    # every call. Root cause of interns#70 (interns#94).
+    data = gh.api(f"app-manifests/{code}/conversions", method="POST")
+    if not isinstance(data, dict) or "pem" not in data:
+        raise gh.GhError("manifest conversion did not return a private key")
+    return data
 
 
 def _forget(secret: str) -> None:  # noqa: ARG001
@@ -217,7 +227,7 @@ def provision_app(con: Console, repo: gh.Repo, spec: AppSpec,
         webbrowser.open(server.base_url)
         code = server.wait_for_code()
 
-    conv = gh.convert_manifest(code)
+    conv = convert_manifest(code)
     client_id = str(conv["client_id"])
     slug = conv.get("slug", name)
     pem = conv["pem"]

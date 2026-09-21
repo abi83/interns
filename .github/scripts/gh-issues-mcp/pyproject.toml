@@ -2,7 +2,10 @@
 name = "gh-issues-mcp"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = ["mcp==2.2.0"]
+dependencies = ["mcp==2.2.0", "interns-pipeline"]
+
+[tool.uv.sources]
+interns-pipeline = { path = "../../../pipeline" }
 
 [dependency-groups]
 dev = ["pytest>=8.0", "pytest-mock>=3.12"]

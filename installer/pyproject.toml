@@ -9,7 +9,10 @@ description = "Interactive local front end for provisioning a repo for the inter
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
-dependencies = []
+dependencies = ["interns-pipeline"]
+
+[tool.uv.sources]
+interns-pipeline = { path = "../pipeline" }
 
 [project.scripts]
 interns-install = "interns_install.cli:main"

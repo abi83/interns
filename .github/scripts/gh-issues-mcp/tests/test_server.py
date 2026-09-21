@@ -2,6 +2,7 @@
 
 import json
 import os
+import subprocess
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -75,6 +76,14 @@ def _make_proc(stdout: str = "", returncode: int = 0, stderr: str = "") -> Magic
     m.returncode = returncode
     m.stderr = stderr
     return m
+
+
+def _gh_failure(stderr: str) -> subprocess.CalledProcessError:
+    return subprocess.CalledProcessError(1, ["gh"], stderr=stderr)
+
+
+def _label_names_proc(*names: str) -> MagicMock:
+    return _make_proc(json.dumps([{"name": n, "color": "", "description": ""} for n in names]))
 
 
 # ---------------------------------------------------------------------------
@@ -163,7 +172,7 @@ def test_fetch_issue_null_body():
 
 def test_fetch_issue_surfaces_gh_error():
     with patch("server.subprocess.run") as mock_run:
-        mock_run.return_value = _make_proc(returncode=1, stderr="gh: could not resolve to a repository")
+        mock_run.side_effect = _gh_failure("gh: could not resolve to a repository")
         with patch.object(server, "_REPO", "owner/repo"):
             with pytest.raises(GhCommandError, match="could not resolve"):
                 _fetch_issue(42)
@@ -215,7 +224,7 @@ def test_list_issues_no_label():
 
     cmd = mock_run.call_args[0][0]
     assert "--label" not in cmd
-    assert result == '[{"number":1}]'
+    assert json.loads(result) == [{"number": 1}]
 
 
 def test_list_issues_with_label():
@@ -231,7 +240,7 @@ def test_list_issues_with_label():
 
 def test_list_issues_surfaces_gh_error():
     with patch("server.subprocess.run") as mock_run:
-        mock_run.return_value = _make_proc(returncode=1, stderr="gh: repository not found")
+        mock_run.side_effect = _gh_failure("gh: repository not found")
         with patch.object(server, "_REPO", "owner/repo"):
             with pytest.raises(GhCommandError, match="repository not found"):
                 list_issues()
@@ -259,7 +268,7 @@ def test_comment_issue():
 
 def test_comment_issue_surfaces_gh_error():
     with patch("server.subprocess.run") as mock_run:
-        mock_run.return_value = _make_proc(returncode=1, stderr="gh: issue not found")
+        mock_run.side_effect = _gh_failure("gh: issue not found")
         with patch.object(server, "_REPO", "owner/repo"):
             with pytest.raises(GhCommandError, match="issue not found"):
                 comment_issue(issue_number=42, body="Hello")
@@ -302,7 +311,7 @@ def test_edit_issue_rejects_multiline_title():
 
 def test_edit_issue_surfaces_gh_error():
     with patch("server.subprocess.run") as mock_run:
-        mock_run.return_value = _make_proc(returncode=1, stderr="gh: issue not found")
+        mock_run.side_effect = _gh_failure("gh: issue not found")
         with patch.object(server, "_REPO", "owner/repo"):
             with pytest.raises(GhCommandError, match="issue not found"):
                 edit_issue(issue_number=5, body="New body content here")
@@ -320,7 +329,7 @@ def _mock_label_list(mock_run: MagicMock, labels: list[str]) -> None:
 def test_edit_issue_labels_add():
     with patch("server.subprocess.run") as mock_run:
         mock_run.side_effect = [
-            _make_proc("bug\npriority:high\nstatus:ready"),  # label list
+            _label_names_proc("bug", "priority:high", "status:ready"),  # label list
             _make_proc(),  # issue edit
         ]
         with patch.object(server, "_REPO", "owner/repo"):
@@ -334,7 +343,7 @@ def test_edit_issue_labels_add():
 def test_edit_issue_labels_remove():
     with patch("server.subprocess.run") as mock_run:
         mock_run.side_effect = [
-            _make_proc("bug\npriority:high"),
+            _label_names_proc("bug", "priority:high"),
             _make_proc(),
         ]
         with patch.object(server, "_REPO", "owner/repo"):
@@ -346,7 +355,7 @@ def test_edit_issue_labels_remove():
 
 def test_edit_issue_labels_rejects_unknown():
     with patch("server.subprocess.run") as mock_run:
-        mock_run.return_value = _make_proc("bug")
+        mock_run.return_value = _label_names_proc("bug")
         with patch.object(server, "_REPO", "owner/repo"):
             with pytest.raises(InvalidInputError, match="don't exist"):
                 edit_issue_labels(issue_number=7, add_labels=["no-such-label"])
@@ -359,7 +368,7 @@ def test_edit_issue_labels_noop():
 
 def test_edit_issue_labels_surfaces_gh_error_on_label_list():
     with patch("server.subprocess.run") as mock_run:
-        mock_run.return_value = _make_proc(returncode=1, stderr="gh: not authenticated")
+        mock_run.side_effect = _gh_failure("gh: not authenticated")
         with patch.object(server, "_REPO", "owner/repo"):
             with pytest.raises(GhCommandError, match="not authenticated"):
                 edit_issue_labels(issue_number=7, add_labels=["bug"])
@@ -368,8 +377,8 @@ def test_edit_issue_labels_surfaces_gh_error_on_label_list():
 def test_edit_issue_labels_surfaces_gh_error_on_edit():
     with patch("server.subprocess.run") as mock_run:
         mock_run.side_effect = [
-            _make_proc("bug"),  # label list succeeds
-            _make_proc(returncode=1, stderr="gh: issue not found"),  # edit fails
+            _label_names_proc("bug"),  # label list succeeds
+            _gh_failure("gh: issue not found"),  # edit fails
         ]
         with patch.object(server, "_REPO", "owner/repo"):
             with pytest.raises(GhCommandError, match="issue not found"):
@@ -396,7 +405,7 @@ def test_comment_pr():
 
 def test_comment_pr_surfaces_gh_error():
     with patch("server.subprocess.run") as mock_run:
-        mock_run.return_value = _make_proc(returncode=1, stderr="gh: pull request not found")
+        mock_run.side_effect = _gh_failure("gh: pull request not found")
         with patch.object(server, "_REPO", "owner/repo"):
             with pytest.raises(GhCommandError, match="pull request not found"):
                 comment_pr(pr_number=99, body="LGTM")
@@ -409,24 +418,38 @@ def test_comment_pr_surfaces_gh_error():
 
 def test_open_pr_appends_closes():
     with patch("server.subprocess.run") as mock_run:
-        mock_run.return_value = _make_proc("https://github.com/owner/repo/pull/1")
+        mock_run.side_effect = [
+            _make_proc("feat/x"),  # git rev-parse --abbrev-ref HEAD
+            _make_proc('{"default_branch": "main"}'),  # gh api repos/...
+            _make_proc("https://github.com/owner/repo/pull/1"),  # gh pr create
+        ]
         with patch.object(server, "_REPO", "owner/repo"):
             with patch.object(server, "_WORKSPACE", "/workspace"):
                 open_pr(issue_number=42, title="feat: add thing", body="Implements the thing")
 
-    cmd = mock_run.call_args[0][0]
-    body_idx = cmd.index("--body") + 1
-    body = cmd[body_idx]
+    assert mock_run.call_args_list[0][1].get("cwd") == "/workspace"
+    cmd = mock_run.call_args_list[2][0][0]
+    assert cmd[cmd.index("--head") + 1] == "feat/x"
+    assert cmd[cmd.index("--base") + 1] == "main"
+    body = cmd[cmd.index("--body") + 1]
     assert "Closes #42" in body
     assert "Implements the thing" in body
-    assert mock_run.call_args[1].get("cwd") == "/workspace"
+
+
+def test_open_pr_rejects_detached_head():
+    with patch("server.subprocess.run", return_value=_make_proc("HEAD")):
+        with patch.object(server, "_REPO", "owner/repo"):
+            with pytest.raises(GhCommandError, match="detached HEAD"):
+                open_pr(issue_number=42, title="feat: add thing", body="Implements the thing")
 
 
 def test_open_pr_surfaces_gh_error():
     with patch("server.subprocess.run") as mock_run:
-        mock_run.return_value = _make_proc(
-            returncode=1, stderr="error creating pull request: No commits between 'main' and 'feat/x'"
-        )
+        mock_run.side_effect = [
+            _make_proc("feat/x"),
+            _make_proc('{"default_branch": "main"}'),
+            _gh_failure("error creating pull request: No commits between 'main' and 'feat/x'"),
+        ]
         with patch.object(server, "_REPO", "owner/repo"):
             with pytest.raises(GhCommandError, match="No commits between"):
                 open_pr(issue_number=42, title="feat: add thing", body="Implements the thing")
@@ -476,7 +499,7 @@ def test_submit_pr_review_rejects_bad_event():
 
 def test_submit_pr_review_surfaces_gh_error():
     with patch("server.subprocess.run") as mock_run:
-        mock_run.return_value = _make_proc(returncode=1, stderr="gh: validation failed")
+        mock_run.side_effect = _gh_failure("gh: validation failed")
         with patch.object(server, "_REPO", "owner/repo"):
             with pytest.raises(GhCommandError, match="validation failed"):
                 submit_pr_review(pr_number=10, event="APPROVE", body="Looks good")
@@ -692,7 +715,7 @@ def test_apply_refinement_outcome_invalid():
 
 def test_apply_refinement_outcome_surfaces_gh_error():
     with patch("server.subprocess.run") as mock_run:
-        mock_run.return_value = _make_proc(returncode=1, stderr="gh: issue not found")
+        mock_run.side_effect = _gh_failure("gh: issue not found")
         with patch.object(server, "_REPO", "owner/repo"):
             with pytest.raises(GhCommandError, match="issue not found"):
                 apply_refinement_outcome(issue_number=5, outcome="needs-attention")
@@ -752,7 +775,7 @@ def test_apply_estimation_outcome_invalid():
 
 def test_apply_estimation_outcome_surfaces_gh_error():
     with patch("server.subprocess.run") as mock_run:
-        mock_run.return_value = _make_proc(returncode=1, stderr="gh: issue not found")
+        mock_run.side_effect = _gh_failure("gh: issue not found")
         with patch.object(server, "_REPO", "owner/repo"):
             with pytest.raises(GhCommandError, match="issue not found"):
                 apply_estimation_outcome(issue_number=7, outcome="needs-attention")

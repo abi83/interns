@@ -1,16 +1,38 @@
 import unittest
 from unittest import mock
 
-from interns_install import apps, gh
+from pipeline import gh
+from interns_install import apps
 from interns_install.apps import (
     APP_PERMISSIONS,
     APPS,
     build_manifest,
+    convert_manifest,
     provision_app,
     settings_new_url,
     use_existing_app,
 )
 from interns_install.console import Console
+
+
+class ConvertManifestTests(unittest.TestCase):
+    def test_returns_conversion_body(self):
+        with mock.patch.object(gh, "api", return_value={"pem": "----KEY----", "id": 1}) as api:
+            data = convert_manifest("abc123")
+        self.assertEqual(data["pem"], "----KEY----")
+        args, kwargs = api.call_args
+        self.assertIn("app-manifests/abc123/conversions", args[0])
+        self.assertEqual(kwargs["method"], "POST")
+
+    def test_raises_when_pem_missing(self):
+        with mock.patch.object(gh, "api", return_value={"id": 1}):
+            with self.assertRaises(gh.GhError):
+                convert_manifest("abc123")
+
+    def test_raises_on_non_dict_response(self):
+        with mock.patch.object(gh, "api", return_value=None):
+            with self.assertRaises(gh.GhError):
+                convert_manifest("abc123")
 
 
 class ManifestTests(unittest.TestCase):

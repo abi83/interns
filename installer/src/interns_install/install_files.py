@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import os
 
-from . import gh
+from pipeline import gh
 
 WORKFLOW = "install.yml"
 INTERNS_REPO = "abi83/interns"

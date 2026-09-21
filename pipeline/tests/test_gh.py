@@ -273,9 +273,15 @@ class DefaultBranchTests(unittest.TestCase):
         with patch("pipeline.gh.subprocess.run", return_value=_proc(stdout='{"default_branch": "trunk"}')):
             self.assertEqual(gh.default_branch("acme/widgets"), "trunk")
 
-    def test_falls_back_to_main_on_unexpected_shape(self):
+    def test_raises_on_unexpected_shape(self):
         with patch("pipeline.gh.subprocess.run", return_value=_proc(stdout="")):
-            self.assertEqual(gh.default_branch("acme/widgets"), "main")
+            with self.assertRaises(gh.GhCommandError):
+                gh.default_branch("acme/widgets")
+
+    def test_raises_when_key_missing(self):
+        with patch("pipeline.gh.subprocess.run", return_value=_proc(stdout="{}")):
+            with self.assertRaises(gh.GhCommandError):
+                gh.default_branch("acme/widgets")
 
 
 class GetFileTests(unittest.TestCase):
@@ -319,6 +325,228 @@ class EnsureAvailableTests(unittest.TestCase):
              patch("pipeline.gh.subprocess.run", return_value=_proc()) as mock_run:
             gh.ensure_available()
         self.assertEqual(mock_run.call_args[0][0], ["gh", "auth", "status"])
+
+
+class AuthScopesTests(unittest.TestCase):
+    def test_reads_scopes_without_raising_on_nonzero_exit(self):
+        with patch.object(gh.subprocess, "run",
+                                return_value=_proc(stderr="Token scopes: 'repo', 'workflow'")) as run:
+            self.assertEqual(gh.auth_scopes(), {"repo", "workflow"})
+        self.assertEqual(run.call_args.kwargs["check"], False)
+
+
+class CurrentRepoTests(unittest.TestCase):
+    def test_parses_owner_and_org_type(self):
+        body = json.dumps({"name": "widgets", "owner": {"login": "acme", "type": "Organization"}})
+        with patch.object(gh.subprocess, "run", return_value=_proc(body)) as run:
+            repo = gh.current_repo(None)
+        self.assertEqual(repo, gh.Repo(owner="acme", name="widgets", is_org=True))
+        cmd = run.call_args[0][0]
+        self.assertNotIn("acme/widgets", cmd)
+
+    def test_user_owner_is_not_org(self):
+        body = json.dumps({"name": "widgets", "owner": {"login": "vlkromm", "type": "User"}})
+        with patch.object(gh.subprocess, "run", return_value=_proc(body)):
+            repo = gh.current_repo(None)
+        self.assertFalse(repo.is_org)
+
+    def test_explicit_repo_is_passed_through(self):
+        body = json.dumps({"name": "widgets", "owner": {"login": "acme", "type": "Organization"}})
+        with patch.object(gh.subprocess, "run", return_value=_proc(body)) as run:
+            gh.current_repo("acme/widgets")
+        cmd = run.call_args[0][0]
+        self.assertIn("acme/widgets", cmd)
+
+
+class ListDirTests(unittest.TestCase):
+    def test_returns_entry_names(self):
+        with patch.object(gh, "api", return_value=[{"name": "a.py"}, {"name": "b.py"}]):
+            self.assertEqual(gh.list_dir("acme/widgets", "src", "main"), ["a.py", "b.py"])
+
+    def test_raises_when_not_a_directory(self):
+        with patch.object(gh, "api", return_value={"content": "..."}):
+            with self.assertRaises(gh.GhError):
+                gh.list_dir("acme/widgets", "src/main.py", "main")
+
+
+class BranchHeadShaTests(unittest.TestCase):
+    def test_returns_sha(self):
+        with patch.object(gh, "api", return_value={"object": {"sha": "abc123"}}):
+            self.assertEqual(gh.branch_head_sha("acme/widgets", "main"), "abc123")
+
+    def test_raises_on_non_dict_response(self):
+        with patch.object(gh, "api", return_value=None):
+            with self.assertRaises(gh.GhError):
+                gh.branch_head_sha("acme/widgets", "main")
+
+
+class RefExistsTests(unittest.TestCase):
+    def test_true_when_ok(self):
+        with patch.object(gh, "api_status", return_value=("ok", {})):
+            self.assertTrue(gh.ref_exists("acme/widgets", "metrics"))
+
+    def test_false_when_missing(self):
+        with patch.object(gh, "api_status", return_value=("missing", None)):
+            self.assertFalse(gh.ref_exists("acme/widgets", "metrics"))
+
+    def test_raises_when_blocked(self):
+        with patch.object(gh, "api_status", return_value=("blocked", None)):
+            with self.assertRaises(gh.GhError):
+                gh.ref_exists("acme/widgets", "metrics")
+
+
+class CreateBranchTests(unittest.TestCase):
+    def test_posts_ref_and_sha(self):
+        with patch.object(gh, "api") as api:
+            gh.create_branch("acme/widgets", "feat/x", "abc123")
+        api.assert_called_once_with(
+            "repos/acme/widgets/git/refs", method="POST",
+            fields={"ref": "refs/heads/feat/x", "sha": "abc123"})
+
+
+class CreateBlobTests(unittest.TestCase):
+    def test_returns_sha(self):
+        with patch.object(gh, "api", return_value={"sha": "blob-sha"}):
+            self.assertEqual(gh.create_blob("acme/widgets", "content"), "blob-sha")
+
+    def test_raises_on_non_dict_response(self):
+        with patch.object(gh, "api", return_value=None):
+            with self.assertRaises(gh.GhError):
+                gh.create_blob("acme/widgets", "content")
+
+
+class CreateTreeTests(unittest.TestCase):
+    def test_returns_sha(self):
+        with patch.object(gh, "api", return_value={"sha": "tree-sha"}) as api:
+            result = gh.create_tree("acme/widgets", [{"path": "a", "mode": "100644", "type": "blob", "sha": "x"}])
+        self.assertEqual(result, "tree-sha")
+        kwargs = api.call_args.kwargs
+        self.assertEqual(json.loads(kwargs["input_json"])["tree"][0]["path"], "a")
+
+    def test_raises_on_non_dict_response(self):
+        with patch.object(gh, "api", return_value=None):
+            with self.assertRaises(gh.GhError):
+                gh.create_tree("acme/widgets", [])
+
+
+class CreateCommitTests(unittest.TestCase):
+    def test_returns_sha(self):
+        with patch.object(gh, "api", return_value={"sha": "commit-sha"}) as api:
+            result = gh.create_commit("acme/widgets", "msg", "tree-sha", ["parent-sha"])
+        self.assertEqual(result, "commit-sha")
+        kwargs = api.call_args.kwargs
+        payload = json.loads(kwargs["input_json"])
+        self.assertEqual(payload, {"message": "msg", "tree": "tree-sha", "parents": ["parent-sha"]})
+
+    def test_raises_on_non_dict_response(self):
+        with patch.object(gh, "api", return_value=None):
+            with self.assertRaises(gh.GhError):
+                gh.create_commit("acme/widgets", "msg", "tree-sha", [])
+
+
+class GetExistingFileTests(unittest.TestCase):
+    def test_returns_content_and_sha(self):
+        import base64
+        encoded = base64.b64encode(b"hi").decode()
+        with patch.object(gh, "api_status", return_value=("ok", {"content": encoded, "sha": "file-sha"})):
+            result = gh.get_existing_file("acme/widgets", "a.txt", "main")
+        self.assertEqual(result, ("hi", "file-sha"))
+
+    def test_none_when_missing(self):
+        with patch.object(gh, "api_status", return_value=("missing", None)):
+            self.assertIsNone(gh.get_existing_file("acme/widgets", "a.txt", "main"))
+
+    def test_raises_when_blocked(self):
+        with patch.object(gh, "api_status", return_value=("blocked", None)):
+            with self.assertRaises(gh.GhError):
+                gh.get_existing_file("acme/widgets", "a.txt", "main")
+
+    def test_raises_when_ok_but_content_missing(self):
+        with patch.object(gh, "api_status", return_value=("ok", {"sha": "x"})):
+            with self.assertRaises(gh.GhError):
+                gh.get_existing_file("acme/widgets", "a.txt", "main")
+
+
+class PutFileTests(unittest.TestCase):
+    def test_create_without_sha(self):
+        with patch.object(gh, "api") as api:
+            gh.put_file("acme/widgets", "a.txt", "hello", "chore: add a.txt", "main")
+        args, kwargs = api.call_args
+        self.assertEqual(args[0], "repos/acme/widgets/contents/a.txt")
+        self.assertEqual(kwargs["method"], "PUT")
+        self.assertNotIn("sha", kwargs["fields"])
+
+    def test_update_includes_sha(self):
+        with patch.object(gh, "api") as api:
+            gh.put_file("acme/widgets", "a.txt", "hello", "chore: update a.txt", "main", sha="old-sha")
+        kwargs = api.call_args.kwargs
+        self.assertEqual(kwargs["fields"]["sha"], "old-sha")
+
+
+class PrCreateTests(unittest.TestCase):
+    def test_returns_pr_url(self):
+        with patch.object(gh.subprocess, "run",
+                                return_value=_proc("https://github.com/acme/widgets/pull/9\n")) as run:
+            url = gh.pr_create("acme/widgets", "feat/x", "main", "Title", "Body")
+        self.assertEqual(url, "https://github.com/acme/widgets/pull/9")
+        cmd = run.call_args[0][0]
+        self.assertIn("--head", cmd)
+        self.assertIn("feat/x", cmd)
+        self.assertIn("--base", cmd)
+        self.assertIn("main", cmd)
+
+    def test_nonzero_exit_raises_gh_error(self):
+        err = subprocess.CalledProcessError(1, ["gh", "pr", "create"], output="", stderr="no commits between main and feat/x")
+        with patch.object(gh.subprocess, "run", side_effect=err):
+            with self.assertRaises(gh.GhError):
+                gh.pr_create("acme/widgets", "feat/x", "main", "Title", "Body")
+
+
+class SharedClientAdditionsTests(unittest.TestCase):
+    def test_error_names_the_subcommand_without_echoing_the_body(self):
+        err = subprocess.CalledProcessError(1, ["gh"], stderr="boom")
+        with patch.object(gh.subprocess, "run", side_effect=err):
+            with self.assertRaises(gh.GhCommandError) as ctx:
+                gh.issue_comment("o/r", 5, "SECRET-BODY")
+        self.assertIn("issue comment 5", str(ctx.exception))
+        self.assertIn("boom", str(ctx.exception))
+        self.assertNotIn("SECRET-BODY", str(ctx.exception))
+
+    def test_issue_edit_passes_body_and_title(self):
+        with patch.object(gh.subprocess, "run", return_value=_proc("url")) as run:
+            out = gh.issue_edit("o/r", 5, body="B", title="T")
+        self.assertEqual(out, "url")
+        cmd = run.call_args[0][0]
+        self.assertEqual(cmd[cmd.index("--body") + 1], "B")
+        self.assertEqual(cmd[cmd.index("--title") + 1], "T")
+
+    def test_issue_edit_noop_without_changes(self):
+        with patch.object(gh.subprocess, "run") as run:
+            self.assertEqual(gh.issue_edit("o/r", 5), "")
+        run.assert_not_called()
+
+    def test_issue_list_filters_by_label(self):
+        with patch.object(gh.subprocess, "run", return_value=_proc('[{"number": 1}]')) as run:
+            self.assertEqual(gh.issue_list("o/r", label="bug"), [{"number": 1}])
+        cmd = run.call_args[0][0]
+        self.assertEqual(cmd[cmd.index("--label") + 1], "bug")
+
+    def test_issue_list_without_label(self):
+        with patch.object(gh.subprocess, "run", return_value=_proc("[]")) as run:
+            gh.issue_list("o/r")
+        self.assertNotIn("--label", run.call_args[0][0])
+
+    def test_graphql_sends_query_and_typed_variables(self):
+        with patch.object(gh.subprocess, "run", return_value=_proc('{"data": {}}')) as run:
+            self.assertEqual(gh.graphql("query {}", owner="o", number=3), {"data": {}})
+        cmd = run.call_args[0][0]
+        self.assertIn("query=query {}", cmd)
+        self.assertIn("owner=o", cmd)
+        self.assertIn("number=3", cmd)
+
+    def test_label_names(self):
+        with patch.object(gh, "label_list", return_value=[{"name": "bug"}, {"name": "x"}]):
+            self.assertEqual(gh.label_names("o/r"), ["bug", "x"])
 
 
 if __name__ == "__main__":

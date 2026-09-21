@@ -1,7 +1,8 @@
 import unittest
 from unittest import mock
 
-from interns_install import cli, gh, install_files, safety
+from pipeline import gh
+from interns_install import cli, install_files, safety
 from interns_install.cli import (
     _parse_args,
     _stage_install_files,
@@ -100,9 +101,9 @@ class StageInstallFilesTests(unittest.TestCase):
              mock.patch.multiple(
                  cli.gh,
                  branch_head_sha=mock.DEFAULT, create_branch=mock.DEFAULT,
-                 put_file=mock.DEFAULT, create_pr=mock.DEFAULT) as m:
+                 put_file=mock.DEFAULT, pr_create=mock.DEFAULT) as m:
             m["branch_head_sha"].return_value = "abc123"
-            m["create_pr"].return_value = "https://github.com/acme/widgets/pull/7"
+            m["pr_create"].return_value = "https://github.com/acme/widgets/pull/7"
             url = _stage_install_files(con, self._repo(), "main", issue_templates=False)
 
         self.assertEqual(url, "https://github.com/acme/widgets/pull/7")
@@ -110,7 +111,7 @@ class StageInstallFilesTests(unittest.TestCase):
             "acme/widgets", ".github/interns.yml", "cfg",
             "chore: install interns pipeline caller stubs", mock.ANY,
             sha=None)
-        m["create_pr"].assert_called_once()
+        m["pr_create"].assert_called_once()
 
     def test_stale_file_is_updated_with_its_sha(self):
         con = Console(assume_yes=True)
@@ -119,9 +120,9 @@ class StageInstallFilesTests(unittest.TestCase):
              mock.patch.multiple(
                  cli.gh,
                  branch_head_sha=mock.DEFAULT, create_branch=mock.DEFAULT,
-                 put_file=mock.DEFAULT, create_pr=mock.DEFAULT) as m:
+                 put_file=mock.DEFAULT, pr_create=mock.DEFAULT) as m:
             m["branch_head_sha"].return_value = "abc123"
-            m["create_pr"].return_value = "https://github.com/acme/widgets/pull/8"
+            m["pr_create"].return_value = "https://github.com/acme/widgets/pull/8"
             _stage_install_files(con, self._repo(), "main", issue_templates=False)
 
         _, kwargs = m["put_file"].call_args
@@ -130,10 +131,10 @@ class StageInstallFilesTests(unittest.TestCase):
     def test_returns_none_when_nothing_missing(self):
         con = Console(assume_yes=True)
         with mock.patch.object(install_files, "collect_missing_files", return_value={}), \
-             mock.patch.object(cli.gh, "create_pr") as create_pr:
+             mock.patch.object(cli.gh, "pr_create") as pr_create:
             url = _stage_install_files(con, self._repo(), "main", issue_templates=False)
         self.assertIsNone(url)
-        create_pr.assert_not_called()
+        pr_create.assert_not_called()
 
     def test_dry_run_makes_no_calls(self):
         con = Console(assume_yes=True, dry_run=True)
