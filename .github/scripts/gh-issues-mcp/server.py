@@ -67,11 +67,8 @@ def _git(*args: str) -> str:
 
 
 def _load_label_names() -> list[str]:
-    try:
-        data = json.loads(_LABELS_JSON.read_text())
-        return [entry["name"] for entry in data.get("labels", [])]
-    except (OSError, KeyError, json.JSONDecodeError):
-        return []
+    data = json.loads(_LABELS_JSON.read_text())
+    return [entry["name"] for entry in data["labels"]]
 
 
 # Computed once at import time, not re-read per call: labels.json only changes
@@ -243,7 +240,7 @@ def submit_pr_review(
 def push_branch() -> str:
     """Squash the current branch to one commit and push it to origin.
 
-    Refuses to push main/master, branches with no commits beyond origin/main,
+    Refuses to push main/master, branches with no commits beyond origin's default branch,
     or commits that touch protected paths (.github/workflows/ or .github/scripts/).
     Squashing happens before the protected-path check so an intermediate-only
     edit to a protected path is collapsed and doesn't trigger a false positive.
@@ -252,12 +249,13 @@ def push_branch() -> str:
     if branch in ("main", "master"):
         raise PushRefusedError(f"Refusing to push {branch} directly")
 
-    _git("fetch", "origin", "main", "--quiet")
-    base = _git("merge-base", "origin/main", "HEAD")
+    default = gh.default_branch(_REPO)
+    _git("fetch", "origin", default, "--quiet")
+    base = _git("merge-base", f"origin/{default}", "HEAD")
     head = _git("rev-parse", "HEAD")
 
     if base == head:
-        raise PushRefusedError("No commits beyond origin/main — nothing to push")
+        raise PushRefusedError(f"No commits beyond origin/{default} — nothing to push")
 
     message = _git("log", "-1", "--format=%B")
     _git("reset", "--soft", base)

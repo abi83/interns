@@ -49,7 +49,7 @@ def _issue_labels_proc(*names: str) -> MagicMock:
 
 
 def _label_names_proc(*names: str) -> MagicMock:
-    return _make_proc(json.dumps([{"name": n, "color": "", "description": ""} for n in names]))
+    return _make_proc(json.dumps([[{"name": n, "color": "", "description": ""} for n in names]]))
 
 
 # ---------------------------------------------------------------------------
@@ -59,21 +59,24 @@ def _label_names_proc(*names: str) -> MagicMock:
 
 def test_load_label_names_missing_file(tmp_path):
     with patch.object(server, "_LABELS_JSON", tmp_path / "does-not-exist.json"):
-        assert _load_label_names() == []
+        with pytest.raises(OSError):
+            _load_label_names()
 
 
 def test_load_label_names_corrupt_json(tmp_path):
     bad_file = tmp_path / "labels.json"
     bad_file.write_text("{not valid json")
     with patch.object(server, "_LABELS_JSON", bad_file):
-        assert _load_label_names() == []
+        with pytest.raises(json.JSONDecodeError):
+            _load_label_names()
 
 
 def test_load_label_names_missing_name_key(tmp_path):
     bad_file = tmp_path / "labels.json"
     bad_file.write_text(json.dumps({"labels": [{"color": "fff"}]}))
     with patch.object(server, "_LABELS_JSON", bad_file):
-        assert _load_label_names() == []
+        with pytest.raises(KeyError):
+            _load_label_names()
 
 
 def test_load_label_names_valid_file(tmp_path):
@@ -130,24 +133,25 @@ def test_view_issue_returns_flat_json():
 
 def test_list_issues_no_label():
     with patch("server.subprocess.run") as mock_run:
-        mock_run.return_value = _make_proc('[{"number":1}]')
+        mock_run.return_value = _make_proc(
+            '[[{"number":1,"title":"T","labels":[],"state":"open"}]]'
+        )
         with patch.object(server, "_REPO", "owner/repo"):
             result = list_issues()
 
     cmd = mock_run.call_args[0][0]
-    assert "--label" not in cmd
-    assert json.loads(result) == [{"number": 1}]
+    assert not any("labels=" in arg for arg in cmd)
+    assert json.loads(result) == [{"number": 1, "title": "T", "labels": [], "state": "OPEN"}]
 
 
 def test_list_issues_with_label():
     with patch("server.subprocess.run") as mock_run:
-        mock_run.return_value = _make_proc("[]")
+        mock_run.return_value = _make_proc("[[]]")
         with patch.object(server, "_REPO", "owner/repo"):
             list_issues(label="bug")
 
     cmd = mock_run.call_args[0][0]
-    assert "--label" in cmd
-    assert "bug" in cmd
+    assert any(arg.endswith("&labels=bug") for arg in cmd)
 
 
 def test_list_issues_surfaces_gh_error():
@@ -425,10 +429,17 @@ def test_submit_pr_review_surfaces_gh_error():
 # ---------------------------------------------------------------------------
 
 
+@pytest.fixture
+def _default_branch():
+    with patch("server.gh.default_branch", return_value="main") as m:
+        yield m
+
+
 def _git_seq(*stdout_values: str) -> list[MagicMock]:
     return [_make_proc(v) for v in stdout_values]
 
 
+@pytest.mark.usefixtures("_default_branch")
 def test_push_branch_squashes_and_pushes():
     seq = _git_seq(
         "feat/my-branch",   # rev-parse --abbrev-ref HEAD
@@ -447,12 +458,24 @@ def test_push_branch_squashes_and_pushes():
     assert "feat/my-branch" in result
 
 
+def test_push_branch_uses_the_repos_default_branch(_default_branch):
+    _default_branch.return_value = "develop"
+    seq = _git_seq("feat/x", "", "abc123", "def456", "msg", "", "", "file.py", "")
+    with patch("server.subprocess.run", side_effect=seq) as run:
+        push_branch()
+    cmds = [c[0][0] for c in run.call_args_list]
+    assert ["git", "fetch", "origin", "develop", "--quiet"] in cmds
+    assert ["git", "merge-base", "origin/develop", "HEAD"] in cmds
+
+
+@pytest.mark.usefixtures("_default_branch")
 def test_push_branch_rejects_main():
     with patch("server.subprocess.run", return_value=_make_proc("main")):
         with pytest.raises(PushRefusedError, match="Refusing"):
             push_branch()
 
 
+@pytest.mark.usefixtures("_default_branch")
 def test_push_branch_rejects_no_commits():
     seq = _git_seq(
         "my-branch",  # branch name
@@ -465,6 +488,7 @@ def test_push_branch_rejects_no_commits():
             push_branch()
 
 
+@pytest.mark.usefixtures("_default_branch")
 def test_push_branch_rejects_protected_paths():
     seq = _git_seq(
         "my-branch",
@@ -481,6 +505,7 @@ def test_push_branch_rejects_protected_paths():
             push_branch()
 
 
+@pytest.mark.usefixtures("_default_branch")
 def test_push_branch_surfaces_git_error():
     seq = [
         _make_proc("my-branch"),  # rev-parse --abbrev-ref HEAD
@@ -491,6 +516,7 @@ def test_push_branch_surfaces_git_error():
             push_branch()
 
 
+@pytest.mark.usefixtures("_default_branch")
 def test_push_branch_rejects_scripts_protected_paths():
     seq = _git_seq(
         "my-branch",

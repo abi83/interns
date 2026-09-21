@@ -74,7 +74,11 @@ def set_secret(repo: str, name: str, value: str) -> None:
 
 def set_variable(repo: str, name: str, value: str) -> None:
     # `variable set` refuses to overwrite silently on some versions; delete-then-set is idempotent.
-    gh.run(["variable", "delete", name, "--repo", repo], check=False)
+    try:
+        gh.run(["variable", "delete", name, "--repo", repo])
+    except gh.GhCommandError as exc:
+        if "HTTP 404" not in str(exc):
+            raise
     gh.run(["variable", "set", name, "--repo", repo], input_text=value)
 
 

@@ -66,10 +66,16 @@ class ApiStatusTests(unittest.TestCase):
         with patch("pipeline.gh.subprocess.run", side_effect=exc):
             self.assertEqual(gh.api_status("repos/acme/missing"), ("missing", None))
 
-    def test_blocked_on_other_error(self):
+    def test_blocked_on_403(self):
         exc = subprocess.CalledProcessError(1, ["gh"], output="", stderr="HTTP 403: Forbidden")
         with patch("pipeline.gh.subprocess.run", side_effect=exc):
             self.assertEqual(gh.api_status("repos/acme/widgets"), ("blocked", None))
+
+    def test_other_errors_raise(self):
+        exc = subprocess.CalledProcessError(1, ["gh"], output="", stderr="dial tcp: connection refused")
+        with patch("pipeline.gh.subprocess.run", side_effect=exc):
+            with self.assertRaises(gh.GhCommandError):
+                gh.api_status("repos/acme/widgets")
 
 
 class IssueViewEditTests(unittest.TestCase):
@@ -118,6 +124,12 @@ class PrViewEditCreateTests(unittest.TestCase):
             mock_run.call_args[0][0],
             ["gh", "pr", "list", "--repo", "acme/widgets", "--state", "open", "--limit", "1000", "--json", "number"],
         )
+
+    def test_list_raises_when_truncated(self):
+        prs = json.dumps([{"number": n} for n in range(1000)])
+        with patch("pipeline.gh.subprocess.run", return_value=_proc(stdout=prs)):
+            with self.assertRaises(gh.GhError):
+                gh.pr_list("acme/widgets", ["number"])
 
     def test_edit_is_noop_with_nothing_to_change(self):
         with patch("pipeline.gh.subprocess.run") as mock_run:
@@ -183,13 +195,30 @@ class PrChecksTests(unittest.TestCase):
             ["gh", "pr", "checks", "5", "--repo", "acme/widgets", "--json", "name,bucket,link"],
         )
 
-    def test_empty_list_on_malformed_output(self):
-        with patch("pipeline.gh.subprocess.run", return_value=_proc(stdout="not json")):
+    def test_returns_checks_despite_nonzero_exit(self):
+        checks = [{"name": "test", "bucket": "fail", "link": "https://x"}]
+        with patch("pipeline.gh.subprocess.run", return_value=_proc(stdout=json.dumps(checks), returncode=1)):
+            self.assertEqual(gh.pr_checks("acme/widgets", 5), checks)
+
+    def test_empty_list_when_no_checks_reported(self):
+        proc = _proc(stdout="", returncode=1, stderr="no checks reported on the 'x' branch")
+        with patch("pipeline.gh.subprocess.run", return_value=proc):
             self.assertEqual(gh.pr_checks("acme/widgets", 5), [])
 
-    def test_empty_list_on_a_non_array_body(self):
+    def test_raises_on_other_failure(self):
+        with patch("pipeline.gh.subprocess.run", return_value=_proc(stdout="", returncode=1, stderr="HTTP 502")):
+            with self.assertRaises(gh.GhCommandError):
+                gh.pr_checks("acme/widgets", 5)
+
+    def test_raises_on_malformed_output(self):
+        with patch("pipeline.gh.subprocess.run", return_value=_proc(stdout="not json")):
+            with self.assertRaises(gh.GhCommandError):
+                gh.pr_checks("acme/widgets", 5)
+
+    def test_raises_on_a_non_array_body(self):
         with patch("pipeline.gh.subprocess.run", return_value=_proc(stdout='{"a": 1}')):
-            self.assertEqual(gh.pr_checks("acme/widgets", 5), [])
+            with self.assertRaises(gh.GhCommandError):
+                gh.pr_checks("acme/widgets", 5)
 
 
 class ApiAllPagesTests(unittest.TestCase):
@@ -300,16 +329,27 @@ class SharedClientAdditionsTests(unittest.TestCase):
             self.assertEqual(gh.issue_edit("o/r", 5), "")
         run.assert_not_called()
 
-    def test_issue_list_filters_by_label(self):
-        with patch.object(gh.subprocess, "run", return_value=_proc('[{"number": 1}]')) as run:
-            self.assertEqual(gh.issue_list("o/r", label="bug"), [{"number": 1}])
+    def test_issue_list_paginates_filters_label_and_drops_prs(self):
+        pages = json.dumps([
+            [{"number": 1, "title": "a", "labels": [], "state": "open"},
+             {"number": 2, "title": "pr", "labels": [], "state": "open", "pull_request": {}}],
+            [{"number": 3, "title": "c", "labels": [], "state": "open"}],
+        ])
+        with patch.object(gh.subprocess, "run", return_value=_proc(pages)) as run:
+            result = gh.issue_list("o/r", label="type:bug")
+        self.assertEqual([i["number"] for i in result], [1, 3])
+        self.assertEqual(result[0]["state"], "OPEN")
         cmd = run.call_args[0][0]
-        self.assertEqual(cmd[cmd.index("--label") + 1], "bug")
+        self.assertIn("--paginate", cmd)
+        self.assertIn("repos/o/r/issues?state=open&per_page=100&labels=type%3Abug", cmd)
 
-    def test_issue_list_without_label(self):
-        with patch.object(gh.subprocess, "run", return_value=_proc("[]")) as run:
-            gh.issue_list("o/r")
-        self.assertNotIn("--label", run.call_args[0][0])
+    def test_label_list_paginates(self):
+        pages = json.dumps([[{"name": "a", "color": "fff", "description": "", "id": 1}], [{"name": "b", "color": "000", "description": "d"}]])
+        with patch.object(gh.subprocess, "run", return_value=_proc(pages)) as run:
+            result = gh.label_list("o/r")
+        self.assertEqual([l["name"] for l in result], ["a", "b"])
+        self.assertNotIn("id", result[0])
+        self.assertIn("--paginate", run.call_args[0][0])
 
     def test_graphql_sends_query_and_typed_variables(self):
         with patch.object(gh.subprocess, "run", return_value=_proc('{"data": {}}')) as run:
