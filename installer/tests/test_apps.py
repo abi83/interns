@@ -74,7 +74,7 @@ class ReuseAppTests(unittest.TestCase):
                              existing_secrets=[CODER.key_secret])
         m["set_variable"].assert_called_once_with("acme/widgets", CODER.client_id_var, "Iv1.aaa")
         m["set_secret"].assert_not_called()
-        self.assertTrue(any("installed on acme/widgets" in n for n in con.manual))
+        self.assertTrue(any("install the coder App on acme/widgets" in n for n in con.manual))
 
     def test_flag_without_key_records_manual_under_yes(self):
         con = Console(assume_yes=True)
@@ -128,6 +128,95 @@ class ReuseAppTests(unittest.TestCase):
         # dry_run short-circuits before ManifestServer is ever constructed;
         # the assertion that matters is the mint path, not this call.
         self.assertTrue(any("via manifest" in p for p in con.planned))
+
+
+class MintFlowTests(unittest.TestCase):
+    def _mint(self, con, existing_secrets):
+        server = mock.MagicMock()
+        server.__enter__.return_value = server
+        server.base_url = "http://127.0.0.1:9"
+        server.wait_for_code.return_value = "code123"
+        conv = {"client_id": "Iv1.new", "slug": "interns-coder-acme", "pem": "PEM"}
+        with mock.patch.object(apps, "ManifestServer", return_value=server), \
+             mock.patch.object(apps, "convert_manifest", return_value=conv), \
+             mock.patch.object(apps.webbrowser, "open") as opener, \
+             mock.patch.multiple(apps.gh_admin, set_variable=mock.DEFAULT,
+                                 set_secret=mock.DEFAULT) as m:
+            provision_app(con, _repo(), CODER, None, existing_secrets=existing_secrets)
+        return m, opener
+
+    def test_mint_writes_key_then_client_id_and_opens_install_page(self):
+        con = Console(assume_yes=True)
+        m, opener = self._mint(con, [CODER.key_secret])
+        m["set_secret"].assert_called_once_with("acme/widgets", CODER.key_secret, "PEM")
+        m["set_variable"].assert_called_once_with("acme/widgets", CODER.client_id_var, "Iv1.new")
+        self.assertTrue(any("overwrite secret" in p for p in con.planned))
+        opener.assert_called_once_with("http://127.0.0.1:9")
+        self.assertTrue(any("apps/interns-coder-acme/installations/new" in n for n in con.manual))
+
+    def test_interactive_mint_opens_install_page_after_creation(self):
+        con = Console(assume_yes=False)
+        con.confirm = _confirm_sequence(False, True)
+        _, opener = self._mint(con, None)
+        self.assertEqual(opener.call_count, 2)
+        opener.assert_called_with("https://github.com/apps/interns-coder-acme/installations/new")
+
+
+class ReuseAppPromptTests(unittest.TestCase):
+    def test_pasted_pem_is_written(self):
+        con = Console(assume_yes=False)
+        con.prompt_multiline_secret = lambda q: "PEM"
+        with mock.patch.object(apps.webbrowser, "open"), \
+             mock.patch.multiple(apps.gh_admin, set_variable=mock.DEFAULT,
+                                 set_secret=mock.DEFAULT) as m:
+            use_existing_app(con, _repo(), CODER, "Iv1.aaa", "interns-coder", existing_secrets=[])
+        m["set_secret"].assert_called_once_with("acme/widgets", CODER.key_secret, "PEM")
+
+    def test_blank_pem_records_manual_step(self):
+        con = Console(assume_yes=False)
+        con.prompt_multiline_secret = lambda q: ""
+        with mock.patch.object(apps.webbrowser, "open"), \
+             mock.patch.multiple(apps.gh_admin, set_variable=mock.DEFAULT,
+                                 set_secret=mock.DEFAULT) as m:
+            use_existing_app(con, _repo(), CODER, "Iv1.aaa", "interns-coder", existing_secrets=[])
+        m["set_secret"].assert_not_called()
+        self.assertTrue(any(CODER.key_secret in n for n in con.manual))
+
+    def test_prompted_client_id_blank_skips(self):
+        con = Console(assume_yes=False)
+        con.prompt = lambda q: ""
+        with mock.patch.multiple(apps.gh_admin, set_variable=mock.DEFAULT) as m:
+            use_existing_app(con, _repo(), CODER, None, "interns-coder", existing_secrets=[])
+        m["set_variable"].assert_not_called()
+        self.assertTrue(con.manual)
+
+    def test_missing_client_id_under_yes_records_manual_step(self):
+        con = Console(assume_yes=True)
+        with mock.patch.multiple(apps.gh_admin, set_variable=mock.DEFAULT) as m:
+            use_existing_app(con, _repo(), CODER, None, "interns-coder", existing_secrets=[])
+        m["set_variable"].assert_not_called()
+        self.assertTrue(any("--coder-client-id" in n for n in con.manual))
+
+    def test_dry_run_plans_variable_and_secret(self):
+        con = Console(assume_yes=False, dry_run=True)
+        use_existing_app(con, _repo(), CODER, "Iv1.aaa", "interns-coder", existing_secrets=[])
+        self.assertEqual(len(con.planned), 2)
+
+
+class SecretHelpersTests(unittest.TestCase):
+    def test_write_secret_skips_set_in_dry_run(self):
+        con = Console(dry_run=True)
+        with mock.patch.object(apps.gh_admin, "set_secret") as set_secret:
+            apps.write_secret(con, _repo(), "S", "v", None)
+        set_secret.assert_not_called()
+        self.assertEqual(con.planned, ["set secret S"])
+
+    def test_write_secret_sets_and_reports_verb(self):
+        con = Console()
+        with mock.patch.object(apps.gh_admin, "set_secret") as set_secret:
+            apps.write_secret(con, _repo(), "S", "v", ["S"])
+        set_secret.assert_called_once_with("acme/widgets", "S", "v")
+        self.assertEqual(con.planned, ["overwrite secret S"])
 
 
 if __name__ == "__main__":

@@ -10,7 +10,11 @@ admin-only state.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from pipeline import gh
+from pipeline.append_metrics import BRANCH as METRICS_BRANCH
+from pipeline.append_metrics import FILE as METRICS_FILE
 
 from . import gh_admin
 from .console import Console
@@ -26,9 +30,6 @@ BASELINE_PROTECTION = {
     "allow_force_pushes": False,
     "allow_deletions": False,
 }
-
-METRICS_BRANCH = "metrics"
-METRICS_FILE = "metrics.jsonl"
 
 # pipeline.append_metrics pushes straight to this branch, not via PR -- only
 # guard against deletion.
@@ -63,6 +64,42 @@ def _protection_violation(body: dict, bot_logins: list[str]) -> str | None:
     return None
 
 
+def _apply_when_missing(con: Console, state: str, *, blocked: str, ok: str,
+                        action: str, apply: Callable[[], None], failure: str,
+                        created: str) -> None:
+    """The shared read -> blocked/ok/missing -> mutate -> wrap-error flow.
+    `state` is the already-read state ("blocked" / "ok" / "missing")."""
+    if state == "blocked":
+        raise SafetyCheckError(blocked)
+    if state == "ok":
+        con.say(ok)
+        return
+    if not con.mutation(action):
+        return
+    try:
+        apply()
+    except gh.GhError as exc:
+        raise SafetyCheckError(f"{failure}: {exc}") from exc
+    con.say(created)
+
+
+def _blocked_message(what: str) -> str:
+    return f"can't read {what} -- your `gh` session needs admin access to this repo"
+
+
+def _apply_branch_protection(con: Console, repo: gh_admin.Repo, branch: str, state: str,
+                             protection: dict, *, action: str, failure: str) -> None:
+    _apply_when_missing(
+        con, state,
+        blocked=_blocked_message(f"branch protection for '{branch}'"),
+        ok=f"branch protection on '{branch}': ok",
+        action=action,
+        apply=lambda: gh_admin.set_branch_protection(repo.slug, branch, protection),
+        failure=failure,
+        created=f"branch protection on '{branch}': created",
+    )
+
+
 def check_branch_protection(con: Console, repo: gh_admin.Repo, default_branch: str,
                              handled_externally: bool = False,
                              bot_logins: list[str] | None = None) -> None:
@@ -71,35 +108,20 @@ def check_branch_protection(con: Console, repo: gh_admin.Repo, default_branch: s
 
     state, body = gh_admin.branch_protection_state(repo.slug, default_branch)
 
-    if state == "blocked":
-        raise SafetyCheckError(
-            f"can't read branch protection for '{default_branch}' -- "
-            "your `gh` session needs admin access to this repo"
-        )
-
     if state == "ok":
         violation = _protection_violation(body or {}, bots)
         if violation:
             raise SafetyCheckError(f"branch '{default_branch}' is protected but {violation}")
-        con.say(f"branch protection on '{default_branch}': ok")
-        return
-
-    # state == "missing": the branch has no protection yet.
-    if handled_externally:
+    if state == "missing" and handled_externally:
         con.say(f"branch '{default_branch}' is unprotected; "
                 "--branch-protection-handled-externally was passed, skipping")
         return
 
-    if not con.mutation(f"apply baseline branch protection to '{default_branch}'"):
-        return
-    try:
-        gh_admin.set_branch_protection(repo.slug, default_branch, BASELINE_PROTECTION)
-    except gh.GhError as exc:
-        raise SafetyCheckError(
-            f"branch '{default_branch}' is unprotected and the baseline "
-            f"could not be applied: {exc}"
-        ) from exc
-    con.say(f"branch protection on '{default_branch}': created")
+    _apply_branch_protection(
+        con, repo, default_branch, state, BASELINE_PROTECTION,
+        action=f"apply baseline branch protection to '{default_branch}'",
+        failure=f"branch '{default_branch}' is unprotected and the baseline could not be applied",
+    )
 
 
 def _create_metrics_branch(repo: gh_admin.Repo) -> None:
@@ -130,46 +152,23 @@ def check_metrics_branch(con: Console, repo: gh_admin.Repo) -> None:
         con.say(f"branch '{METRICS_BRANCH}': created")
 
     state, _ = gh_admin.branch_protection_state(repo.slug, METRICS_BRANCH)
-
-    if state == "blocked":
-        raise SafetyCheckError(
-            f"can't read branch protection for '{METRICS_BRANCH}' -- "
-            "your `gh` session needs admin access to this repo"
-        )
-    if state == "ok":
-        con.say(f"branch protection on '{METRICS_BRANCH}': ok")
-        return
-
-    # state == "missing": the branch has no protection yet.
-    if not con.mutation(f"apply deletion protection to '{METRICS_BRANCH}'"):
-        return
-    try:
-        gh_admin.set_branch_protection(repo.slug, METRICS_BRANCH, METRICS_PROTECTION)
-    except gh.GhError as exc:
-        raise SafetyCheckError(
-            f"branch '{METRICS_BRANCH}' is unprotected and could not be protected: {exc}"
-        ) from exc
-    con.say(f"branch protection on '{METRICS_BRANCH}': created")
+    _apply_branch_protection(
+        con, repo, METRICS_BRANCH, state, METRICS_PROTECTION,
+        action=f"apply deletion protection to '{METRICS_BRANCH}'",
+        failure=f"branch '{METRICS_BRANCH}' is unprotected and could not be protected",
+    )
 
 
 def check_pages(con: Console, repo: gh_admin.Repo) -> None:
     con.step("GitHub Pages")
 
     state, _ = gh_admin.pages_state(repo.slug)
-
-    if state == "blocked":
-        raise SafetyCheckError(
-            "can't read GitHub Pages state -- your `gh` session needs admin access to this repo"
-        )
-    if state == "ok":
-        con.say("GitHub Pages: enabled")
-        return
-
-    # state == "missing": Pages is off.
-    if not con.mutation("enable GitHub Pages (GitHub Actions build type)"):
-        return
-    try:
-        gh_admin.enable_pages(repo.slug)
-    except gh.GhError as exc:
-        raise SafetyCheckError(f"GitHub Pages could not be enabled: {exc}") from exc
-    con.say("GitHub Pages: enabled")
+    _apply_when_missing(
+        con, state,
+        blocked=_blocked_message("GitHub Pages state"),
+        ok="GitHub Pages: enabled",
+        action="enable GitHub Pages (GitHub Actions build type)",
+        apply=lambda: gh_admin.enable_pages(repo.slug),
+        failure="GitHub Pages could not be enabled",
+        created="GitHub Pages: enabled",
+    )

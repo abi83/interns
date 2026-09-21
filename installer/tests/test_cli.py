@@ -2,7 +2,7 @@ import unittest
 from unittest import mock
 
 from pipeline import gh
-from interns_install import cli, gh_admin, install_files, safety
+from interns_install import apps, cli, gh_admin, install_files, safety
 from interns_install.cli import (
     _parse_args,
     _stage_install_files,
@@ -17,12 +17,11 @@ class ArgTests(unittest.TestCase):
         self.assertIsNone(a.repo)
         self.assertFalse(a.yes)
         self.assertFalse(a.dry_run)
-        self.assertEqual(a.issue_templates, "false")
+        self.assertFalse(a.issue_templates)
         self.assertFalse(a.skip_handoff)
 
     def test_issue_templates_bare_flag(self):
-        self.assertEqual(_parse_args(["--issue-templates"]).issue_templates, "true")
-        self.assertEqual(_parse_args(["--issue-templates=true"]).issue_templates, "true")
+        self.assertTrue(_parse_args(["--issue-templates"]).issue_templates)
 
     def test_repo_and_dry_run(self):
         a = _parse_args(["--repo", "acme/widgets", "--dry-run", "--yes"])
@@ -35,18 +34,29 @@ class WorkflowScopePreflightTests(unittest.TestCase):
     def _con(self):
         return Console(assume_yes=True, dry_run=False)
 
-    def test_classic_token_without_workflow_exits(self):
+    def test_classic_token_without_workflow_fails(self):
         with mock.patch.object(gh_admin, "auth_scopes", return_value={"repo"}):
-            with self.assertRaises(SystemExit):
-                cli._workflow_scope_preflight(self._con())
+            self.assertFalse(cli._workflow_scope_ok(self._con()))
 
     def test_classic_token_with_workflow_passes(self):
         with mock.patch.object(gh_admin, "auth_scopes", return_value={"repo", "workflow"}):
-            cli._workflow_scope_preflight(self._con())
+            self.assertTrue(cli._workflow_scope_ok(self._con()))
 
     def test_fine_grained_pat_falls_through(self):
         with mock.patch.object(gh_admin, "auth_scopes", return_value=set()):
-            cli._workflow_scope_preflight(self._con())
+            self.assertTrue(cli._workflow_scope_ok(self._con()))
+
+
+class SecretsScopeTests(unittest.TestCase):
+    def test_listable_secrets_pass(self):
+        self.assertTrue(cli._secrets_scope_ok(Console(assume_yes=False), []))
+
+    def test_unlistable_secrets_follow_the_confirmation(self):
+        con = Console(assume_yes=False)
+        con.confirm = lambda q, default=False: False
+        self.assertFalse(cli._secrets_scope_ok(con, None))
+        con.confirm = lambda q, default=False: True
+        self.assertTrue(cli._secrets_scope_ok(con, None))
 
 
 class _Both:
@@ -74,7 +84,7 @@ class WriteOAuthTokenTests(unittest.TestCase):
     def test_opens_claude_app_install_page_and_notes_manual_reminder(self):
         con = Console(assume_yes=False)
         con.prompt_secret = lambda q: ""
-        with mock.patch.object(cli.webbrowser, "open") as opener:
+        with mock.patch.object(apps.webbrowser, "open") as opener:
             _write_oauth_token(con, _repo(), existing_secrets=[])
         opener.assert_called_once_with("https://github.com/apps/claude/installations/new")
         self.assertTrue(any("Claude Code GitHub App" in n for n in con.manual))
@@ -82,14 +92,14 @@ class WriteOAuthTokenTests(unittest.TestCase):
     def test_skips_browser_under_yes(self):
         con = Console(assume_yes=True)
         con.prompt_secret = lambda q: ""
-        with mock.patch.object(cli.webbrowser, "open") as opener:
+        with mock.patch.object(apps.webbrowser, "open") as opener:
             _write_oauth_token(con, _repo(), existing_secrets=[])
         opener.assert_not_called()
         self.assertTrue(any("Claude Code GitHub App" in n for n in con.manual))
 
     def test_dry_run_records_planned_secret_without_prompting(self):
         con = Console(assume_yes=False, dry_run=True)
-        with mock.patch.object(cli.webbrowser, "open") as opener:
+        with mock.patch.object(apps.webbrowser, "open") as opener:
             _write_oauth_token(con, _repo(), existing_secrets=[])
         opener.assert_not_called()
         self.assertTrue(any("CLAUDE_CODE_OAUTH_TOKEN" in p for p in con.planned))
@@ -162,6 +172,56 @@ class StageInstallFilesTests(unittest.TestCase):
         with mock.patch.object(install_files, "collect_missing_files") as collect:
             _stage_install_files(con, self._repo(), "main", issue_templates=False)
         collect.assert_not_called()
+        self.assertTrue(con.manual)
+
+
+class HandoffTests(unittest.TestCase):
+    def _args(self, **kw):
+        return _parse_args([f"--{k.replace('_', '-')}={v}" for k, v in kw.items()])
+
+    def _run(self, con, pr_url=None, **args):
+        with mock.patch.object(cli.gh, "default_branch", return_value="main"), \
+             mock.patch.object(cli, "_stage_install_files", return_value=pr_url), \
+             mock.patch.object(cli.gh, "dispatch_workflow") as dispatch:
+            cli._handoff(con, _repo(), self._args(**args))
+        return dispatch
+
+    def test_open_pr_defers_dispatch_to_manual_step(self):
+        con = Console(assume_yes=True)
+        dispatch = self._run(con, pr_url="https://example/pr/1")
+        dispatch.assert_not_called()
+        self.assertTrue(any("https://example/pr/1" in n for n in con.manual))
+
+    def test_dispatches_on_default_branch(self):
+        dispatch = self._run(Console(assume_yes=True))
+        dispatch.assert_called_once_with("acme/widgets", cli.WORKFLOW, "main", {})
+
+    def test_dispatches_on_handoff_ref(self):
+        dispatch = self._run(Console(assume_yes=True), handoff_ref="v1")
+        dispatch.assert_called_once_with("acme/widgets", cli.WORKFLOW, "v1", {})
+
+    def test_declined_dispatch_records_manual_command(self):
+        con = Console(assume_yes=False)
+        con.confirm = lambda q, default=False: False
+        dispatch = self._run(con)
+        dispatch.assert_not_called()
+        self.assertTrue(any("gh workflow run" in n for n in con.manual))
+
+    def test_dry_run_does_not_dispatch(self):
+        dispatch = self._run(Console(assume_yes=True, dry_run=True))
+        dispatch.assert_not_called()
+
+
+class StageDeclineTests(unittest.TestCase):
+    def test_declined_pr_records_manual_step(self):
+        con = Console(assume_yes=False)
+        con.confirm = lambda q, default=False: False
+        with mock.patch.object(install_files, "collect_missing_files",
+                               return_value={"a.yml": ("x", None), "b.yml": ("y", "sha")}), \
+             mock.patch.object(cli.gh, "pr_create") as pr_create:
+            url = _stage_install_files(con, _repo(), "main", issue_templates=False)
+        self.assertIsNone(url)
+        pr_create.assert_not_called()
         self.assertTrue(con.manual)
 
 
