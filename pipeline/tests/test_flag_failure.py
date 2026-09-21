@@ -9,7 +9,7 @@ class FlagFailureTests(unittest.TestCase):
         with patch("pipeline.flag_failure.labels.set_issue_status") as set_issue, \
              patch("pipeline.flag_failure.labels.escalate_pr") as escalate, \
              patch("pipeline.flag_failure.gh.issue_comment") as comment, \
-             patch("pipeline.flag_failure.gh.run_url", return_value="https://x/runs/42"):
+             patch("pipeline.flag_failure.actions_env.run_url", return_value="https://x/runs/42"):
             flag_failure.flag_failure("acme/widgets", "implementation", 9, None, False)
         escalate.assert_not_called()
         set_issue.assert_called_once_with("acme/widgets", 9, "status:needs-attention")
@@ -20,7 +20,7 @@ class FlagFailureTests(unittest.TestCase):
              patch("pipeline.flag_failure.labels.escalate_pr") as escalate, \
              patch("pipeline.flag_failure.gh.pr_comment") as pr_comment, \
              patch("pipeline.flag_failure.gh.issue_comment") as issue_comment, \
-             patch("pipeline.flag_failure.gh.run_url", return_value="https://x/runs/42"):
+             patch("pipeline.flag_failure.actions_env.run_url", return_value="https://x/runs/42"):
             flag_failure.flag_failure("acme/widgets", "review", 9, 4, False)
         escalate.assert_called_once_with("acme/widgets", 4)
         set_issue.assert_called_once_with("acme/widgets", 9, "status:needs-attention")
@@ -33,7 +33,7 @@ class FlagFailureTests(unittest.TestCase):
              patch("pipeline.flag_failure.labels.escalate_pr") as escalate, \
              patch("pipeline.flag_failure.gh.issue_comment") as comment, \
              patch("pipeline.flag_failure.gh.pr_comment") as pr_comment, \
-             patch("pipeline.flag_failure.gh.run_url", return_value="https://x/runs/42"):
+             patch("pipeline.flag_failure.actions_env.run_url", return_value="https://x/runs/42"):
             flag_failure.flag_failure("acme/widgets", "implementation", 9, 4, True)
         set_pr.assert_called_once_with("acme/widgets", 4)
         escalate.assert_not_called()
@@ -54,7 +54,7 @@ class FlagFailureTests(unittest.TestCase):
         with patch("pipeline.flag_failure.labels.set_issue_status") as set_issue, \
              patch("pipeline.flag_failure.labels.escalate_pr") as escalate, \
              patch("pipeline.flag_failure.gh.issue_comment") as comment, \
-             patch("pipeline.flag_failure.gh.run_url", return_value="https://x/runs/42"):
+             patch("pipeline.flag_failure.actions_env.run_url", return_value="https://x/runs/42"):
             with self.assertRaisesRegex(ValueError, "one of --issue or --pr is required"):
                 flag_failure.flag_failure("acme/widgets", "review", None, None, False)
         set_issue.assert_not_called()

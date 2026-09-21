@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import sys
 
-from . import gh, labels
+from . import actions_env, gh, labels
 
 
 def flag_failure(repo: str, noun: str, issue: int | None, pr: int | None, fix_round: bool) -> None:
@@ -30,11 +30,11 @@ def flag_failure(repo: str, noun: str, issue: int | None, pr: int | None, fix_ro
             repo, issue,
             "Automated fix round failed — issue set to `status:needs-attention`. "
             f"Re-dispatch once the cause is addressed: `gh workflow run code-pipeline.yml "
-            f"-f phase=coder -f issue_number={issue} -f fix_round=true`. Run: {gh.run_url(repo)}",
+            f"-f phase=coder -f issue_number={issue} -f fix_round=true`. Run: {actions_env.run_url(repo)}",
         )
         return
 
-    body = f"Automated {noun} failed. See the run: {gh.run_url(repo)}"
+    body = f"Automated {noun} failed. See the run: {actions_env.run_url(repo)}"
     if pr is not None:
         gh.pr_comment(repo, pr, body)
     else:

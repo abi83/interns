@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import sys
 
-from . import execution, gh
+from . import actions_env, execution, gh
 
 
 def format_cost(raw: str | None) -> str:
@@ -19,7 +19,7 @@ def format_cost(raw: str | None) -> str:
 def report(repo: str, phase: str, exec_file: str | None, issue: int | None,
            pr: int | None, warn: str | None) -> None:
     raw_cost = execution.result_field(exec_file, "total_cost_usd")
-    body = f"{phase} [pipeline run]({gh.run_url(repo)}) — cost: ${format_cost(raw_cost)}"
+    body = f"{phase} [pipeline run]({actions_env.run_url(repo)}) — cost: ${format_cost(raw_cost)}"
     if warn:
         body += f"\n\n⚠️ {warn}"
 

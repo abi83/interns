@@ -18,7 +18,7 @@ class HandoffTests(unittest.TestCase):
         with patch("pipeline.handoff_to_review.labels.set_pr_pipeline_label") as set_pr, \
              patch("pipeline.handoff_to_review.labels.set_issue_status") as set_issue, \
              patch("pipeline.handoff_to_review.gh.issue_comment") as comment, \
-             patch("pipeline.handoff_to_review.gh.run_url", return_value="https://x/runs/1"):
+             patch("pipeline.handoff_to_review.actions_env.run_url", return_value="https://x/runs/1"):
             handoff_to_review.handoff("acme/widgets", 7, None)
         set_pr.assert_not_called()
         set_issue.assert_called_once_with("acme/widgets", 7, "status:needs-attention")

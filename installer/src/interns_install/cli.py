@@ -23,7 +23,7 @@ import webbrowser
 
 from pipeline import gh
 
-from . import install_files, safety
+from . import gh_admin, install_files, safety
 from .apps import APPS, provision_app
 from .console import Console
 
@@ -68,7 +68,7 @@ def _workflow_scope_preflight(con: Console) -> None:
     `workflow` scope. `auth_scopes()` is empty for a fine-grained PAT, whose
     Workflows: write permission we can't see here -- fall through to the
     existing best-effort behaviour in that case."""
-    scopes = gh.auth_scopes()
+    scopes = gh_admin.auth_scopes()
     if not scopes or "workflow" in scopes:
         return
     con.error(
@@ -93,7 +93,7 @@ def _scope_preflight(con: Console, repo: str) -> list[str] | None:
     return existing
 
 
-def _write_oauth_token(con: Console, repo: gh.Repo, existing_secrets: list[str] | None) -> None:
+def _write_oauth_token(con: Console, repo: gh_admin.Repo, existing_secrets: list[str] | None) -> None:
     con.step("Claude Code OAuth token")
     # Separate App from the interns-* ones above: without it installed, the
     # OAuth token exchange 401s and every coder/reviewer/refiner run fails.
@@ -101,7 +101,7 @@ def _write_oauth_token(con: Console, repo: gh.Repo, existing_secrets: list[str] 
     con.note_manual(f"install the Claude Code GitHub App on {repo.slug}: {install_url}")
 
     if con.dry_run:
-        con.mutation(f"{gh.secret_verb('CLAUDE_CODE_OAUTH_TOKEN', existing_secrets)} "
+        con.mutation(f"{gh_admin.secret_verb('CLAUDE_CODE_OAUTH_TOKEN', existing_secrets)} "
                      "secret CLAUDE_CODE_OAUTH_TOKEN")
         return
 
@@ -115,12 +115,12 @@ def _write_oauth_token(con: Console, repo: gh.Repo, existing_secrets: list[str] 
     if not token:
         con.note_manual("set the CLAUDE_CODE_OAUTH_TOKEN secret")
         return
-    if con.mutation(f"{gh.secret_verb('CLAUDE_CODE_OAUTH_TOKEN', existing_secrets)} "
+    if con.mutation(f"{gh_admin.secret_verb('CLAUDE_CODE_OAUTH_TOKEN', existing_secrets)} "
                     "secret CLAUDE_CODE_OAUTH_TOKEN"):
-        gh.set_secret(repo.slug, "CLAUDE_CODE_OAUTH_TOKEN", token)
+        gh_admin.set_secret(repo.slug, "CLAUDE_CODE_OAUTH_TOKEN", token)
 
 
-def _stage_install_files(con: Console, repo: gh.Repo, base: str,
+def _stage_install_files(con: Console, repo: gh_admin.Repo, base: str,
                          issue_templates: bool) -> str | None:
     """Open one PR adding missing files and re-syncing drifted ones. Returns
     the PR URL, or None when nothing needed changing."""
@@ -147,11 +147,11 @@ def _stage_install_files(con: Console, repo: gh.Repo, base: str,
         return None
 
     branch = f"interns/install-{int(time.time())}"
-    base_sha = gh.branch_head_sha(repo.slug, base)
+    base_sha = gh_admin.branch_head_sha(repo.slug, base)
     con.mutation(f"open a PR on {repo.slug} adding/updating: {', '.join(sorted(wanted))}")
-    gh.create_branch(repo.slug, branch, base_sha)
+    gh_admin.create_branch(repo.slug, branch, base_sha)
     for dest, (content, file_sha) in wanted.items():
-        gh.put_file(repo.slug, dest, content,
+        gh_admin.put_file(repo.slug, dest, content,
                     "chore: install interns pipeline caller stubs", branch,
                     sha=file_sha)
     url = gh.pr_create(repo.slug, branch, base,
@@ -160,7 +160,7 @@ def _stage_install_files(con: Console, repo: gh.Repo, base: str,
     return url
 
 
-def _handoff(con: Console, repo: gh.Repo, args: argparse.Namespace) -> None:
+def _handoff(con: Console, repo: gh_admin.Repo, args: argparse.Namespace) -> None:
     con.step("Hand off to install.yml (label sync + secret checks)")
 
     base = gh.default_branch(repo.slug)
@@ -192,8 +192,8 @@ def main(argv: list[str] | None = None) -> int:
     con = Console(assume_yes=args.yes, dry_run=args.dry_run)
 
     try:
-        gh.ensure_available()
-        repo = gh.current_repo(args.repo)
+        gh_admin.ensure_available()
+        repo = gh_admin.current_repo(args.repo)
     except gh.GhError as exc:
         return _fatal(con, exc, with_summary=False)
 

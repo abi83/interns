@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import os
 
-from pipeline import gh
+from . import gh_admin
 
 WORKFLOW = "install.yml"
 INTERNS_REPO = "abi83/interns"
@@ -69,7 +69,7 @@ to sync the label manifest.
 """
 
 
-def collect_missing_files(repo: gh.Repo, base: str,
+def collect_missing_files(repo: gh_admin.Repo, base: str,
                           issue_templates: bool) -> dict[str, tuple[str, str | None]]:
     """Destination path -> (new content, current sha or None) for every file
     that needs adding or re-syncing. The sha, when present, tells `put_file`
@@ -77,20 +77,20 @@ def collect_missing_files(repo: gh.Repo, base: str,
     wanted: dict[str, tuple[str, str | None]] = {}
 
     for src, dest in WRAPPER_FILES.items():
-        content = gh.get_file(INTERNS_REPO, src, INTERNS_REF).replace(REF_PLACEHOLDER, INTERNS_REF)
-        existing = gh.get_existing_file(repo.slug, dest, base)
+        content = gh_admin.get_file(INTERNS_REPO, src, INTERNS_REF).replace(REF_PLACEHOLDER, INTERNS_REF)
+        existing = gh_admin.get_existing_file(repo.slug, dest, base)
         if existing is None:
             wanted[dest] = (content, None)
         elif existing[0] != content:
             wanted[dest] = (content, existing[1])
 
     for src, dest in CONFIG_FILES.items():
-        if not gh.path_exists(repo.slug, dest, base):
-            content = gh.get_file(INTERNS_REPO, src, INTERNS_REF).replace(REF_PLACEHOLDER, INTERNS_REF)
+        if not gh_admin.path_exists(repo.slug, dest, base):
+            content = gh_admin.get_file(INTERNS_REPO, src, INTERNS_REF).replace(REF_PLACEHOLDER, INTERNS_REF)
             wanted[dest] = (content, None)
 
-    if issue_templates and not gh.path_exists(repo.slug, ".github/ISSUE_TEMPLATE", base):
-        for name in gh.list_dir(INTERNS_REPO, "templates/issue", INTERNS_REF):
-            content = gh.get_file(INTERNS_REPO, f"templates/issue/{name}", INTERNS_REF)
+    if issue_templates and not gh_admin.path_exists(repo.slug, ".github/ISSUE_TEMPLATE", base):
+        for name in gh_admin.list_dir(INTERNS_REPO, "templates/issue", INTERNS_REF):
+            content = gh_admin.get_file(INTERNS_REPO, f"templates/issue/{name}", INTERNS_REF)
             wanted[f".github/ISSUE_TEMPLATE/{name}"] = (content, None)
     return wanted

@@ -35,7 +35,7 @@ class HandleGiveupTests(unittest.TestCase):
         with patch("pipeline.handle_giveup.labels.set_issue_status") as set_issue, \
              patch("pipeline.handle_giveup.labels.set_pr_pipeline_label") as set_pr, \
              patch("pipeline.handle_giveup.gh.issue_comment") as comment, \
-             patch("pipeline.handle_giveup.gh.run_url", return_value="https://x/runs/1"):
+             patch("pipeline.handle_giveup.actions_env.run_url", return_value="https://x/runs/1"):
             result = handle_giveup.handle_giveup("acme/widgets", 7, 15, str(self.workspace), str(self.output_file))
         self.assertTrue(result)
         self.assertEqual(self.output_file.read_text(), "gave_up=true\n")
@@ -52,7 +52,7 @@ class HandleGiveupTests(unittest.TestCase):
         with patch("pipeline.handle_giveup.labels.set_issue_status") as set_issue, \
              patch("pipeline.handle_giveup.labels.set_pr_pipeline_label") as set_pr, \
              patch("pipeline.handle_giveup.gh.issue_comment") as comment, \
-             patch("pipeline.handle_giveup.gh.run_url", return_value="https://x/runs/1"):
+             patch("pipeline.handle_giveup.actions_env.run_url", return_value="https://x/runs/1"):
             result = handle_giveup.handle_giveup("acme/widgets", 7, None, str(self.workspace), str(self.output_file))
         self.assertTrue(result)
         set_pr.assert_not_called()

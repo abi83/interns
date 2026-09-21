@@ -22,8 +22,8 @@ class HandlePrClosedTests(unittest.TestCase):
              patch("pipeline.handle_pr_closed.labels.edit_issue_labels") as edit_issue, \
              patch("pipeline.handle_pr_closed.labels.set_issue_status") as set_issue, \
              patch("pipeline.handle_pr_closed.gh.issue_comment") as comment, \
-             patch("pipeline.handle_pr_closed.gh.pr_url", return_value="https://github.com/acme/widgets/pull/8"), \
-             patch("pipeline.handle_pr_closed.gh.run_url", return_value="https://x/runs/1"):
+             patch("pipeline.handle_pr_closed.actions_env.pr_url", return_value="https://github.com/acme/widgets/pull/8"), \
+             patch("pipeline.handle_pr_closed.actions_env.run_url", return_value="https://x/runs/1"):
             handle_pr_closed.handle_pr_closed("acme/widgets", 8, 19, False)
         edit_issue.assert_not_called()
         set_issue.assert_called_once_with("acme/widgets", 19, "status:needs-attention")

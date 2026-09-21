@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import sys
 
-from . import gh, labels
+from . import actions_env, gh, labels
 
 
 def handoff(repo: str, issue: int, pr: int | None) -> None:
@@ -22,7 +22,7 @@ def handoff(repo: str, issue: int, pr: int | None) -> None:
         repo, issue,
         "Coder run completed without leaving an open PR referencing this "
         f"issue — likely stopped for clarification or partway through. "
-        f"See the run: {gh.run_url(repo)}",
+        f"See the run: {actions_env.run_url(repo)}",
     )
 
 

@@ -12,6 +12,7 @@ from dataclasses import dataclass
 
 from pipeline import gh
 
+from . import gh_admin
 from .console import Console
 from .manifest_server import ManifestServer
 
@@ -117,7 +118,7 @@ def _forget(secret: str) -> None:  # noqa: ARG001
     immutable and may already be copied elsewhere in memory."""
 
 
-def use_existing_app(con: Console, repo: gh.Repo, spec: AppSpec,
+def use_existing_app(con: Console, repo: gh_admin.Repo, spec: AppSpec,
                      client_id: str | None, slug: str,
                      existing_secrets: list[str] | None) -> None:
     """Reuse an account-wide App: write this repo's Client-ID variable and
@@ -133,7 +134,7 @@ def use_existing_app(con: Console, repo: gh.Repo, spec: AppSpec,
         con.say(f"existing {spec.key} App — {settings_url}")
         con.mutation(f"set variable {spec.client_id_var} (existing {spec.key} App)")
         if not have_key:
-            con.mutation(f"{gh.secret_verb(spec.key_secret, existing_secrets)} "
+            con.mutation(f"{gh_admin.secret_verb(spec.key_secret, existing_secrets)} "
                          f"secret {spec.key_secret} (pasted PEM)")
         con.note_manual(f"install the existing {spec.key} App on {repo.slug}")
         return
@@ -154,7 +155,7 @@ def use_existing_app(con: Console, repo: gh.Repo, spec: AppSpec,
         con.say(f"reusing {spec.key} App {client_id} — {settings_url}")
 
     if con.mutation(f"set variable {spec.client_id_var} = {client_id}"):
-        gh.set_variable(repo.slug, spec.client_id_var, client_id)
+        gh_admin.set_variable(repo.slug, spec.client_id_var, client_id)
 
     if have_key:
         con.say(f"{spec.key_secret} is already set — leaving it (its key stays valid; "
@@ -169,8 +170,8 @@ def use_existing_app(con: Console, repo: gh.Repo, spec: AppSpec,
             f"between repos. Reuse a .pem you saved for another repo, or generate "
             f"one at {settings_url}. Blank to set the secret yourself later:")
         if pem and con.mutation(
-                f"{gh.secret_verb(spec.key_secret, existing_secrets)} secret {spec.key_secret}"):
-            gh.set_secret(repo.slug, spec.key_secret, pem)
+                f"{gh_admin.secret_verb(spec.key_secret, existing_secrets)} secret {spec.key_secret}"):
+            gh_admin.set_secret(repo.slug, spec.key_secret, pem)
         elif not pem:
             con.note_manual(f"set the {spec.key_secret} secret (PEM private key)")
         _forget(pem)
@@ -183,7 +184,7 @@ def use_existing_app(con: Console, repo: gh.Repo, spec: AppSpec,
         webbrowser.open(install_url)
 
 
-def provision_app(con: Console, repo: gh.Repo, spec: AppSpec,
+def provision_app(con: Console, repo: gh_admin.Repo, spec: AppSpec,
                   client_id: str | None,
                   existing_secrets: list[str] | None) -> None:
     name = spec.name_for(repo.owner)
@@ -214,7 +215,7 @@ def provision_app(con: Console, repo: gh.Repo, spec: AppSpec,
 
     if con.dry_run:
         con.mutation(f"open {action_url} to create App '{name}' via manifest")
-        con.mutation(f"{gh.secret_verb(spec.key_secret, existing_secrets)} secret {spec.key_secret}")
+        con.mutation(f"{gh_admin.secret_verb(spec.key_secret, existing_secrets)} secret {spec.key_secret}")
         con.mutation(f"set variable {spec.client_id_var}")
         con.note_manual(f"install the {spec.key} App on {repo.slug}")
         return
@@ -234,12 +235,12 @@ def provision_app(con: Console, repo: gh.Repo, spec: AppSpec,
 
     # Resilient ordering: the private key is returned exactly once, so it goes
     # straight into the secret before we do anything else.
-    if con.mutation(f"{gh.secret_verb(spec.key_secret, existing_secrets)} secret {spec.key_secret}"):
-        gh.set_secret(repo.slug, spec.key_secret, pem)
+    if con.mutation(f"{gh_admin.secret_verb(spec.key_secret, existing_secrets)} secret {spec.key_secret}"):
+        gh_admin.set_secret(repo.slug, spec.key_secret, pem)
     _forget(pem)
 
     if con.mutation(f"set variable {spec.client_id_var} = {client_id}"):
-        gh.set_variable(repo.slug, spec.client_id_var, client_id)
+        gh_admin.set_variable(repo.slug, spec.client_id_var, client_id)
 
     con.say(f"App '{slug}' created (client id {client_id})")
     install_url = f"https://github.com/apps/{slug}/installations/new"

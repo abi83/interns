@@ -24,7 +24,7 @@ class CheckCapTests(unittest.TestCase):
         with patch("pipeline.check_review_cap.verdict.reviews_by", return_value=reviews), \
              patch("pipeline.check_review_cap.labels.escalate_pr") as escalate, \
              patch("pipeline.check_review_cap.gh.pr_comment") as comment, \
-             patch("pipeline.check_review_cap.gh.run_url", return_value="https://x/runs/1"):
+             patch("pipeline.check_review_cap.actions_env.run_url", return_value="https://x/runs/1"):
             capped = check_review_cap.check_cap("acme/widgets", 12, "reviewer[bot]", 5)
         self.assertTrue(capped)
         escalate.assert_called_once_with("acme/widgets", 12)
@@ -37,14 +37,14 @@ class CheckCapTests(unittest.TestCase):
         with patch("pipeline.check_review_cap.verdict.reviews_by", return_value=reviews), \
              patch("pipeline.check_review_cap.labels.escalate_pr"), \
              patch("pipeline.check_review_cap.gh.pr_comment"), \
-             patch("pipeline.check_review_cap.gh.run_url", return_value="https://x/runs/1"):
+             patch("pipeline.check_review_cap.actions_env.run_url", return_value="https://x/runs/1"):
             self.assertTrue(check_review_cap.check_cap("acme/widgets", 12, "reviewer[bot]", 5))
 
     def test_a_given_count_skips_the_fetch(self):
         with patch("pipeline.check_review_cap.verdict.reviews_by") as reviews_by, \
              patch("pipeline.check_review_cap.labels.escalate_pr") as escalate, \
              patch("pipeline.check_review_cap.gh.pr_comment"), \
-             patch("pipeline.check_review_cap.gh.run_url", return_value="https://x/runs/1"):
+             patch("pipeline.check_review_cap.actions_env.run_url", return_value="https://x/runs/1"):
             capped = check_review_cap.check_cap("acme/widgets", 12, "reviewer[bot]", 5, count=5)
         self.assertTrue(capped)
         reviews_by.assert_not_called()

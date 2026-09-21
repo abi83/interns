@@ -10,10 +10,9 @@ admin-only state.
 
 from __future__ import annotations
 
-import json
-
 from pipeline import gh
 
+from . import gh_admin
 from .console import Console
 
 DEFAULT_BOT_LOGINS = ["github-actions[bot]", "claude[bot]"]
@@ -64,13 +63,13 @@ def _protection_violation(body: dict, bot_logins: list[str]) -> str | None:
     return None
 
 
-def check_branch_protection(con: Console, repo: gh.Repo, default_branch: str,
+def check_branch_protection(con: Console, repo: gh_admin.Repo, default_branch: str,
                              handled_externally: bool = False,
                              bot_logins: list[str] | None = None) -> None:
     bots = bot_logins if bot_logins is not None else DEFAULT_BOT_LOGINS
     con.step(f"Branch protection: {default_branch}")
 
-    state, body = gh.api_status(f"repos/{repo.slug}/branches/{default_branch}/protection")
+    state, body = gh_admin.branch_protection_state(repo.slug, default_branch)
 
     if state == "blocked":
         raise SafetyCheckError(
@@ -94,8 +93,7 @@ def check_branch_protection(con: Console, repo: gh.Repo, default_branch: str,
     if not con.mutation(f"apply baseline branch protection to '{default_branch}'"):
         return
     try:
-        gh.api(f"repos/{repo.slug}/branches/{default_branch}/protection",
-               method="PUT", input_json=json.dumps(BASELINE_PROTECTION))
+        gh_admin.set_branch_protection(repo.slug, default_branch, BASELINE_PROTECTION)
     except gh.GhError as exc:
         raise SafetyCheckError(
             f"branch '{default_branch}' is unprotected and the baseline "
@@ -104,23 +102,23 @@ def check_branch_protection(con: Console, repo: gh.Repo, default_branch: str,
     con.say(f"branch protection on '{default_branch}': created")
 
 
-def _create_metrics_branch(repo: gh.Repo) -> None:
+def _create_metrics_branch(repo: gh_admin.Repo) -> None:
     """A parentless commit adding an empty metrics.jsonl, pushed as the
     `metrics` branch -- built through the Git Data API since `gh` has no
     plumbing for orphan commits."""
-    blob_sha = gh.create_blob(repo.slug, "")
-    tree_sha = gh.create_tree(repo.slug, [
+    blob_sha = gh_admin.create_blob(repo.slug, "")
+    tree_sha = gh_admin.create_tree(repo.slug, [
         {"path": METRICS_FILE, "mode": "100644", "type": "blob", "sha": blob_sha},
     ])
-    commit_sha = gh.create_commit(
+    commit_sha = gh_admin.create_commit(
         repo.slug, "chore(metrics): initialize metrics branch", tree_sha, parents=[])
-    gh.create_branch(repo.slug, METRICS_BRANCH, commit_sha)
+    gh_admin.create_branch(repo.slug, METRICS_BRANCH, commit_sha)
 
 
-def check_metrics_branch(con: Console, repo: gh.Repo) -> None:
+def check_metrics_branch(con: Console, repo: gh_admin.Repo) -> None:
     con.step(f"Metrics branch: {METRICS_BRANCH}")
 
-    if gh.ref_exists(repo.slug, METRICS_BRANCH):
+    if gh_admin.ref_exists(repo.slug, METRICS_BRANCH):
         con.say(f"branch '{METRICS_BRANCH}': already exists")
     else:
         if not con.mutation(f"create orphan branch '{METRICS_BRANCH}' with empty {METRICS_FILE}"):
@@ -131,7 +129,7 @@ def check_metrics_branch(con: Console, repo: gh.Repo) -> None:
             raise SafetyCheckError(f"could not create '{METRICS_BRANCH}': {exc}") from exc
         con.say(f"branch '{METRICS_BRANCH}': created")
 
-    state, _ = gh.api_status(f"repos/{repo.slug}/branches/{METRICS_BRANCH}/protection")
+    state, _ = gh_admin.branch_protection_state(repo.slug, METRICS_BRANCH)
 
     if state == "blocked":
         raise SafetyCheckError(
@@ -146,8 +144,7 @@ def check_metrics_branch(con: Console, repo: gh.Repo) -> None:
     if not con.mutation(f"apply deletion protection to '{METRICS_BRANCH}'"):
         return
     try:
-        gh.api(f"repos/{repo.slug}/branches/{METRICS_BRANCH}/protection",
-               method="PUT", input_json=json.dumps(METRICS_PROTECTION))
+        gh_admin.set_branch_protection(repo.slug, METRICS_BRANCH, METRICS_PROTECTION)
     except gh.GhError as exc:
         raise SafetyCheckError(
             f"branch '{METRICS_BRANCH}' is unprotected and could not be protected: {exc}"
@@ -155,10 +152,10 @@ def check_metrics_branch(con: Console, repo: gh.Repo) -> None:
     con.say(f"branch protection on '{METRICS_BRANCH}': created")
 
 
-def check_pages(con: Console, repo: gh.Repo) -> None:
+def check_pages(con: Console, repo: gh_admin.Repo) -> None:
     con.step("GitHub Pages")
 
-    state, _ = gh.api_status(f"repos/{repo.slug}/pages")
+    state, _ = gh_admin.pages_state(repo.slug)
 
     if state == "blocked":
         raise SafetyCheckError(
@@ -172,7 +169,7 @@ def check_pages(con: Console, repo: gh.Repo) -> None:
     if not con.mutation("enable GitHub Pages (GitHub Actions build type)"):
         return
     try:
-        gh.api(f"repos/{repo.slug}/pages", method="POST", fields={"build_type": "workflow"})
+        gh_admin.enable_pages(repo.slug)
     except gh.GhError as exc:
         raise SafetyCheckError(f"GitHub Pages could not be enabled: {exc}") from exc
     con.say("GitHub Pages: enabled")

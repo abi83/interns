@@ -9,7 +9,7 @@ class RouteRedChecksTests(unittest.TestCase):
         with patch("pipeline.route_red_checks.labels.escalate_pr") as escalate, \
              patch("pipeline.route_red_checks.labels.set_issue_status") as set_issue, \
              patch("pipeline.route_red_checks.gh.pr_comment") as comment, \
-             patch("pipeline.route_red_checks.gh.run_url", return_value="https://x/runs/1"):
+             patch("pipeline.route_red_checks.actions_env.run_url", return_value="https://x/runs/1"):
             route_red_checks.route_red_checks("acme/widgets", 8, 19, "red checks: lint=fail")
         escalate.assert_called_once_with("acme/widgets", 8)
         set_issue.assert_called_once_with("acme/widgets", 19, "status:needs-attention")
@@ -22,7 +22,7 @@ class RouteRedChecksTests(unittest.TestCase):
         with patch("pipeline.route_red_checks.labels.escalate_pr"), \
              patch("pipeline.route_red_checks.labels.set_issue_status") as set_issue, \
              patch("pipeline.route_red_checks.gh.pr_comment"), \
-             patch("pipeline.route_red_checks.gh.run_url", return_value="https://x/runs/1"):
+             patch("pipeline.route_red_checks.actions_env.run_url", return_value="https://x/runs/1"):
             route_red_checks.route_red_checks("acme/widgets", 8, None, "timed out")
         set_issue.assert_not_called()
 
