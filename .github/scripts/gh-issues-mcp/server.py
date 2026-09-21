@@ -12,6 +12,7 @@ from typing import Annotated, Literal
 
 from mcp.server.mcpserver import MCPServer
 from pipeline import fetch_issue, gh, labels
+from pipeline.size import roll_up_size
 from pipeline.gh import GhCommandError
 from pydantic import BaseModel, Field
 
@@ -174,7 +175,7 @@ def edit_issue_labels(
             msgs.append(f"Labels don't exist, not removed: {', '.join(unknown_remove)}")
         raise InvalidInputError("\n".join(msgs))
 
-    labels.edit_issue_labels(_REPO, issue_number, add=add_labels, remove=remove_labels, best_effort=False)
+    labels.edit_issue_labels_strict(_REPO, issue_number, add=add_labels, remove=remove_labels)
     parts = []
     if add_labels:
         parts.append(f"Added: {', '.join(add_labels)}")
@@ -342,7 +343,8 @@ def apply_estimation_outcome(
             raise InvalidInputError(
                 "blast_radius, touch, human_involvement, and review_overhead are all required when outcome='estimated'"
             )
-        transition = labels.estimated(blast_radius, touch, human_involvement, review_overhead)  # type: ignore[arg-type]
+        size = roll_up_size(blast_radius, touch, human_involvement, review_overhead)  # type: ignore[arg-type]
+        transition = labels.estimated(size)
     elif outcome == "needs-attention":
         transition = labels.estimation_needs_attention()
     else:
@@ -351,8 +353,7 @@ def apply_estimation_outcome(
     labels.apply_transition(_REPO, issue_number, transition)
 
     if outcome == "estimated":
-        size = labels.find_size_label(transition.add)
-        return f"Estimation outcome 'estimated' applied to issue #{issue_number} ({size})"
+        return f"Estimation outcome 'estimated' applied to issue #{issue_number} ({labels.size_label(size)})"
     return f"Estimation outcome 'needs-attention' applied to issue #{issue_number}"
 
 

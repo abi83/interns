@@ -609,6 +609,14 @@ def test_apply_estimation_outcome_missing_scores():
         apply_estimation_outcome(issue_number=7, outcome="estimated")
 
 
+def test_apply_estimation_outcome_rejects_bad_score():
+    with pytest.raises(ValueError, match="Not a Low|Mid|High score"):
+        apply_estimation_outcome(
+            issue_number=7, outcome="estimated",
+            blast_radius="Low", touch="Medium", human_involvement="Low", review_overhead="Low",
+        )
+
+
 def test_apply_estimation_outcome_invalid():
     with pytest.raises(InvalidInputError):
         apply_estimation_outcome(issue_number=7, outcome="done")

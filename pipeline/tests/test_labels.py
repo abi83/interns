@@ -55,15 +55,11 @@ class TransitionTests(unittest.TestCase):
             ),
         )
 
-    def test_estimated_rolls_up_size(self):
-        transition = labels.estimated("Low", "Mid", "Low", "Low")
+    def test_estimated_adds_size_label(self):
+        transition = labels.estimated("S")
         self.assertEqual(transition.add, [labels.STATUS_ESTIMATED, "size:S"])
         self.assertEqual(transition.remove, [labels.STATUS_REFINED, labels.STATUS_NEEDS_ATTENTION])
         self.assertEqual(labels.find_size_label(transition.add), "size:S")
-
-    def test_estimated_rejects_bad_score(self):
-        with self.assertRaises(ValueError):
-            labels.estimated("Low", "Medium", "Low", "Low")
 
     def test_needs_attention_transitions(self):
         self.assertEqual(labels.refinement_needs_attention().remove, [labels.STATUS_NEEDS_REFINEMENT])
