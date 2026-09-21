@@ -86,15 +86,11 @@ jobs:
           ref: ${{ steps.ref.outputs.ref }}
           path: .interns
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+      - name: Set up pipeline Python
+        uses: ./.interns/.github/actions/setup-pipeline-python
 
       - name: Sync the label manifest
         run: python3 -m pipeline.sync_labels .interns/.github/labels.json
-        env:
-          PYTHONPATH: .interns/pipeline/src
 
       # Branch protection and Pages are checked by interns-install itself,
       # locally, before this workflow ever runs -- both need admin access,
@@ -102,5 +98,3 @@ jobs:
       # presence check for the secrets/variables interns-install writes.
       - name: Verify required secrets and variables
         run: python3 -m pipeline.safety_checks
-        env:
-          PYTHONPATH: .interns/pipeline/src

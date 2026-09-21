@@ -42,8 +42,8 @@ def _main(argv: list[str]) -> int:
 
     parser = argparse.ArgumentParser(prog="python -m pipeline.handle_pr_closed")
     parser.add_argument("pr", type=int)
-    parser.add_argument("issue", nargs="?", default="")
-    parser.add_argument("merged", nargs="?", default="false")
+    parser.add_argument("issue")
+    parser.add_argument("merged")
     args = parser.parse_args(argv)
 
     handle_pr_closed(

@@ -184,6 +184,13 @@ class PrUrlTests(unittest.TestCase):
         with patch.dict("os.environ", {"GITHUB_SERVER_URL": "https://github.com"}):
             self.assertEqual(gh.pr_url("acme/widgets", 12), "https://github.com/acme/widgets/pull/12")
 
+    def test_explicit_server_url_overrides_the_env_and_needs_no_env_var(self):
+        with patch.dict("os.environ", {}, clear=True):
+            self.assertEqual(
+                gh.pr_url("acme/widgets", 12, server_url="https://ghe.example.com"),
+                "https://ghe.example.com/acme/widgets/pull/12",
+            )
+
 
 class PrChecksTests(unittest.TestCase):
     def test_returns_the_parsed_checks(self):

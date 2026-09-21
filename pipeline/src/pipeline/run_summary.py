@@ -108,11 +108,11 @@ def _coder_section(repo: str, server_url: str, issue: str, pr: str, round_: str)
     elif round_ == "fix":
         head_sha = _pr_head_sha(repo, pr)
         if head_sha and last_flagged_sha and head_sha != last_flagged_sha:
-            lines.append(f"**Outcome:** PR updated — [#{pr}]({server_url}/{repo}/pull/{pr})")
+            lines.append(f"**Outcome:** PR updated — [#{pr}]({gh.pr_url(repo, int(pr), server_url=server_url)})")
         else:
             lines.append("**Outcome:** ⚠️ No new commit pushed — see the final message below.")
     else:
-        lines.append(f"**Outcome:** PR opened — [#{pr}]({server_url}/{repo}/pull/{pr})")
+        lines.append(f"**Outcome:** PR opened — [#{pr}]({gh.pr_url(repo, int(pr), server_url=server_url)})")
 
     if pr:
         count = _pr_diff_file_count(repo, pr)
@@ -124,7 +124,7 @@ def _coder_section(repo: str, server_url: str, issue: str, pr: str, round_: str)
 def _review_section(repo: str, server_url: str, pr: str, reviewer_bot: str) -> list[str]:
     lines = []
     title = _pr_title(repo, pr)
-    lines.append(f"**PR:** [#{pr}]({server_url}/{repo}/pull/{pr})" + (f" — {title}" if title else ""))
+    lines.append(f"**PR:** [#{pr}]({gh.pr_url(repo, int(pr), server_url=server_url)})" + (f" — {title}" if title else ""))
 
     # This run's own verdict is already posted by the time we get here, so
     # count only CHANGES_REQUESTED reviews against *earlier* commits -- a

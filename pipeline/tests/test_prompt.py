@@ -25,6 +25,20 @@ def _parse_github_output_value(block: bytes, name: bytes) -> bytes:
     return b"\n".join(lines[1:end])
 
 
+class GithubOutputBlockTests(unittest.TestCase):
+    def test_resamples_the_delimiter_when_it_collides_with_content(self):
+        with patch("pipeline.prompt.secrets.token_hex", side_effect=["deadbeef", "cafef00d"]):
+            out = prompt.github_output_block("text", b"line one\nghadelim_deadbeef\nline two\n")
+        self.assertNotIn(b"text<<ghadelim_deadbeef\n", out)
+        self.assertIn(b"text<<ghadelim_cafef00d\n", out)
+        value = _parse_github_output_value(out, b"text")
+        self.assertEqual(value, b"line one\nghadelim_deadbeef\nline two")
+
+    def test_content_not_from_a_file_round_trips(self):
+        out = prompt.github_output_block("text", b"arbitrary in-memory content")
+        self.assertEqual(_parse_github_output_value(out, b"text"), b"arbitrary in-memory content")
+
+
 class BuildOutputTests(unittest.TestCase):
     def setUp(self):
         self._tmpdir = tempfile.TemporaryDirectory()

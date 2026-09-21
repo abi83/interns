@@ -40,6 +40,16 @@ class CheckCapTests(unittest.TestCase):
              patch("pipeline.check_review_cap.gh.run_url", return_value="https://x/runs/1"):
             self.assertTrue(check_review_cap.check_cap("acme/widgets", 12, "reviewer[bot]", 5))
 
+    def test_a_given_count_skips_the_fetch(self):
+        with patch("pipeline.check_review_cap.verdict.reviews_by") as reviews_by, \
+             patch("pipeline.check_review_cap.labels.escalate_pr") as escalate, \
+             patch("pipeline.check_review_cap.gh.pr_comment"), \
+             patch("pipeline.check_review_cap.gh.run_url", return_value="https://x/runs/1"):
+            capped = check_review_cap.check_cap("acme/widgets", 12, "reviewer[bot]", 5, count=5)
+        self.assertTrue(capped)
+        reviews_by.assert_not_called()
+        escalate.assert_called_once_with("acme/widgets", 12)
+
 
 class CliTests(unittest.TestCase):
     def test_writes_capped_output_using_env_defaults(self):
@@ -51,8 +61,19 @@ class CliTests(unittest.TestCase):
             }, clear=False), \
                  patch("pipeline.check_review_cap.check_cap", return_value=True) as fn:
                 check_review_cap._main(["12"])
-            fn.assert_called_once_with("acme/widgets", 12, "reviewer[bot]", 5)
+            fn.assert_called_once_with("acme/widgets", 12, "reviewer[bot]", 5, count=None)
             self.assertEqual(Path(output_file).read_text(), "capped=true\n")
+
+    def test_count_flag_is_parsed_and_forwarded(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_file = os.path.join(tmpdir, "output")
+            Path(output_file).write_text("")
+            with patch.dict(os.environ, {
+                "GITHUB_REPOSITORY": "acme/widgets", "GITHUB_OUTPUT": output_file, "REVIEWER_BOT": "reviewer[bot]",
+            }, clear=False), \
+                 patch("pipeline.check_review_cap.check_cap", return_value=False) as fn:
+                check_review_cap._main(["12", "--count", "3"])
+            fn.assert_called_once_with("acme/widgets", 12, "reviewer[bot]", 5, count=3)
 
 
 if __name__ == "__main__":

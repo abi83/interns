@@ -174,8 +174,12 @@ def run_url(repo: str) -> str:
     return f"{server}/{repo}/actions/runs/{run_id}"
 
 
-def pr_url(repo: str, number: int) -> str:
-    return f"{os.environ['GITHUB_SERVER_URL']}/{repo}/pull/{number}"
+def pr_url(repo: str, number: int, *, server_url: str | None = None) -> str:
+    """Link to PR `number`. Reads GITHUB_SERVER_URL from the Actions env by
+    default; pass `server_url` explicitly for a caller (pipeline.run_summary)
+    that already threads it as a parameter rather than reading os.environ
+    itself, so it stays independently testable."""
+    return f"{server_url or os.environ['GITHUB_SERVER_URL']}/{repo}/pull/{number}"
 
 
 def pr_checks(repo: str, pr: int) -> list[dict]:

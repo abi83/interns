@@ -133,15 +133,9 @@ jobs:
           ref: ${{ steps.pipeline_ref.outputs.ref }}
           path: .interns
 
-      - name: Set up Python
+      - name: Set up pipeline Python
         if: always()
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Add pipeline package to PYTHONPATH
-        if: always()
-        run: echo "PYTHONPATH=$GITHUB_WORKSPACE/.interns/pipeline/src" >> "$GITHUB_ENV"
+        uses: ./.interns/.github/actions/setup-pipeline-python
 
       - name: Resolve issue
         id: issue
@@ -546,13 +540,8 @@ jobs:
           ref: ${{ steps.pipeline_ref.outputs.ref }}
           path: .interns
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Add pipeline package to PYTHONPATH
-        run: echo "PYTHONPATH=$GITHUB_WORKSPACE/.interns/pipeline/src" >> "$GITHUB_ENV"
+      - name: Set up pipeline Python
+        uses: ./.interns/.github/actions/setup-pipeline-python
 
       - name: Resolve linked issue
         id: linked
@@ -647,10 +636,14 @@ jobs:
 
           PR="${{ github.event.pull_request.number || inputs.pr_number }}"
           HEAD_SHA=$(gh pr view "$PR" --repo ${{ github.repository }} --json headRefOid --jq .headRefOid)
-          LAST_SHA=$(gh api "repos/${{ github.repository }}/pulls/$PR/reviews" \
-            --jq '[.[] | select(.user.login==env.REVIEWER_BOT)] | last | .commit_id // empty')
+          # One fetch of the reviewer bot's reviews covers both this check and
+          # "Enforce automatic review cap" below -- review_count is threaded
+          # through so that step doesn't hit the same endpoint again.
+          readarray -t summary < <(python3 -m pipeline.verdict "$GITHUB_REPOSITORY" "$PR" "$REVIEWER_BOT" summary-for-head "$HEAD_SHA")
+          LAST_VERDICT="${summary[0]#verdict=}"
+          echo "review_count=${summary[1]#count=}" >> "$GITHUB_OUTPUT"
 
-          if [[ -n "$LAST_SHA" && "$LAST_SHA" == "$HEAD_SHA" ]]; then
+          if [[ -n "$LAST_VERDICT" ]]; then
             echo "Head commit $HEAD_SHA already reviewed — duplicate event, skipping."
             echo "skip=true" >> "$GITHUB_OUTPUT"
           else
@@ -668,6 +661,7 @@ jobs:
         run: >
           python3 -m pipeline.check_review_cap
           "${{ github.event.pull_request.number }}"
+          --count "${{ steps.check.outputs.review_count }}"
 
       - name: Load reviewer instructions
         id: instructions
@@ -811,13 +805,8 @@ jobs:
           ref: ${{ steps.pipeline_ref.outputs.ref }}
           path: .interns
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Add pipeline package to PYTHONPATH
-        run: echo "PYTHONPATH=$GITHUB_WORKSPACE/.interns/pipeline/src" >> "$GITHUB_ENV"
+      - name: Set up pipeline Python
+        uses: ./.interns/.github/actions/setup-pipeline-python
 
       - name: Resolve linked issue
         id: linked
@@ -856,13 +845,8 @@ jobs:
           ref: ${{ steps.pipeline_ref.outputs.ref }}
           path: .interns
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Add pipeline package to PYTHONPATH
-        run: echo "PYTHONPATH=$GITHUB_WORKSPACE/.interns/pipeline/src" >> "$GITHUB_ENV"
+      - name: Set up pipeline Python
+        uses: ./.interns/.github/actions/setup-pipeline-python
 
       - name: Download run metrics records
         uses: actions/download-artifact@v8

@@ -44,10 +44,10 @@ class HandlePrClosedTests(unittest.TestCase):
 
 
 class CliTests(unittest.TestCase):
-    def test_missing_merged_arg_defaults_to_unmerged(self):
+    def test_merged_false_is_parsed(self):
         with patch.dict(os.environ, {"GITHUB_REPOSITORY": "acme/widgets"}), \
              patch("pipeline.handle_pr_closed.handle_pr_closed") as fn:
-            handle_pr_closed._main(["8", "19"])
+            handle_pr_closed._main(["8", "19", "false"])
         fn.assert_called_once_with("acme/widgets", 8, 19, False)
 
     def test_empty_issue_argument_is_treated_as_no_issue(self):

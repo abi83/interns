@@ -10,7 +10,7 @@ from __future__ import annotations
 import subprocess
 import sys
 
-from . import gh
+from . import gh, prompt, verdict
 
 
 class NoChangesRequestedReviewError(RuntimeError):
@@ -22,8 +22,13 @@ def checkout_branch(head_ref: str) -> None:
     subprocess.run(["git", "checkout", head_ref], check=True)
 
 
-def _latest_changes_requested_review(repo: str, pr: int) -> dict:
-    reviews = [r for r in gh.api_all_pages(f"repos/{repo}/pulls/{pr}/reviews") if r.get("state") == "CHANGES_REQUESTED"]
+def _latest_changes_requested_review(repo: str, pr: int) -> verdict.Review:
+    # Any reviewer's CHANGES_REQUESTED counts here, not just REVIEWER_BOT's --
+    # unlike apply_verdict/check_review_cap, which only ever act on the bot's
+    # own verdict. Routed through verdict.all_reviews rather than a second,
+    # independent fetch so this and those three stay paginated the same way
+    # and can't disagree about which review is "latest" (interns#180 review).
+    reviews = [r for r in verdict.all_reviews(repo, pr) if r.state == "CHANGES_REQUESTED"]
     if not reviews:
         raise NoChangesRequestedReviewError(f"no CHANGES_REQUESTED review found for PR #{pr}")
     return reviews[-1]
@@ -31,23 +36,21 @@ def _latest_changes_requested_review(repo: str, pr: int) -> dict:
 
 def build_feedback_text(repo: str, pr: int) -> str:
     review = _latest_changes_requested_review(repo, pr)
-    review_id = review["id"]
-    review_ts = review["submitted_at"]
 
     comments = sorted(
         (c for c in gh.api_all_pages(f"repos/{repo}/pulls/{pr}/comments")
-         if str(c.get("pull_request_review_id")) == str(review_id)),
+         if str(c.get("pull_request_review_id")) == str(review.id)),
         key=lambda c: c["created_at"],
     )
     conversation = sorted(
-        (c for c in gh.api_all_pages(f"repos/{repo}/issues/{pr}/comments") if c["created_at"] > review_ts),
+        (c for c in gh.api_all_pages(f"repos/{repo}/issues/{pr}/comments") if c["created_at"] > review.submitted_at),
         key=lambda c: c["created_at"],
     )
 
     lines = [
-        f"## Latest REQUEST_CHANGES review — {review_ts}",
+        f"## Latest REQUEST_CHANGES review — {review.submitted_at}",
         "",
-        review.get("body") or "(no summary body)",
+        review.body or "(no summary body)",
         "",
         "## Inline comments on that review",
     ]
@@ -65,7 +68,7 @@ def _main(argv: list[str]) -> int:
     import os
 
     parser = argparse.ArgumentParser(prog="python -m pipeline.gather_fix_feedback")
-    parser.add_argument("pr", nargs="?", default="")
+    parser.add_argument("pr")
     parser.add_argument("head_ref")
     parser.add_argument("issue")
     args = parser.parse_args(argv)
@@ -84,10 +87,8 @@ def _main(argv: list[str]) -> int:
         print(f"Error: fix round for PR #{pr} but {exc}", file=sys.stderr)
         return 1
 
-    with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-        f.write("text<<EOF_FEEDBACK\n")
-        f.write(text + "\n")
-        f.write("EOF_FEEDBACK\n")
+    with open(os.environ["GITHUB_OUTPUT"], "ab") as f:
+        f.write(prompt.github_output_block("text", text.encode()))
     return 0
 
 
