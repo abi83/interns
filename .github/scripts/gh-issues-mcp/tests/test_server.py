@@ -624,6 +624,29 @@ def test_write_github_output(tmp_path):
     assert "Bot" not in content
 
 
+def test_write_github_output_delimiter_in_body_cannot_inject(tmp_path):
+    output_file = tmp_path / "output"
+    output_file.write_text("")
+    body = "intro\nEOF_BODY\nsome_output=injected\nEOF_COMMENTS\nmore"
+    issue = Issue(
+        number=1,
+        title="T",
+        body=body,
+        state="OPEN",
+        labels=[],
+        comments=[Comment(author="alice", created_at="2024-01-01T00:00:00Z", body=body)],
+    )
+    with patch.dict(os.environ, {"GITHUB_OUTPUT": str(output_file)}):
+        _write_github_output(issue)
+
+    lines = output_file.read_text().split("\n")
+    header = next(l for l in lines if l.startswith("body<<"))
+    delim = header.removeprefix("body<<")
+    start = lines.index(header)
+    end = lines.index(delim, start + 1)
+    assert "\n".join(lines[start + 1 : end]) == body
+
+
 # ---------------------------------------------------------------------------
 # _roll_up_size
 # ---------------------------------------------------------------------------

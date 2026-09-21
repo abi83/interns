@@ -78,9 +78,8 @@ class CliTests(unittest.TestCase):
                      "--types", "spike"])
 
             content = output_file.read_text()
-        self.assertIn("skeleton<<EOF_SKELETON", content)
+        self.assertRegex(content, r"^skeleton<<ghadelim_\w+\n")
         self.assertIn("type:spike\n## Question to Answer", content)
-        self.assertIn("EOF_SKELETON", content)
 
     def test_defaults_types_and_consumer_dir(self):
         with patch("pipeline.resolve_issue_template.build_skeleton", return_value="") as build, \
