@@ -345,26 +345,28 @@ class AuthScopesTests(unittest.TestCase):
 
 
 class CurrentRepoTests(unittest.TestCase):
-    def test_parses_owner_and_org_type(self):
-        body = json.dumps({"name": "widgets", "owner": {"login": "acme", "type": "Organization"}})
-        with patch.object(gh.subprocess, "run", return_value=_proc(body)) as run:
-            repo = gh.current_repo(None)
+    # `gh repo view --json name,owner` payload as returned by a live repo: no owner type.
+    VIEW = json.dumps({"name": "widgets", "owner": {"id": "MDEyOk9yZ2FuaXphdGlvbjE=", "login": "acme"}})
+
+    def _current(self, owner_type, explicit=None):
+        with patch.object(gh.subprocess, "run", return_value=_proc(self.VIEW)) as run, \
+                patch.object(gh, "api", return_value={"owner": {"login": "acme", "type": owner_type}}) as api:
+            repo = gh.current_repo(explicit)
+        return repo, run, api
+
+    def test_org_owner_resolved_via_repos_endpoint(self):
+        repo, run, api = self._current("Organization")
         self.assertEqual(repo, gh.Repo(owner="acme", name="widgets", is_org=True))
-        cmd = run.call_args[0][0]
-        self.assertNotIn("acme/widgets", cmd)
+        api.assert_called_once_with("repos/acme/widgets")
+        self.assertNotIn("acme/widgets", run.call_args[0][0])
 
     def test_user_owner_is_not_org(self):
-        body = json.dumps({"name": "widgets", "owner": {"login": "vlkromm", "type": "User"}})
-        with patch.object(gh.subprocess, "run", return_value=_proc(body)):
-            repo = gh.current_repo(None)
+        repo, _, _ = self._current("User")
         self.assertFalse(repo.is_org)
 
     def test_explicit_repo_is_passed_through(self):
-        body = json.dumps({"name": "widgets", "owner": {"login": "acme", "type": "Organization"}})
-        with patch.object(gh.subprocess, "run", return_value=_proc(body)) as run:
-            gh.current_repo("acme/widgets")
-        cmd = run.call_args[0][0]
-        self.assertIn("acme/widgets", cmd)
+        _, run, _ = self._current("Organization", explicit="acme/widgets")
+        self.assertIn("acme/widgets", run.call_args[0][0])
 
 
 class ListDirTests(unittest.TestCase):

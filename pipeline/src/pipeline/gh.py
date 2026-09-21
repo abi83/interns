@@ -130,8 +130,10 @@ def current_repo(explicit: str | None) -> Repo:
     args += ["--json", "name,owner"]
     data = json.loads(_run(args).stdout)
     owner = data["owner"]["login"]
-    owner_type = data["owner"].get("type", "")
-    return Repo(owner=owner, name=data["name"], is_org=owner_type.lower() == "organization")
+    name = data["name"]
+    # `repo view --json owner` carries only id and login, not the owner type.
+    owner_type = api(f"repos/{owner}/{name}")["owner"]["type"]
+    return Repo(owner=owner, name=name, is_org=owner_type == "Organization")
 
 
 def issue_view(repo: str, number: int, fields: list[str]) -> dict:
