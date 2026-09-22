@@ -1,7 +1,5 @@
 # Test guide
 
-Before writing tests, read this.
-
 ## How to run
 
 ```sh

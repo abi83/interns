@@ -37,7 +37,7 @@ consumer repo" generically.
 
 ## Tests
 
-Before writing tests, read [docs/test-guide.md](docs/test-guide.md).
+Read [docs/test-guide.md](docs/test-guide.md) before writing any test.
 
 ## Issue tracking
 
