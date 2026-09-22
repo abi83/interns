@@ -19,7 +19,7 @@ runs:
         GH_TOKEN: ${{ github.token }}
         PR: ${{ inputs.pr_number }}
       run: |
-        NUM=$(python3 -m pipeline.gh_query "$GITHUB_REPOSITORY" closing-issue "$PR")
+        NUM=$(python3 -m interns.gh_query "$GITHUB_REPOSITORY" closing-issue "$PR")
         # A PR with no linked issue is expected, not an error — any human-
         # opened PR without a "Closes #N" still gets reviewed (see wiki's
         # Contributing.md), it just has no issue to tag. Leave the output

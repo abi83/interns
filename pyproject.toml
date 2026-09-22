@@ -14,15 +14,15 @@ package = false
 # One test configuration for all three packages. Tests import the packages
 # from source, so no install step is needed and every suite runs from here.
 [tool.pytest.ini_options]
-testpaths = ["pipeline/tests", "installer/tests", ".github/scripts/gh-issues-mcp/tests", "tests"]
-pythonpath = [".", "pipeline/src", "installer/src", ".github/scripts/gh-issues-mcp"]
+testpaths = ["interns/tests", "installer/tests", "mcp/tests", "tests"]
+pythonpath = [".", "interns/src", "installer/src", "mcp"]
 # importlib: the suites share basenames (test_cli.py) and one has no __init__.py.
 addopts = "--import-mode=importlib"
 
 [tool.coverage.run]
 branch = true
 # Directories, not packages, so modules a tier never imports still count as uncovered.
-source = ["pipeline/src", "installer/src", ".github/scripts/gh-issues-mcp"]
+source = ["interns/src", "installer/src", "mcp"]
 omit = ["*/tests/*"]
 parallel = true
 # The tier runner itself imports nothing; only the entrypoint subprocesses are measured.

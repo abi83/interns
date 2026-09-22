@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 from interns_install import gh_admin
-from pipeline import gh, gh_query, labels, verdict, wait_for_checks
+from interns import gh, gh_query, labels, verdict, wait_for_checks
 
 from testkit.harness import Scenario
 

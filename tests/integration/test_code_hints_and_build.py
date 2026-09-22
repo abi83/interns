@@ -17,7 +17,7 @@ def scenario(tmp_path) -> Scenario:
 def test_build_config_is_unconfigured_with_the_stub_marker(scenario):
     (scenario.workspace / "Makefile").write_text("test:\n\t@echo INTERNS: not configured\n")
 
-    result = scenario.run("pipeline.check_build_config", str(scenario.workspace))
+    result = scenario.run("interns.check_build_config", str(scenario.workspace))
 
     assert result.outputs == {"configured": "false"}
 
@@ -25,13 +25,13 @@ def test_build_config_is_unconfigured_with_the_stub_marker(scenario):
 def test_build_config_is_configured_once_the_stub_is_replaced(scenario):
     (scenario.workspace / "Makefile").write_text("test:\n\tpytest\n")
 
-    result = scenario.run("pipeline.check_build_config", str(scenario.workspace))
+    result = scenario.run("interns.check_build_config", str(scenario.workspace))
 
     assert result.outputs == {"configured": "true"}
 
 
 def test_build_config_is_unconfigured_with_no_makefile_at_all(scenario):
-    result = scenario.run("pipeline.check_build_config", str(scenario.workspace))
+    result = scenario.run("interns.check_build_config", str(scenario.workspace))
 
     assert result.outputs == {"configured": "false"}
 
@@ -40,7 +40,7 @@ def test_bug_label_derives_a_fix_hint_and_branch(scenario):
     scenario.gh("issue", "view", "labels", stdout=labels_payload("type:bug", "status:ready"))
     scenario.gh("issue", "view", "title", stdout={"title": "Export drops rows with commas"})
 
-    result = scenario.run("pipeline.entrypoint", "derive-code-hints", "--issue", ISSUE)
+    result = scenario.run("interns.entrypoint", "derive-code-hints", "--issue", ISSUE)
 
     assert result.returncode == 0
     assert result.outputs["commit_type_hint"] == "fix:"
@@ -51,7 +51,7 @@ def test_coding_task_label_derives_a_feat_hint_and_branch(scenario):
     scenario.gh("issue", "view", "labels", stdout=labels_payload("type:coding-task", "status:ready"))
     scenario.gh("issue", "view", "title", stdout={"title": "Add CSV export"})
 
-    result = scenario.run("pipeline.entrypoint", "derive-code-hints", "--issue", ISSUE)
+    result = scenario.run("interns.entrypoint", "derive-code-hints", "--issue", ISSUE)
 
     assert result.returncode == 0
     assert result.outputs["commit_type_hint"] == "feat:"
@@ -61,7 +61,7 @@ def test_coding_task_label_derives_a_feat_hint_and_branch(scenario):
 def test_neither_type_label_fails_instead_of_guessing(scenario):
     scenario.gh("issue", "view", "labels", stdout=labels_payload("type:spike", "status:ready"))
 
-    result = scenario.run("pipeline.entrypoint", "derive-code-hints", "--issue", ISSUE)
+    result = scenario.run("interns.entrypoint", "derive-code-hints", "--issue", ISSUE)
 
     assert result.returncode != 0
     assert "neither type:bug nor type:coding-task" in result.stderr

@@ -2,13 +2,13 @@
 
 Layer order:
   gh_transport  →  core  →  adapters
-                             ├─ MCP server (.github/scripts/gh-issues-mcp/server.py)
-                             └─ Actions entrypoint (pipeline.entrypoint)
+                             ├─ MCP server (mcp/server.py)
+                             └─ Actions entrypoint (interns.entrypoint)
 
 Rules:
-  1. gh_transport imports no other pipeline module.
-  2. Core pipeline modules do not import pipeline.entrypoint.
-  3. MCP server does not import pipeline.entrypoint or pipeline.ctx.
+  1. gh_transport imports no other interns module.
+  2. Core interns modules do not import interns.entrypoint.
+  3. MCP server does not import interns.entrypoint or interns.ctx.
 """
 
 from __future__ import annotations
@@ -18,8 +18,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PIPELINE_SRC = ROOT / "pipeline" / "src" / "pipeline"
-MCP_SERVER = ROOT / ".github" / "scripts" / "gh-issues-mcp" / "server.py"
+PIPELINE_SRC = ROOT / "interns" / "src" / "interns"
+MCP_SERVER = ROOT / "mcp" / "server.py"
 
 def _resolved_imports(path: Path, package: str) -> list[str]:
     """Return absolute module names for every import in *path*.
@@ -72,28 +72,28 @@ def _check(violations: list[str], path: Path, package: str, forbidden: list[str]
 def main() -> int:
     violations: list[str] = []
 
-    # Rule 1: gh_transport must not import any other pipeline module.
+    # Rule 1: gh_transport must not import any other interns module.
     _check(
         violations,
         PIPELINE_SRC / "gh_transport.py",
-        "pipeline",
-        ["pipeline"],
+        "interns",
+        ["interns"],
     )
 
-    # Rule 2: core modules must not import pipeline.entrypoint.
+    # Rule 2: core modules must not import interns.entrypoint.
     core = [
         p for p in PIPELINE_SRC.glob("*.py")
         if p.name not in ("__init__.py", "entrypoint.py")
     ]
     for mod in core:
-        _check(violations, mod, "pipeline", ["pipeline.entrypoint"])
+        _check(violations, mod, "interns", ["interns.entrypoint"])
 
-    # Rule 3: MCP server must not import pipeline.entrypoint or pipeline.ctx.
+    # Rule 3: MCP server must not import interns.entrypoint or interns.ctx.
     _check(
         violations,
         MCP_SERVER,
-        "",  # MCP server is not inside the pipeline package
-        ["pipeline.entrypoint", "pipeline.ctx"],
+        "",  # MCP server is not inside the interns package
+        ["interns.entrypoint", "interns.ctx"],
     )
 
     if violations:

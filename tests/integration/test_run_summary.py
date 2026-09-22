@@ -36,7 +36,7 @@ def run_summary(scenario, *args: str) -> str:
     the calling step, so any non-zero return is itself a bug."""
     step_summary = scenario.dir / "summary.md"
     step_summary.write_text("")
-    result = scenario.run("pipeline.entrypoint", "run-summary", *args,
+    result = scenario.run("interns.entrypoint", "run-summary", *args,
                           env={"GITHUB_STEP_SUMMARY": str(step_summary)})
     assert result.returncode == 0, result.stderr
     return step_summary.read_text()
@@ -319,7 +319,7 @@ def test_unknown_phase_is_a_hard_error(scenario):
     step_summary = scenario.dir / "summary.md"
     step_summary.write_text("")
 
-    result = scenario.run("pipeline.entrypoint", "run-summary",
+    result = scenario.run("interns.entrypoint", "run-summary",
                           "--phase", "Bogus", "--exec-file", ef, "--issue", ISSUE,
                           env={"GITHUB_STEP_SUMMARY": str(step_summary)})
 

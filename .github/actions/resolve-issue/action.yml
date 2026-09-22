@@ -27,4 +27,4 @@ runs:
         GH_TOKEN: ${{ github.token }}
         GITHUB_REPOSITORY: ${{ github.repository }}
       run: |
-        python3 -m pipeline.fetch_issue "${{ inputs.issue_number }}"
+        python3 -m interns.fetch_issue "${{ inputs.issue_number }}"

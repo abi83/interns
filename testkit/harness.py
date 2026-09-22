@@ -2,7 +2,7 @@
 
     scenario = Scenario(tmp_path)
     scenario.gh("pr", "view", stdout='{"labels": []}')     # canned response
-    result = scenario.run("pipeline.apply_verdict", "7", "5")
+    result = scenario.run("interns.apply_verdict", "7", "5")
     assert scenario.pr_label_edits() == [...]
 
 Entrypoints run as real subprocesses with a real env, argv and
@@ -21,12 +21,12 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from pipeline.ctx import ActionsCtx
+from interns.ctx import ActionsCtx
 
 ROOT = Path(__file__).resolve().parents[1]
 FAKE_CLI = Path(__file__).with_name("fake_cli.py")
 MCP_TOOL = Path(__file__).with_name("mcp_tool.py")
-PYTHONPATH = [ROOT / "pipeline/src", ROOT / "installer/src", ROOT / ".github/scripts/gh-issues-mcp"]
+PYTHONPATH = [ROOT / "interns/src", ROOT / "installer/src", ROOT / "mcp"]
 
 REPO = "acme/widgets"
 

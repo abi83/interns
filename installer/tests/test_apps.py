@@ -1,7 +1,7 @@
 import unittest
 from unittest import mock
 
-from pipeline import gh
+from interns import gh
 from interns_install import gh_admin, apps
 from interns_install.apps import (
     APP_PERMISSIONS,

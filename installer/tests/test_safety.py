@@ -4,7 +4,7 @@ from unittest import mock
 
 from interns_install import gh_admin, safety
 from interns_install.console import Console
-from pipeline import gh
+from interns import gh
 from interns_install.safety import (
     _protection_violation,
     check_branch_protection,

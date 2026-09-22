@@ -110,7 +110,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_BODY: ${{ steps.issue.outputs.body }}
-        run: python3 -m pipeline.entrypoint preserve-issue-body --issue "${{ steps.issue.outputs.number }}"
+        run: python3 -m interns.entrypoint preserve-issue-body --issue "${{ steps.issue.outputs.number }}"
 
       # Inlines the actual instructions instead of telling the agent to Read
       # them -- both files are already on disk from "Checkout pipeline
@@ -118,7 +118,7 @@ jobs:
       # guaranteed tool call per file, every run (#98's investigation).
       - name: Load refiner instructions
         id: instructions
-        run: python3 -m pipeline.prompt .interns/.github/prompts/_shared.md .interns/.github/prompts/refine.md
+        run: python3 -m interns.prompt .interns/.github/prompts/_shared.md .interns/.github/prompts/refine.md
 
       # Triage App token, not GITHUB_TOKEN: the apply_refinement_outcome tool
       # writes status:refined, which must trigger the estimate job. GitHub's
@@ -176,7 +176,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
-          python3 -m pipeline.entrypoint report-run
+          python3 -m interns.entrypoint report-run
           --phase Refinement
           --exec-file "${{ steps.claude.outputs.execution_file }}"
           --issue "${{ steps.issue.outputs.number }}"
@@ -186,7 +186,7 @@ jobs:
         continue-on-error: true
         if: always() && steps.claude.outputs.execution_file != ''
         run: >
-          python3 -m pipeline.entrypoint extract-metrics
+          python3 -m interns.entrypoint extract-metrics
           --exec-file "${{ steps.claude.outputs.execution_file }}"
           --job refiner
           --issue "${{ steps.issue.outputs.number }}"
@@ -206,7 +206,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
-          python3 -m pipeline.entrypoint run-summary
+          python3 -m interns.entrypoint run-summary
           --phase Refinement
           --exec-file "${{ steps.claude.outputs.execution_file }}"
           --issue "${{ steps.issue.outputs.number }}"
@@ -217,7 +217,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
-          python3 -m pipeline.entrypoint flag-failure --noun refinement
+          python3 -m interns.entrypoint flag-failure --noun refinement
           --issue "${{ steps.issue.outputs.number }}"
 
   estimate:
@@ -296,7 +296,7 @@ jobs:
       - name: Load estimator instructions
         id: instructions
         if: steps.gate.outputs.skip != 'true'
-        run: python3 -m pipeline.prompt .interns/.github/prompts/_shared.md .interns/.github/prompts/estimate.md
+        run: python3 -m interns.prompt .interns/.github/prompts/_shared.md .interns/.github/prompts/estimate.md
 
       - name: Set up gh-issues MCP server
         if: steps.gate.outputs.skip != 'true'
@@ -341,7 +341,7 @@ jobs:
         if: steps.gate.outputs.skip != 'true' && steps.claude.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python3 -m pipeline.entrypoint spike-advisory --issue "${{ steps.issue.outputs.number }}"
+        run: python3 -m interns.entrypoint spike-advisory --issue "${{ steps.issue.outputs.number }}"
 
       - name: Upload estimator execution log (debug)
         if: steps.gate.outputs.skip != 'true' && inputs.debug == 'true' && always() && steps.claude.outputs.execution_file != ''
@@ -355,7 +355,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
-          python3 -m pipeline.entrypoint report-run
+          python3 -m interns.entrypoint report-run
           --phase Estimation
           --exec-file "${{ steps.claude.outputs.execution_file }}"
           --issue "${{ steps.issue.outputs.number }}"
@@ -365,7 +365,7 @@ jobs:
         continue-on-error: true
         if: always() && steps.claude.outputs.execution_file != ''
         run: >
-          python3 -m pipeline.entrypoint extract-metrics
+          python3 -m interns.entrypoint extract-metrics
           --exec-file "${{ steps.claude.outputs.execution_file }}"
           --job estimator
           --issue "${{ steps.issue.outputs.number }}"
@@ -385,7 +385,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
-          python3 -m pipeline.entrypoint run-summary
+          python3 -m interns.entrypoint run-summary
           --phase Estimation
           --exec-file "${{ steps.claude.outputs.execution_file }}"
           --issue "${{ steps.issue.outputs.number }}"
@@ -396,7 +396,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
-          python3 -m pipeline.entrypoint flag-failure --noun estimation
+          python3 -m interns.entrypoint flag-failure --noun estimation
           --issue "${{ steps.issue.outputs.number }}"
 
   metrics:
@@ -442,4 +442,4 @@ jobs:
             echo "No metrics records produced by this run — nothing to append."
             exit 0
           fi
-          python3 -m pipeline.entrypoint append-metrics "${files[@]}"
+          python3 -m interns.entrypoint append-metrics "${files[@]}"

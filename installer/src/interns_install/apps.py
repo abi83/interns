@@ -10,7 +10,7 @@ from __future__ import annotations
 import webbrowser
 from dataclasses import dataclass
 
-from pipeline import gh
+from interns import gh
 
 from . import gh_admin
 from .console import Console

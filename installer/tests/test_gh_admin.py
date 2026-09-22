@@ -3,7 +3,7 @@ import subprocess
 import unittest
 from unittest.mock import patch
 
-from pipeline import gh_transport
+from interns import gh_transport
 from interns_install import gh_admin
 
 
@@ -31,28 +31,28 @@ class GetFileTests(unittest.TestCase):
     def test_decodes_content(self):
         import base64
         body = json.dumps({"content": base64.b64encode(b"hello").decode()})
-        with patch("pipeline.gh_transport.subprocess.run", return_value=_proc(stdout=body)):
+        with patch("interns.gh_transport.subprocess.run", return_value=_proc(stdout=body)):
             self.assertEqual(gh_admin.get_file("acme/widgets", "README.md", "main"), "hello")
 
     def test_raises_on_missing_content(self):
-        with patch("pipeline.gh_transport.subprocess.run", return_value=_proc(stdout="{}")):
+        with patch("interns.gh_transport.subprocess.run", return_value=_proc(stdout="{}")):
             with self.assertRaises(gh_transport.GhCommandError):
                 gh_admin.get_file("acme/widgets", "README.md", "main")
 
 
 class PathExistsTests(unittest.TestCase):
     def test_true_when_ok(self):
-        with patch("pipeline.gh_transport.subprocess.run", return_value=_proc(stdout='{"content": ""}')):
+        with patch("interns.gh_transport.subprocess.run", return_value=_proc(stdout='{"content": ""}')):
             self.assertTrue(gh_admin.path_exists("acme/widgets", "README.md", "main"))
 
     def test_false_when_missing(self):
         exc = subprocess.CalledProcessError(1, ["gh"], output="", stderr="HTTP 404: Not Found")
-        with patch("pipeline.gh_transport.subprocess.run", side_effect=exc):
+        with patch("interns.gh_transport.subprocess.run", side_effect=exc):
             self.assertFalse(gh_admin.path_exists("acme/widgets", "README.md", "main"))
 
     def test_raises_when_blocked(self):
         exc = subprocess.CalledProcessError(1, ["gh"], output="", stderr="HTTP 403: Forbidden")
-        with patch("pipeline.gh_transport.subprocess.run", side_effect=exc):
+        with patch("interns.gh_transport.subprocess.run", side_effect=exc):
             with self.assertRaises(gh_transport.GhCommandError):
                 gh_admin.path_exists("acme/widgets", "README.md", "main")
 
@@ -65,7 +65,7 @@ class EnsureAvailableTests(unittest.TestCase):
 
     def test_checks_auth_status_when_gh_present(self):
         with patch("interns_install.gh_admin.shutil.which", return_value="/usr/bin/gh"), \
-             patch("pipeline.gh_transport.subprocess.run", return_value=_proc()) as mock_run:
+             patch("interns.gh_transport.subprocess.run", return_value=_proc()) as mock_run:
             gh_admin.ensure_available()
         self.assertEqual(mock_run.call_args[0][0], ["gh", "auth", "status"])
 

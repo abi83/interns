@@ -20,7 +20,7 @@ import argparse
 import sys
 import time
 
-from pipeline import gh
+from interns import gh
 
 from . import gh_admin, install_files, safety
 from .apps import APPS, provision_app, request_install, secret_mutation, write_secret
