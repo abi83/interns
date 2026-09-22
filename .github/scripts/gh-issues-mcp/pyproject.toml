@@ -1,8 +1,0 @@
-[project]
-name = "gh-issues-mcp"
-version = "0.1.0"
-requires-python = ">=3.12"
-dependencies = ["mcp==2.2.0", "interns-pipeline"]
-
-[tool.uv.sources]
-interns-pipeline = { path = "../../../pipeline" }

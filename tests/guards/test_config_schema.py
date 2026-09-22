@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from pipeline import config
+from interns import config
 
 SCHEMA = json.loads((Path(__file__).resolve().parents[2] / ".github/interns.schema.json").read_text())
 PROPERTIES = SCHEMA["properties"]

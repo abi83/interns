@@ -8,8 +8,9 @@ against realistic fake responses rather than hand-written subprocess mocks.
 import json
 
 import pytest
-from pipeline import gh, labels, push
-from pipeline.gh import GhCommandError, InvalidInputError, PushRefusedError
+from interns import gh
+from interns.steps import labels, push
+from interns.gh import GhCommandError, InvalidInputError, PushRefusedError
 
 from testkit.harness import REPO, Scenario
 

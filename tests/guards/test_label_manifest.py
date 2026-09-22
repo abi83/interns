@@ -4,7 +4,8 @@ import json
 import re
 from pathlib import Path
 
-from pipeline import labels, size
+from interns.steps import labels
+from interns import size
 
 MANIFEST = Path(__file__).resolve().parents[2] / ".github/labels.json"
 LIFECYCLE_PREFIXES = ("status:", "pr:")

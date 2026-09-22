@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-PACKAGE = Path(__file__).resolve().parents[2] / "pipeline/src/pipeline"
+PACKAGE = Path(__file__).resolve().parents[2] / "interns/src/interns"
 
 
 def is_default(value: ast.expr | None) -> bool:

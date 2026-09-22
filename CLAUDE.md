@@ -35,6 +35,10 @@ This pipeline runs in any consumer repo. Keep code, comments, and docs free of
 references to specific consumer repos or their issue numbers — refer to "the
 consumer repo" generically.
 
+## Tests
+
+Read [docs/test-guide.md](docs/test-guide.md) before writing any test.
+
 ## Issue tracking
 
 This repo's own work is tracked as GitHub issues. Run `gh issue view <n>`

@@ -1,8 +1,8 @@
 name: setup-pipeline-python
 description: >
-  Set up Python and put pipeline/src (checked out under .interns) on
+  Set up Python and put interns/src (checked out under .interns) on
   PYTHONPATH for every later step in the job -- including composite actions
-  invoked later in the same job that shell out to `python3 -m pipeline...`.
+  invoked later in the same job that shell out to `python3 -m interns...`.
   Requires .interns/ already checked out (see "Checkout pipeline assets" in
   the calling workflow).
 
@@ -14,6 +14,6 @@ runs:
       with:
         python-version: "3.12"
 
-    - name: Add pipeline package to PYTHONPATH
+    - name: Add interns package to PYTHONPATH
       shell: bash
-      run: echo "PYTHONPATH=${{ github.workspace }}/.interns/pipeline/src" >> "$GITHUB_ENV"
+      run: echo "PYTHONPATH=${{ github.workspace }}/.interns/interns/src" >> "$GITHUB_ENV"

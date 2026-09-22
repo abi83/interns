@@ -1,7 +1,7 @@
 import unittest
 from unittest import mock
 
-from pipeline import gh
+from interns import gh
 from interns_install import apps, cli, gh_admin, install_files, safety
 from interns_install.cli import (
     _parse_args,

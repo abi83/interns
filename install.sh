@@ -19,8 +19,8 @@ export INTERNS_REF="${INTERNS_REF:-v0}"
 REPO_URL="git+https://github.com/abi83/interns.git@${INTERNS_REF}"
 SPEC="${REPO_URL}#subdirectory=installer"
 # Pinned to the same ref as the installer: the installer imports its gh client
-# from the pipeline package.
-PIPELINE_SPEC="interns-pipeline @ ${REPO_URL}#subdirectory=pipeline"
+# from the interns package.
+PIPELINE_SPEC="interns @ ${REPO_URL}#subdirectory=interns"
 
 if ! command -v uv >/dev/null 2>&1; then
   echo "bootstrap: installing uv (https://docs.astral.sh/uv/)"

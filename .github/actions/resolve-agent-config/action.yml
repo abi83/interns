@@ -37,4 +37,4 @@ runs:
       # `run:`, same as gate-issue-type -- see that action for why.
       env:
         AGENT: ${{ inputs.agent }}
-      run: python3 -m pipeline.config agent-config "$AGENT" >> "$GITHUB_OUTPUT"
+      run: python3 -m interns.config agent-config "$AGENT" >> "$GITHUB_OUTPUT"

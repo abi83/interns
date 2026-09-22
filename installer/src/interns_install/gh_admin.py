@@ -9,7 +9,7 @@ import json
 import shutil
 from dataclasses import dataclass
 
-from pipeline import gh_transport
+from interns.gh import transport as gh_transport
 
 
 def ensure_available() -> None:

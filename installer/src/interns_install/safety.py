@@ -12,9 +12,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from pipeline import gh
-from pipeline.append_metrics import BRANCH as METRICS_BRANCH
-from pipeline.append_metrics import FILE as METRICS_FILE
+from interns import gh
+from interns.steps.append_metrics import BRANCH as METRICS_BRANCH
+from interns.steps.append_metrics import FILE as METRICS_FILE
 
 from . import gh_admin
 from .console import Console

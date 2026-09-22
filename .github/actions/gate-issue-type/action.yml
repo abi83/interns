@@ -39,4 +39,4 @@ runs:
         ACCEPTED_TYPES: ${{ inputs.accepted_types }}
         REMOVE_STATUS: ${{ inputs.remove_status }}
         REJECT_COMMENT: ${{ inputs.reject_comment }}
-      run: python3 -m pipeline.gate_issue_type "$ISSUE_NUMBER" "$ACCEPTED_TYPES" "$REMOVE_STATUS" "$REJECT_COMMENT"
+      run: python3 -m interns.gate_issue_type "$ISSUE_NUMBER" "$ACCEPTED_TYPES" "$REMOVE_STATUS" "$REJECT_COMMENT"
