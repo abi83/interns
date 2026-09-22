@@ -128,8 +128,9 @@ def test_edit_issue_labels_dispatches_to_pipeline():
 
 def test_edit_issue_labels_noop():
     with patch("server.labels.edit_issue_labels_validated", return_value="Nothing to do") as mock:
-        result = edit_issue_labels(issue_number=7)
-    mock.assert_called_once_with("", 7, add=None, remove=None)
+        with patch.object(server, "_REPO", "owner/repo"):
+            result = edit_issue_labels(issue_number=7)
+    mock.assert_called_once_with("owner/repo", 7, add=None, remove=None)
     assert result == "Nothing to do"
 
 
@@ -151,7 +152,7 @@ def test_open_pr_dispatches_to_pipeline():
             with patch.object(server, "_WORKSPACE", "/workspace"):
                 result = open_pr(issue_number=42, title="feat: add thing", body="Implements the thing")
     mock.assert_called_once_with("owner/repo", "/workspace", 42, "feat: add thing", "Implements the thing")
-    assert "github.com" in result
+    assert result == "https://github.com/owner/repo/pull/1"
 
 
 def test_open_pr_rejects_detached_head():

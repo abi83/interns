@@ -82,7 +82,8 @@ def test_push_branch_rejects_no_commits(_):
 
 @patch("pipeline.push.default_branch", return_value="main")
 def test_push_branch_rejects_protected_workflow_path(_):
-    seq = _git_seq("my-branch", "", "abc123", "def456", "fix: update", "", "", ".github/workflows/ci.yml")
+    # Sequence includes the rollback reset that undoes the squash before raising.
+    seq = _git_seq("my-branch", "", "abc123", "def456", "fix: update", "", "", ".github/workflows/ci.yml", "")
     with patch("pipeline.push.subprocess.run", side_effect=seq):
         with pytest.raises(PushRefusedError, match="protected paths"):
             push_branch(REPO, WORKSPACE)
@@ -90,7 +91,7 @@ def test_push_branch_rejects_protected_workflow_path(_):
 
 @patch("pipeline.push.default_branch", return_value="main")
 def test_push_branch_rejects_protected_scripts_path(_):
-    seq = _git_seq("my-branch", "", "abc123", "def456", "chore: update", "", "", ".github/scripts/foo.py")
+    seq = _git_seq("my-branch", "", "abc123", "def456", "chore: update", "", "", ".github/scripts/foo.py", "")
     with patch("pipeline.push.subprocess.run", side_effect=seq):
         with pytest.raises(PushRefusedError, match="protected paths"):
             push_branch(REPO, WORKSPACE)
