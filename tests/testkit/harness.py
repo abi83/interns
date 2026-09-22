@@ -128,11 +128,14 @@ class Scenario:
         monkeypatch.setenv("FAKE_CLI_DIR", self.env["FAKE_CLI_DIR"])
 
     def _launch(self, command: list[str], env: dict[str, str] | None) -> Result:
+        extra: dict[str, str] = {}
         if os.environ.get("INTERNS_COVERAGE"):
             sources = ",".join(str(path) for path in PYTHONPATH)  # absolute: the config's are relative to ROOT
             command = [sys.executable, "-m", "coverage", "run", "--rcfile", str(ROOT / "pyproject.toml"),
                        f"--source={sources}", *command[1:]]
-        proc = subprocess.run(command, cwd=self.workspace, env={**self.env, **(env or {})},
+            # Write coverage data to ROOT so `coverage combine` finds it (subprocess CWD is a tmp dir).
+            extra["COVERAGE_FILE"] = str(ROOT / ".coverage" / "data")
+        proc = subprocess.run(command, cwd=self.workspace, env={**self.env, **(env or {}), **extra},
                               capture_output=True, text=True, stdin=subprocess.DEVNULL)
         self.assert_all_matched()
         return Result(proc.returncode, proc.stdout, proc.stderr, _parse_github_output(self.github_output.read_text()))
