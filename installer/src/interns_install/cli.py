@@ -187,7 +187,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.skip_handoff and not _workflow_scope_ok(con):
         return 1
-    existing_secrets = gh.list_secret_names(repo.slug)
+    try:
+        existing_secrets = gh.list_secret_names(repo.slug)
+    except gh.GhCommandError:
+        existing_secrets = None
     if not _secrets_scope_ok(con, existing_secrets):
         return 1
 
