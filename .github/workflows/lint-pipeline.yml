@@ -52,6 +52,8 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - name: Unused imports and dead code
         run: uv run --frozen ruff check .
+      - name: Layer import-direction check
+        run: uv run --frozen python tools/check_layers.py
 
   test-unit:
     runs-on: ubuntu-latest
