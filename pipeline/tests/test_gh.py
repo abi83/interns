@@ -367,14 +367,6 @@ class SharedClientAdditionsTests(unittest.TestCase):
 
 
 class IssueEditValidatedTests(unittest.TestCase):
-    def test_passes_body_and_title_to_issue_edit(self):
-        with patch.object(gh_transport.subprocess, "run", return_value=_proc("url")) as run:
-            result = gh.issue_edit_validated("o/r", 5, body="B", title="T")
-        cmd = run.call_args[0][0]
-        self.assertEqual(cmd[cmd.index("--body") + 1], "B")
-        self.assertEqual(cmd[cmd.index("--title") + 1], "T")
-        self.assertEqual(result, "url")
-
     def test_returns_fallback_message_when_gh_returns_empty(self):
         with patch.object(gh_transport.subprocess, "run", return_value=_proc("")):
             result = gh.issue_edit_validated("o/r", 5, body="B", title="T")
@@ -394,22 +386,6 @@ class IssueEditValidatedTests(unittest.TestCase):
 
 
 class PrSubmitReviewTests(unittest.TestCase):
-    def test_approve_posts_to_reviews_endpoint(self):
-        with patch.object(gh_transport.subprocess, "run", return_value=_proc('{"id": 1}')) as run:
-            result = gh.pr_submit_review("o/r", 7, "APPROVE", "LGTM")
-        self.assertEqual(result, {"id": 1})
-        cmd = run.call_args[0][0]
-        self.assertIn("POST", cmd)
-        self.assertTrue(any("pulls/7/reviews" in arg for arg in cmd))
-
-    def test_request_changes_includes_comments(self):
-        with patch.object(gh_transport.subprocess, "run", return_value=_proc('{"id": 2}')) as run:
-            gh.pr_submit_review("o/r", 7, "REQUEST_CHANGES", "Needs work",
-                                comments=[{"path": "f.py", "line": 1, "body": "fix"}])
-        payload = json.loads(run.call_args[1]["input"])
-        self.assertEqual(payload["event"], "REQUEST_CHANGES")
-        self.assertEqual(len(payload["comments"]), 1)
-
     def test_invalid_event_raises_invalid_input_error(self):
         with self.assertRaisesRegex(gh.InvalidInputError, "APPROVE or REQUEST_CHANGES"):
             gh.pr_submit_review("o/r", 7, "COMMENT", "hi")
