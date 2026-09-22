@@ -96,6 +96,17 @@ def test_coder_giving_up_escalates_instead_of_reaching_the_reviewer(scenario):
     assert "declined this task" in body and ".github/workflows/" in body and RUN_URL in body
 
 
+def test_coder_giving_up_before_a_pr_exists_only_touches_the_issue(scenario):
+    (scenario.workspace / ".coder-gave-up.md").write_text("Task is out of scope.\n")
+    scenario.gh("issue", "view", "labels", stdout=labels_payload("status:in-progress"))
+
+    result = scenario.run("pipeline.handle_giveup", ISSUE)
+
+    assert result.outputs == {"gave_up": "true"}
+    assert scenario.label_edits("issue") == [(ISSUE, {"status:needs-attention"}, {"status:in-progress"})]
+    assert scenario.calls("gh", "pr") == []
+
+
 def test_no_give_up_sentinel_leaves_everything_alone(scenario):
     result = scenario.run("pipeline.handle_giveup", ISSUE, PR)
 
@@ -140,6 +151,17 @@ def test_fix_round_crash_tells_the_issue_how_to_redispatch(scenario):
     assert scenario.comments("pr") == []
     (_, body), = scenario.comments("issue")
     assert f"gh workflow run code-pipeline.yml -f phase=coder -f issue_number={ISSUE} -f fix_round=true" in body
+
+
+def test_estimation_crash_with_no_pr_comments_the_issue_directly(scenario):
+    scenario.gh("issue", "view", "labels", stdout=labels_payload("status:refined"))
+
+    result = scenario.run("pipeline.flag_failure", "--noun", "estimation", "--issue", ISSUE)
+
+    assert result.returncode == 0
+    assert scenario.label_edits("issue") == [(ISSUE, {"status:needs-attention"}, set())]
+    assert scenario.comments("issue") == [(ISSUE, f"Automated estimation failed. See the run: {RUN_URL}")]
+    assert scenario.calls("gh", "pr") == []
 
 
 def test_flag_failure_with_no_target_fails(scenario):
