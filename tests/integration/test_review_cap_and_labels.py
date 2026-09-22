@@ -49,7 +49,7 @@ def test_review_cap_accepts_a_precomputed_count_without_refetching(scenario):
                           env={"MAX_AUTOMATIC_REVIEWS_PER_PR": "5"})
 
     assert result.outputs == {"capped": "true"}
-    assert scenario.calls("gh", f"repos/{REPO}/pulls/{PR}/reviews") == []
+    assert scenario.calls("gh", "api") == []
 
 
 def _manifest(path, *labels):

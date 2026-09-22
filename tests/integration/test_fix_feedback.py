@@ -74,7 +74,7 @@ def test_fails_when_the_pr_has_no_changes_requested_review(scenario):
 
     assert result.returncode == 1
     assert f"no CHANGES_REQUESTED review found for PR #{PR}" in result.stderr
-    assert scenario.calls("gh", "repos", "pulls", "comments") == []
+    assert not any("comments" in call[-1] for call in scenario.calls("gh", "api"))
 
 
 def test_fails_fast_when_the_dispatch_has_no_open_pr(scenario):
