@@ -53,8 +53,8 @@ class CheckMetricsBranchTests(unittest.TestCase):
              mock.patch.object(gh_admin, "create_tree", return_value="tree-sha") as create_tree, \
              mock.patch.object(gh_admin, "create_commit", return_value="commit-sha") as create_commit, \
              mock.patch.object(gh_admin, "create_branch") as create_branch, \
-             mock.patch.object(gh_admin.gh, "api_status", return_value=("missing", None)), \
-             mock.patch.object(gh_admin.gh, "api") as api:
+             mock.patch.object(gh_admin.gh_transport, "api_status", return_value=("missing", None)), \
+             mock.patch.object(gh_admin.gh_transport, "api") as api:
             check_metrics_branch(con, _repo())
 
         create_blob.assert_called_once_with("acme/widgets", "")
@@ -72,22 +72,22 @@ class CheckMetricsBranchTests(unittest.TestCase):
         con = Console(assume_yes=True)
         with mock.patch.object(gh_admin, "ref_exists", return_value=True), \
              mock.patch.object(gh_admin, "create_branch") as create_branch, \
-             mock.patch.object(gh_admin.gh, "api_status", return_value=("ok", {})):
+             mock.patch.object(gh_admin.gh_transport, "api_status", return_value=("ok", {})):
             check_metrics_branch(con, _repo())
         create_branch.assert_not_called()
 
     def test_skips_protection_when_already_protected(self):
         con = Console(assume_yes=True)
         with mock.patch.object(gh_admin, "ref_exists", return_value=True), \
-             mock.patch.object(gh_admin.gh, "api_status", return_value=("ok", {"allow_deletions": {"enabled": False}})), \
-             mock.patch.object(gh_admin.gh, "api") as api:
+             mock.patch.object(gh_admin.gh_transport, "api_status", return_value=("ok", {"allow_deletions": {"enabled": False}})), \
+             mock.patch.object(gh_admin.gh_transport, "api") as api:
             check_metrics_branch(con, _repo())
         api.assert_not_called()
 
     def test_blocked_protection_read_raises(self):
         con = Console(assume_yes=True)
         with mock.patch.object(gh_admin, "ref_exists", return_value=True), \
-             mock.patch.object(gh_admin.gh, "api_status", return_value=("blocked", None)):
+             mock.patch.object(gh_admin.gh_transport, "api_status", return_value=("blocked", None)):
             with self.assertRaises(safety.SafetyCheckError):
                 check_metrics_branch(con, _repo())
 
@@ -96,8 +96,8 @@ class CheckMetricsBranchTests(unittest.TestCase):
         with mock.patch.object(gh_admin, "ref_exists", return_value=False), \
              mock.patch.object(gh_admin, "create_blob") as create_blob, \
              mock.patch.object(gh_admin, "create_branch") as create_branch, \
-             mock.patch.object(gh_admin.gh, "api_status", return_value=("missing", None)), \
-             mock.patch.object(gh_admin.gh, "api") as api:
+             mock.patch.object(gh_admin.gh_transport, "api_status", return_value=("missing", None)), \
+             mock.patch.object(gh_admin.gh_transport, "api") as api:
             check_metrics_branch(con, _repo())
         create_blob.assert_not_called()
         create_branch.assert_not_called()
