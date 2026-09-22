@@ -68,13 +68,13 @@ def _main(ctx: ActionsCtx, argv: list[str]) -> int:
     import argparse
 
     parser = argparse.ArgumentParser(prog="pipeline.entrypoint gather-fix-feedback")
-    parser.add_argument("--pr", default="")
+    parser.add_argument("--pr", required=True)
     parser.add_argument("--head-ref", required=True)
     parser.add_argument("--issue", required=True)
     args = parser.parse_args(argv)
 
     if not args.pr:
-        print(f"Error: fix round dispatched but no open PR references issue #{args.issue}", file=sys.stderr)
+        print(f"error: --pr is required (no open PR for issue #{args.issue})", file=sys.stderr)
         return 1
 
     pr = int(args.pr)

@@ -21,6 +21,8 @@ class ActionsCtx:
     step_summary: str
 
     def run_url(self) -> str:
+        if not self.run_id:
+            return ""
         return f"{self.server_url}/{self.repo}/actions/runs/{self.run_id}"
 
     def pr_url(self, number: int) -> str:

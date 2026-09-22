@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from . import gh
+from . import cli, gh
 from .ctx import ActionsCtx
 
 
@@ -98,6 +98,8 @@ def _main(ctx: ActionsCtx, argv: list[str]) -> int:
 
     args = parser.parse_args(argv)
     login = args.login or ctx.reviewer_bot
+    if not login:
+        raise cli.MissingEnvError("REVIEWER_BOT")
     reviews = reviews_by(ctx.repo, args.pr, login)
 
     if args.command == "verdict-for-head":

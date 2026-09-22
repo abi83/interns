@@ -12,8 +12,6 @@ workflow_dispatch is an explicit human override and never calls this module.
 
 from __future__ import annotations
 
-import os
-
 from . import cli, gh, labels, verdict
 from .ctx import ActionsCtx
 
@@ -47,8 +45,7 @@ def _main(ctx: ActionsCtx, argv: list[str]) -> int:
     parser.add_argument("--pr", type=int, required=True)
     parser.add_argument("--count", type=int, default=None,
                         help="skip the review-count fetch and use this instead")
-    parser.add_argument("--max-reviews", type=int,
-                        default=int(os.environ.get("MAX_AUTOMATIC_REVIEWS_PER_PR", "5")))
+    parser.add_argument("--max-reviews", type=int, default=5)
     args = parser.parse_args(argv)
 
     capped = check_cap(ctx.repo, args.pr, ctx.reviewer_bot, args.max_reviews,

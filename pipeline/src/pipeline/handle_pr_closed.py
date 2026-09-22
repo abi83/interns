@@ -16,7 +16,7 @@ from . import cli, gh, labels
 from .ctx import ActionsCtx
 
 
-def handle_pr_closed(repo: str, pr: int, issue: int | None, merged: bool, *, server_url: str = "", run_url: str = "") -> None:
+def handle_pr_closed(repo: str, pr: int, issue: int | None, merged: bool, *, server_url: str, run_url: str) -> None:
     labels.set_pr_pipeline_label(repo, pr)
 
     if issue is None:

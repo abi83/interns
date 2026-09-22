@@ -49,13 +49,13 @@ class MainTests(unittest.TestCase):
     def test_reports_every_failure_not_just_the_first(self):
         with patch("pipeline.safety_checks.gh.list_secret_names", return_value=[]), \
              patch("pipeline.safety_checks.gh.list_variable_names", return_value=[]):
-            status = safety_checks._main(self._ctx())
+            status = safety_checks._main(self._ctx(), [])
         self.assertEqual(status, 1)
 
     def test_all_pass_returns_zero(self):
         with patch("pipeline.safety_checks.gh.list_secret_names", return_value=SECRETS), \
              patch("pipeline.safety_checks.gh.list_variable_names", return_value=VARS):
-            status = safety_checks._main(self._ctx())
+            status = safety_checks._main(self._ctx(), [])
         self.assertEqual(status, 0)
 
     def test_fails_when_gh_token_unset(self):

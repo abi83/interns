@@ -72,7 +72,7 @@ def check_vars(repo: str, required: list[str]) -> list[str]:
     return []
 
 
-def _main(ctx: ActionsCtx) -> int:
+def _main(ctx: ActionsCtx, argv: list[str]) -> int:
     required_secrets = os.environ.get("REQUIRED_SECRETS", " ".join(DEFAULT_REQUIRED_SECRETS)).split()
     required_vars = os.environ.get("REQUIRED_VARS", " ".join(DEFAULT_REQUIRED_VARS)).split()
 

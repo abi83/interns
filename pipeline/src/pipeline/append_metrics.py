@@ -118,7 +118,7 @@ def _main(ctx: ActionsCtx, argv: list[str]) -> int:
     parser.add_argument("files", nargs="+")
     args = parser.parse_args(argv)
 
-    server = ctx.server_url or "https://github.com"
+    server = ctx.server_url
     run_id = ctx.run_id or "unknown"
     remote = f"https://x-access-token:{ctx.token}@{server.removeprefix('https://')}/{ctx.repo}.git"
 

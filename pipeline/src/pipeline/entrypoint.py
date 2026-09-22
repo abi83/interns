@@ -50,7 +50,7 @@ _COMMANDS: dict[str, object] = {
     "labels": labels._main,
     "run-summary": run_summary._main,
     "route-red-checks": route_red_checks._main,
-    "safety-checks": None,  # no argv parameter
+    "safety-checks": safety_checks._main,
     "spike-advisory": spike_advisory._main,
     "sync-labels": sync_labels._main,
     "wait-for-checks": wait_for_checks._main,
@@ -75,14 +75,12 @@ def main(argv: list[str]) -> int:
 
     try:
         ctx = ActionsCtx.from_env()
+        if command == "safety-checks":
+            return safety_checks._main(ctx, rest)
+        return _COMMANDS[command](ctx, rest)
     except cli.MissingEnvError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
-
-    if command == "safety-checks":
-        return safety_checks._main(ctx)
-
-    return _COMMANDS[command](ctx, rest)  # type: ignore[operator]
 
 
 if __name__ == "__main__":
