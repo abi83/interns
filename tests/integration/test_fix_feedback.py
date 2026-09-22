@@ -85,5 +85,5 @@ def test_fails_fast_when_the_dispatch_has_no_open_pr(scenario):
                           "--pr", "", "--head-ref", HEAD_REF, "--issue", ISSUE)
 
     assert result.returncode == 1
-    assert f"no open PR references issue #{ISSUE}" in result.stderr
+    assert f"no open PR for issue #{ISSUE}" in result.stderr
     assert scenario.calls("git") == []

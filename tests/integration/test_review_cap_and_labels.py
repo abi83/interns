@@ -23,8 +23,7 @@ def review(login: str = "reviewer-bot") -> dict:
 def test_review_cap_is_a_noop_below_the_limit(scenario):
     scenario.gh(f"repos/{REPO}/pulls/{PR}/reviews", stdout=[[review(), review()]])
 
-    result = scenario.run("pipeline.entrypoint", "check-review-cap", "--pr", PR,
-                          env={"MAX_AUTOMATIC_REVIEWS_PER_PR": "5"})
+    result = scenario.run("pipeline.entrypoint", "check-review-cap", "--pr", PR)
 
     assert result.outputs == {"capped": "false"}
     assert scenario.calls("gh", "pr", "edit") == []
@@ -36,7 +35,7 @@ def test_review_cap_escalates_once_the_limit_is_reached(scenario):
     scenario.gh("pr", "view", "labels", stdout={"labels": [{"name": "pr:in-review"}]})
 
     result = scenario.run("pipeline.entrypoint", "check-review-cap", "--pr", PR,
-                          env={"MAX_AUTOMATIC_REVIEWS_PER_PR": "2"})
+                          "--max-reviews", "2")
 
     assert result.outputs == {"capped": "true"}
     assert scenario.label_edits("pr") == [(PR, {"pr:needs-attention"}, {"pr:in-review"})]
@@ -47,8 +46,7 @@ def test_review_cap_escalates_once_the_limit_is_reached(scenario):
 def test_review_cap_accepts_a_precomputed_count_without_refetching(scenario):
     scenario.gh("pr", "view", "labels", stdout={"labels": []})
 
-    result = scenario.run("pipeline.entrypoint", "check-review-cap", "--pr", PR, "--count", "5",
-                          env={"MAX_AUTOMATIC_REVIEWS_PER_PR": "5"})
+    result = scenario.run("pipeline.entrypoint", "check-review-cap", "--pr", PR, "--count", "5")
 
     assert result.outputs == {"capped": "true"}
     assert scenario.calls("gh", "api") == []
