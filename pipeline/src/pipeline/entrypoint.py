@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from collections.abc import Callable
 
 from . import cli
 from . import (
@@ -32,7 +33,9 @@ from . import (
 )
 from .ctx import ActionsCtx
 
-_COMMANDS: dict[str, object] = {
+_Command = Callable[[ActionsCtx, list[str]], int]
+
+_COMMANDS: dict[str, _Command] = {
     "fetch-issue": fetch_issue._main,
     "report-run": report_run._main,
     "flag-failure": flag_failure._main,
@@ -75,8 +78,6 @@ def main(argv: list[str]) -> int:
 
     try:
         ctx = ActionsCtx.from_env()
-        if command == "safety-checks":
-            return safety_checks._main(ctx, rest)
         return _COMMANDS[command](ctx, rest)
     except cli.MissingEnvError as exc:
         print(f"error: {exc}", file=sys.stderr)
