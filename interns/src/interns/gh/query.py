@@ -3,8 +3,8 @@ printed for `$(...)` capture or appended to `$GITHUB_OUTPUT`."""
 
 from __future__ import annotations
 
-from . import gh
-from .ctx import ActionsCtx
+from . import ops as gh
+from ..ctx import ActionsCtx
 
 
 def head_ref(repo: str, pr: int) -> str:

@@ -13,8 +13,8 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from interns import gh
-from interns.append_metrics import BRANCH as METRICS_BRANCH
-from interns.append_metrics import FILE as METRICS_FILE
+from interns.steps.append_metrics import BRANCH as METRICS_BRANCH
+from interns.steps.append_metrics import FILE as METRICS_FILE
 
 from . import gh_admin
 from .console import Console

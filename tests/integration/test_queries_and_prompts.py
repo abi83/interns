@@ -94,7 +94,7 @@ def test_resolve_issue_template_uses_the_builtin_skeleton(scenario):
     builtin_dir.mkdir()
     (builtin_dir / "bug.md").write_text("---\nname: Bug\n---\n\n## Description\n\nbody\n\n## Impact\n\nbody\n")
 
-    result = scenario.run("interns.resolve_issue_template", "--builtin-dir", str(builtin_dir),
+    result = scenario.run("interns.steps.resolve_issue_template", "--builtin-dir", str(builtin_dir),
                           "--consumer-dir", str(scenario.workspace / "absent"), "--types", "bug")
 
     assert result.returncode == 0
@@ -109,7 +109,7 @@ def test_resolve_issue_template_prefers_a_consumer_override(scenario):
     (builtin_dir / "bug.md").write_text("## Builtin Only\n")
     (consumer_dir / "bug.md").write_text("## Consumer Heading\n")
 
-    result = scenario.run("interns.resolve_issue_template", "--builtin-dir", str(builtin_dir),
+    result = scenario.run("interns.steps.resolve_issue_template", "--builtin-dir", str(builtin_dir),
                           "--consumer-dir", str(consumer_dir), "--types", "bug")
 
     assert result.returncode == 0
@@ -121,7 +121,7 @@ def test_resolve_issue_template_fails_for_an_unknown_type(scenario):
     builtin_dir = scenario.dir / "builtin"
     builtin_dir.mkdir()
 
-    result = scenario.run("interns.resolve_issue_template", "--builtin-dir", str(builtin_dir),
+    result = scenario.run("interns.steps.resolve_issue_template", "--builtin-dir", str(builtin_dir),
                           "--consumer-dir", str(scenario.workspace / "absent"), "--types", "bug")
 
     assert result.returncode != 0

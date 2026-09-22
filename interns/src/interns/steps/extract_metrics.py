@@ -12,8 +12,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import cli
-from .ctx import ActionsCtx
+from .. import cli
+from ..ctx import ActionsCtx
 
 SCHEMA_VERSION = 1
 JOBS = ("refiner", "estimator", "coder", "reviewer")

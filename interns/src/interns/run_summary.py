@@ -13,7 +13,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from . import best_effort, cli, execution, gh, labels, report_run, verdict
+from . import best_effort, cli, execution, gh, verdict
+from .steps import labels, report_run
 from .ctx import ActionsCtx
 
 

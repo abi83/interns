@@ -10,8 +10,8 @@ from __future__ import annotations
 import subprocess
 import sys
 
-from . import cli, gh, verdict
-from .ctx import ActionsCtx
+from .. import cli, gh, verdict
+from ..ctx import ActionsCtx
 
 
 class NoChangesRequestedReviewError(RuntimeError):

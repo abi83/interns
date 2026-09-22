@@ -31,7 +31,6 @@ data_file = ".coverage/data"
 [tool.coverage.report]
 show_missing = true
 skip_empty = true
-fail_under = 57
 
 [tool.ruff]
 target-version = "py312"

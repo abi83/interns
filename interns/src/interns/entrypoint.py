@@ -5,8 +5,9 @@ from __future__ import annotations
 import sys
 from collections.abc import Callable
 
-from . import cli
-from . import (
+from . import cli, run_summary, verdict
+from .gh import query as gh_query
+from .steps import (
     append_metrics,
     apply_verdict,
     check_review_cap,
@@ -16,7 +17,6 @@ from . import (
     flag_failure,
     gather_fix_feedback,
     gate_issue_type,
-    gh_query,
     handle_giveup,
     handle_pr_closed,
     handoff_to_review,
@@ -24,11 +24,9 @@ from . import (
     preserve_issue_body,
     report_run,
     route_red_checks,
-    run_summary,
     safety_checks,
     spike_advisory,
     sync_labels,
-    verdict,
     wait_for_checks,
 )
 from .ctx import ActionsCtx

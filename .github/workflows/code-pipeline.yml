@@ -382,7 +382,7 @@ jobs:
       - name: Check test/build configuration
         id: build_config
         if: steps.guard.outputs.skip != 'true' && always()
-        run: python3 -m interns.check_build_config "$GITHUB_WORKSPACE"
+        run: python3 -m interns.steps.check_build_config "$GITHUB_WORKSPACE"
 
       - name: Report run cost
         if: steps.guard.outputs.skip != 'true' && always() && (steps.claude_initial.outputs.execution_file != '' || steps.claude_fix.outputs.execution_file != '')

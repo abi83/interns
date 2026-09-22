@@ -13,8 +13,8 @@ import json
 import os
 import sys
 
-from . import gh
-from .ctx import ActionsCtx
+from .. import gh
+from ..ctx import ActionsCtx
 
 
 class ManifestError(ValueError):

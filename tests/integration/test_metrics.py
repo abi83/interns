@@ -149,7 +149,7 @@ def test_append_metrics_requires_a_token(scenario):
 
 
 def test_append_records_retries_on_a_losing_push_race(scenario, monkeypatch):
-    from interns import append_metrics
+    from interns.steps import append_metrics
 
     scenario.activate(monkeypatch)
     record = scenario.dir / "record.json"
@@ -173,7 +173,7 @@ def test_append_metrics_main_reports_the_exhausted_retry_error(scenario, monkeyp
     but through `_main` -- proving the CLI surfaces the library's error message
     and exit code. Patches time.sleep instead of going through subprocess, so
     this doesn't block on real backoff delays."""
-    from interns import append_metrics
+    from interns.steps import append_metrics
 
     scenario.activate(monkeypatch)
     monkeypatch.setattr(append_metrics.time, "sleep", lambda _: None)
@@ -198,7 +198,7 @@ def test_append_metrics_main_reports_the_exhausted_retry_error(scenario, monkeyp
 def test_append_records_retries_on_a_failure_in_an_earlier_plumbing_step(scenario, monkeypatch):
     """The retry loop isn't push-specific: any step in one push attempt --
     here, `git add` -- failing forces the same clean-refetch-and-retry."""
-    from interns import append_metrics
+    from interns.steps import append_metrics
 
     scenario.activate(monkeypatch)
     record = scenario.dir / "record.json"
@@ -218,7 +218,7 @@ def test_append_records_retries_on_a_failure_in_an_earlier_plumbing_step(scenari
 
 
 def test_append_records_is_a_noop_with_no_files(scenario, monkeypatch):
-    from interns import append_metrics
+    from interns.steps import append_metrics
 
     scenario.activate(monkeypatch)
     count = append_metrics.append_records([], remote="https://x@github.example/acme/widgets.git", run_id="4242")

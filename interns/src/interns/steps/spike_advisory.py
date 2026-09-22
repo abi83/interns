@@ -9,8 +9,9 @@ No-op on any other issue type, or a spike not yet estimated.
 
 from __future__ import annotations
 
-from . import gh, labels
-from .ctx import ActionsCtx
+from .. import gh
+from . import labels
+from ..ctx import ActionsCtx
 
 ADVISORY = (
     "This is a spike; no coder picks it up. The estimate above is for your "

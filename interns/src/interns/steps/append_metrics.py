@@ -15,7 +15,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from .ctx import ActionsCtx
+from ..ctx import ActionsCtx
 
 BRANCH = "metrics"
 FILE = "metrics.jsonl"

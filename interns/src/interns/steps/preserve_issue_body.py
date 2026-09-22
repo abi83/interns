@@ -5,8 +5,8 @@ from __future__ import annotations
 
 import os
 
-from . import gh
-from .ctx import ActionsCtx
+from .. import gh
+from ..ctx import ActionsCtx
 
 
 def preserve_issue_body(repo: str, issue: int, body: str) -> None:

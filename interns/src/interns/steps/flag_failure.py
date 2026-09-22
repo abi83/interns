@@ -7,8 +7,9 @@ linking the run.
 from __future__ import annotations
 
 
-from . import cli, gh, labels
-from .ctx import ActionsCtx
+from .. import cli, gh
+from . import labels
+from ..ctx import ActionsCtx
 
 
 def flag_failure(repo: str, noun: str, issue: int | None, pr: int | None, fix_round: bool, *, run_url: str = "") -> None:

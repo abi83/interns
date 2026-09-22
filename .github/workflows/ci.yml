@@ -1,4 +1,4 @@
-name: Lint pipeline
+name: CI
 
 on:
   pull_request:
@@ -58,19 +58,21 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v6
-      - name: Unit tests, contract fixtures, guards — with coverage floor
+      - name: Unit tests — with coverage floor 85%
         run: |
-          uv run --frozen python -m coverage run -m pytest --ignore=tests/integration
+          uv run --frozen python -m coverage run -m pytest interns/tests installer/tests mcp/tests
           uv run --frozen python -m coverage combine
-          uv run --frozen python -m coverage report
+          uv run --frozen python -m coverage report --fail-under=85
+      - name: Guards and contract tests
+        run: uv run --frozen python -m pytest tests/guards tests/contract
 
   test-integration:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v6
-      - name: Integration tests (real entrypoints, fake gh/git) — with coverage floor
+      - name: Integration tests (real entrypoints, fake gh/git) — with coverage floor 57%
         run: |
           uv run --frozen python -m coverage run -m pytest tests/integration
           uv run --frozen python -m coverage combine
-          uv run --frozen python -m coverage report
+          uv run --frozen python -m coverage report --fail-under=57

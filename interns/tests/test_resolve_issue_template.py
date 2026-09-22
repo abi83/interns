@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from interns import resolve_issue_template
+from interns.steps import resolve_issue_template
 
 
 class HeadingsTests(unittest.TestCase):
@@ -82,7 +82,7 @@ class CliTests(unittest.TestCase):
         self.assertIn("type:spike\n## Question to Answer", content)
 
     def test_defaults_types_and_consumer_dir(self):
-        with patch("interns.resolve_issue_template.build_skeleton", return_value="") as build, \
+        with patch("interns.steps.resolve_issue_template.build_skeleton", return_value="") as build, \
              patch.dict(os.environ, {"GITHUB_OUTPUT": "/dev/null"}):
             resolve_issue_template._main(["--builtin-dir", "/tmp/builtin"])
         args = build.call_args[0]

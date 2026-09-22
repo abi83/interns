@@ -8,8 +8,8 @@ when the run produced none.
 from __future__ import annotations
 
 
-from . import cli, execution, gh
-from .ctx import ActionsCtx
+from .. import cli, execution, gh
+from ..ctx import ActionsCtx
 
 
 def format_cost(raw: str | None) -> str:

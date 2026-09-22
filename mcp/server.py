@@ -9,7 +9,8 @@ import pathlib
 from typing import Annotated, Literal
 
 from mcp.server.mcpserver import MCPServer
-from interns import fetch_issue, gh, labels, push
+from interns import gh
+from interns.steps import fetch_issue, labels, push
 from interns.gh import GhCommandError, InvalidInputError, PushRefusedError  # noqa: F401 — re-exported for callers
 from pydantic import BaseModel, Field
 

@@ -17,11 +17,11 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, NamedTuple
 
-from . import best_effort, gh
+from .. import best_effort, gh
 
 if TYPE_CHECKING:
-    from .ctx import ActionsCtx
-from .size import roll_up_size
+    from ..ctx import ActionsCtx
+from ..size import roll_up_size
 
 STATUS_NEEDS_REFINEMENT = "status:needs-refinement"
 STATUS_REFINED = "status:refined"

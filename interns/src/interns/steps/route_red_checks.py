@@ -3,8 +3,9 @@
 
 from __future__ import annotations
 
-from . import cli, gh, labels
-from .ctx import ActionsCtx
+from .. import cli, gh
+from . import labels
+from ..ctx import ActionsCtx
 
 
 def route_red_checks(repo: str, pr: int, issue: int | None, reason: str, *, run_url: str = "") -> None:

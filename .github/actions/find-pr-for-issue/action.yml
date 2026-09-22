@@ -22,4 +22,4 @@ runs:
         GH_TOKEN: ${{ github.token }}
         NUM: ${{ inputs.issue_number }}
       run: |
-        python3 -m interns.gh_query "$GITHUB_REPOSITORY" pr-for-issue "$NUM" >> "$GITHUB_OUTPUT"
+        python3 -m interns.gh.query "$GITHUB_REPOSITORY" pr-for-issue "$NUM" >> "$GITHUB_OUTPUT"

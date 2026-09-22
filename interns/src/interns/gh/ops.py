@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 from urllib.parse import quote
 
-from .gh_transport import (
+from .transport import (
     GhCommandError,
     GhError,
     GhNotInstalledError,

@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 import subprocess
 
-from .gh import GhCommandError, InvalidInputError, PushRefusedError, default_branch, pr_create
+from ..gh import GhCommandError, InvalidInputError, PushRefusedError, default_branch, pr_create
 
 _PROTECTED_PATHS_RE = r"^\.github/(workflows|scripts)/"
 

@@ -3,7 +3,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from interns import cli, extract_metrics
+from interns import cli
+from interns.steps import extract_metrics
 from interns.ctx import ActionsCtx
 
 EXEC_EVENTS = [

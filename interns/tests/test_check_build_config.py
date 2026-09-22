@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from interns import check_build_config
+from interns.steps import check_build_config
 
 
 class IsConfiguredTests(unittest.TestCase):

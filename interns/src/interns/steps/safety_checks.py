@@ -15,8 +15,8 @@ from __future__ import annotations
 import os
 import sys
 
-from . import best_effort, gh
-from .ctx import ActionsCtx
+from .. import best_effort, gh
+from ..ctx import ActionsCtx
 
 DEFAULT_REQUIRED_SECRETS = [
     "CLAUDE_CODE_OAUTH_TOKEN",

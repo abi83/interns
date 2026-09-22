@@ -10,8 +10,9 @@ Invoked by the gate-issue-type composite action.
 
 from __future__ import annotations
 
-from . import cli, gh, labels
-from .ctx import ActionsCtx
+from .. import cli, gh
+from . import labels
+from ..ctx import ActionsCtx
 
 
 def gate(repo: str, issue: int, accepted: list[str], remove_status: str, reject_comment: str) -> bool:

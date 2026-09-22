@@ -12,8 +12,9 @@ Either way, clear any stale pr:* label from the PR.
 
 from __future__ import annotations
 
-from . import cli, gh, labels
-from .ctx import ActionsCtx
+from .. import cli, gh
+from . import labels
+from ..ctx import ActionsCtx
 
 
 def handle_pr_closed(repo: str, pr: int, issue: int | None, merged: bool, *, server_url: str, run_url: str) -> None:

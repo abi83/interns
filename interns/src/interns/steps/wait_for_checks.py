@@ -14,8 +14,8 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 
-from . import cli, config, gh
-from .ctx import ActionsCtx
+from .. import cli, config, gh
+from ..ctx import ActionsCtx
 
 
 @dataclass(frozen=True)

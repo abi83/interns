@@ -1,7 +1,8 @@
 import unittest
 from unittest.mock import patch
 
-from interns import gh, labels
+from interns import gh
+from interns.steps import labels
 
 
 def _labels_response(names: list[str]) -> dict:
@@ -137,12 +138,12 @@ class EditIssueLabelsValidatedTests(unittest.TestCase):
         self.assertEqual(labels.edit_issue_labels_validated("o/r", 7), "Nothing to do")
 
     def test_unknown_add_label_raises(self):
-        with patch("interns.gh.label_list", return_value=[]):
+        with patch("interns.gh.label_names", return_value=[]):
             with self.assertRaisesRegex(gh.InvalidInputError, "don't exist"):
                 labels.edit_issue_labels_validated("o/r", 7, add=["no-such"])
 
     def test_unknown_remove_label_raises(self):
-        with patch("interns.gh.label_list", return_value=[]):
+        with patch("interns.gh.label_names", return_value=[]):
             with self.assertRaisesRegex(gh.InvalidInputError, "don't exist"):
                 labels.edit_issue_labels_validated("o/r", 7, remove=["no-such"])
 

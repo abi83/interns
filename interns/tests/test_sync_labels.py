@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from interns import sync_labels
+from interns.steps import sync_labels
 from testkit.harness import default_ctx
 
 
@@ -24,9 +24,9 @@ class SyncLabelsTests(unittest.TestCase):
         self._tmpdir.cleanup()
 
     def test_creates_every_label_when_the_repo_has_none(self):
-        with patch("interns.sync_labels.gh.label_list", return_value=[]), \
-             patch("interns.sync_labels.gh.label_create") as create, \
-             patch("interns.sync_labels.gh.label_edit") as edit:
+        with patch("interns.steps.sync_labels.gh.label_list", return_value=[]), \
+             patch("interns.steps.sync_labels.gh.label_create") as create, \
+             patch("interns.steps.sync_labels.gh.label_edit") as edit:
             result = sync_labels.sync_labels("acme/widgets", str(self.manifest_path))
         create.assert_any_call("acme/widgets", "status:ready", "0e8a16", "go")
         create.assert_any_call("acme/widgets", "pr:coding", "0e8a16", "on it")
@@ -38,9 +38,9 @@ class SyncLabelsTests(unittest.TestCase):
             {"name": "status:ready", "color": "cccccc", "description": "go"},
             {"name": "pr:coding", "color": "0e8a16", "description": "on it"},
         ]
-        with patch("interns.sync_labels.gh.label_list", return_value=existing), \
-             patch("interns.sync_labels.gh.label_create") as create, \
-             patch("interns.sync_labels.gh.label_edit") as edit:
+        with patch("interns.steps.sync_labels.gh.label_list", return_value=existing), \
+             patch("interns.steps.sync_labels.gh.label_create") as create, \
+             patch("interns.steps.sync_labels.gh.label_edit") as edit:
             result = sync_labels.sync_labels("acme/widgets", str(self.manifest_path))
         edit.assert_called_once_with("acme/widgets", "status:ready", "0e8a16", "go")
         create.assert_not_called()
@@ -51,8 +51,8 @@ class SyncLabelsTests(unittest.TestCase):
             {"name": "status:ready", "color": "0E8A16", "description": "go"},
             {"name": "pr:coding", "color": "0e8a16", "description": "on it"},
         ]
-        with patch("interns.sync_labels.gh.label_list", return_value=existing), \
-             patch("interns.sync_labels.gh.label_edit") as edit:
+        with patch("interns.steps.sync_labels.gh.label_list", return_value=existing), \
+             patch("interns.steps.sync_labels.gh.label_edit") as edit:
             result = sync_labels.sync_labels("acme/widgets", str(self.manifest_path))
         edit.assert_not_called()
         self.assertIn("0 created, 0 updated, 2 unchanged", result)
@@ -63,9 +63,9 @@ class SyncLabelsTests(unittest.TestCase):
             "labels": [{"name": "status:ready", "color": "0e8a16", "description": ""}],
         }))
         existing = [{"name": "status:ready", "color": "0e8a16", "description": None}]
-        with patch("interns.sync_labels.gh.label_list", return_value=existing), \
-             patch("interns.sync_labels.gh.label_create") as create, \
-             patch("interns.sync_labels.gh.label_edit") as edit:
+        with patch("interns.steps.sync_labels.gh.label_list", return_value=existing), \
+             patch("interns.steps.sync_labels.gh.label_create") as create, \
+             patch("interns.steps.sync_labels.gh.label_edit") as edit:
             result = sync_labels.sync_labels("acme/widgets", str(self.manifest_path))
         create.assert_not_called()
         edit.assert_not_called()

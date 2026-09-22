@@ -12,8 +12,9 @@ from __future__ import annotations
 
 import re
 
-from . import cli, gh, labels
-from .ctx import ActionsCtx
+from .. import cli, gh
+from . import labels
+from ..ctx import ActionsCtx
 
 
 def _slug(title: str) -> str:

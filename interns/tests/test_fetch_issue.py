@@ -5,8 +5,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from interns import fetch_issue
-from interns.fetch_issue import Comment, Issue
+from interns.steps import fetch_issue
+from interns.steps.fetch_issue import Comment, Issue
 
 GRAPHQL_RESPONSE = {
     "data": {
@@ -39,7 +39,7 @@ def _issue(body="B", comments=()):
 
 class FetchIssueTests(unittest.TestCase):
     def test_parses_response(self):
-        with patch("interns.fetch_issue.gh.graphql", return_value=GRAPHQL_RESPONSE) as graphql:
+        with patch("interns.steps.fetch_issue.gh.graphql", return_value=GRAPHQL_RESPONSE) as graphql:
             issue = fetch_issue.fetch_issue("owner/repo", 42)
         graphql.assert_called_once_with(fetch_issue._VIEW_QUERY, owner="owner", repo="repo", number=42)
         self.assertEqual(issue.number, 42)
@@ -52,7 +52,7 @@ class FetchIssueTests(unittest.TestCase):
     def test_null_body_and_no_parent(self):
         response = copy.deepcopy(GRAPHQL_RESPONSE)
         response["data"]["repository"]["issue"].update(body=None, parent=None)
-        with patch("interns.fetch_issue.gh.graphql", return_value=response):
+        with patch("interns.steps.fetch_issue.gh.graphql", return_value=response):
             issue = fetch_issue.fetch_issue("owner/repo", 42)
         self.assertEqual(issue.body, "")
         self.assertIsNone(issue.parent)

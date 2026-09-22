@@ -11,7 +11,7 @@ from unittest.mock import patch
 import pytest
 
 import server
-from interns import fetch_issue
+from interns.steps import fetch_issue
 from server import (
     GhCommandError,
     InlineComment,

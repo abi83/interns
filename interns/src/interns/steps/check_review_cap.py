@@ -12,8 +12,9 @@ workflow_dispatch is an explicit human override and never calls this module.
 
 from __future__ import annotations
 
-from . import cli, gh, labels, verdict
-from .ctx import ActionsCtx
+from .. import cli, gh, verdict
+from . import labels
+from ..ctx import ActionsCtx
 
 
 def check_cap(repo: str, pr: int, reviewer_bot: str, max_reviews: int, *, count: int | None = None,

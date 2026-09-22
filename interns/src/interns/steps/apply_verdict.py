@@ -16,8 +16,9 @@ workflow-behaviour constant here, not an execution limit in the config file.
 
 from __future__ import annotations
 
-from . import cli, gh, labels, verdict
-from .ctx import ActionsCtx
+from .. import cli, gh, verdict
+from . import labels
+from ..ctx import ActionsCtx
 
 MAX_FIX_ROUNDS = 1
 

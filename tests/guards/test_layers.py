@@ -65,12 +65,22 @@ def _check(violations: list[str], path: Path, package: str, forbidden: list[str]
 def test_layer_violations() -> None:
     violations: list[str] = []
 
-    _check(violations, INTERNS_SRC / "gh_transport.py", "interns", ["interns"])
+    # Rule 1: transport layer imports no other interns module.
+    _check(violations, INTERNS_SRC / "gh" / "transport.py", "interns.gh", ["interns"])
 
-    core = [p for p in INTERNS_SRC.glob("*.py") if p.name not in ("__init__.py", "entrypoint.py")]
-    for mod in core:
-        _check(violations, mod, "interns", ["interns.entrypoint"])
+    # Rule 2: core modules (flat + steps/ + gh/) must not import interns.entrypoint.
+    flat_core = [p for p in INTERNS_SRC.glob("*.py") if p.name not in ("__init__.py", "entrypoint.py")]
+    steps_core = list((INTERNS_SRC / "steps").glob("*.py"))
+    gh_core = [p for p in (INTERNS_SRC / "gh").glob("*.py") if p.name != "__init__.py"]
+    pkg_map = (
+        [(p, "interns") for p in flat_core]
+        + [(p, "interns.steps") for p in steps_core]
+        + [(p, "interns.gh") for p in gh_core]
+    )
+    for mod, pkg in pkg_map:
+        _check(violations, mod, pkg, ["interns.entrypoint"])
 
+    # Rule 3: MCP server must not import interns.entrypoint or interns.ctx.
     _check(violations, MCP_SERVER, "", ["interns.entrypoint", "interns.ctx"])
 
     assert not violations, "Layer violations:\n" + "\n".join(sorted(violations))

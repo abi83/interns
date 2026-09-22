@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from interns import gather_fix_feedback
+from interns.steps import gather_fix_feedback
 from interns.ctx import ActionsCtx
 from interns.verdict import Review
 
@@ -21,8 +21,8 @@ class BuildFeedbackTextTests(unittest.TestCase):
                 return comments
             return conversation
 
-        with patch("interns.gather_fix_feedback.verdict.all_reviews", return_value=[review]), \
-             patch("interns.gather_fix_feedback.gh.api_all_pages", side_effect=fake_pages):
+        with patch("interns.steps.gather_fix_feedback.verdict.all_reviews", return_value=[review]), \
+             patch("interns.steps.gather_fix_feedback.gh.api_all_pages", side_effect=fake_pages):
             text = gather_fix_feedback.build_feedback_text("acme/widgets", 6)
         self.assertIn("Latest REQUEST_CHANGES review — 2026-01-02T03:04:05Z", text)
         self.assertIn("do the thing", text)
@@ -33,12 +33,12 @@ class BuildFeedbackTextTests(unittest.TestCase):
         reviews = [
             Review(login="somedev", state="APPROVED", commit_id="sha1", id=1, submitted_at="t1", body="lgtm"),
         ]
-        with patch("interns.gather_fix_feedback.verdict.all_reviews", return_value=reviews):
+        with patch("interns.steps.gather_fix_feedback.verdict.all_reviews", return_value=reviews):
             with self.assertRaises(gather_fix_feedback.NoChangesRequestedReviewError):
                 gather_fix_feedback.build_feedback_text("acme/widgets", 6)
 
     def test_raises_when_there_is_no_changes_requested_review(self):
-        with patch("interns.gather_fix_feedback.verdict.all_reviews", return_value=[]):
+        with patch("interns.steps.gather_fix_feedback.verdict.all_reviews", return_value=[]):
             with self.assertRaises(gather_fix_feedback.NoChangesRequestedReviewError):
                 gather_fix_feedback.build_feedback_text("acme/widgets", 6)
 
@@ -50,14 +50,14 @@ class CliTests(unittest.TestCase):
                                reviewer_bot="", step_summary="")
 
     def test_no_pr_returns_failure_without_calling_git(self):
-        with patch("interns.gather_fix_feedback.checkout_branch") as checkout:
+        with patch("interns.steps.gather_fix_feedback.checkout_branch") as checkout:
             rc = gather_fix_feedback._main(self.ctx, ["--pr", "", "--head-ref", "some-branch", "--issue", "5"])
         self.assertEqual(rc, 1)
         checkout.assert_not_called()
 
     def test_no_changes_requested_review_returns_failure(self):
-        with patch("interns.gather_fix_feedback.checkout_branch"), \
-             patch("interns.gather_fix_feedback.build_feedback_text",
+        with patch("interns.steps.gather_fix_feedback.checkout_branch"), \
+             patch("interns.steps.gather_fix_feedback.build_feedback_text",
                    side_effect=gather_fix_feedback.NoChangesRequestedReviewError("no CHANGES_REQUESTED review found for PR #6")):
             rc = gather_fix_feedback._main(self.ctx, ["--pr", "6", "--head-ref", "feature-x", "--issue", "5"])
         self.assertEqual(rc, 1)
@@ -66,8 +66,8 @@ class CliTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             output_file = os.path.join(tmpdir, "output")
             Path(output_file).write_text("")
-            with patch("interns.gather_fix_feedback.checkout_branch") as checkout, \
-                 patch("interns.gather_fix_feedback.build_feedback_text", return_value="## Latest REQUEST_CHANGES review — x"), \
+            with patch("interns.steps.gather_fix_feedback.checkout_branch") as checkout, \
+                 patch("interns.steps.gather_fix_feedback.build_feedback_text", return_value="## Latest REQUEST_CHANGES review — x"), \
                  patch.dict(os.environ, {"GITHUB_OUTPUT": output_file}):
                 rc = gather_fix_feedback._main(self.ctx, ["--pr", "6", "--head-ref", "feature-x", "--issue", "5"])
             self.assertEqual(rc, 0)
@@ -82,8 +82,8 @@ class CliTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             output_file = os.path.join(tmpdir, "output")
             Path(output_file).write_text("")
-            with patch("interns.gather_fix_feedback.checkout_branch"), \
-                 patch("interns.gather_fix_feedback.build_feedback_text",
+            with patch("interns.steps.gather_fix_feedback.checkout_branch"), \
+                 patch("interns.steps.gather_fix_feedback.build_feedback_text",
                        return_value="please fix this:\nghadelim_0000000000000000000000000000000\nthanks"), \
                  patch.dict(os.environ, {"GITHUB_OUTPUT": output_file}):
                 rc = gather_fix_feedback._main(self.ctx, ["--pr", "6", "--head-ref", "feature-x", "--issue", "5"])

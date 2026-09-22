@@ -8,8 +8,9 @@ a human.
 
 from __future__ import annotations
 
-from . import cli, gh, labels
-from .ctx import ActionsCtx
+from .. import cli, gh
+from . import labels
+from ..ctx import ActionsCtx
 
 
 def handoff(repo: str, issue: int, pr: int | None, *, run_url: str = "") -> None:

@@ -8,8 +8,8 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 
-from . import cli, gh
-from .ctx import ActionsCtx
+from .. import cli, gh
+from ..ctx import ActionsCtx
 
 _VIEW_QUERY = """
 query($owner: String!, $repo: String!, $number: Int!) {

@@ -11,7 +11,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from . import cli
+from .. import cli
 
 MARKER = b"INTERNS: not configured"
 
