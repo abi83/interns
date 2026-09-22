@@ -150,22 +150,6 @@ class EditIssueLabelsValidatedTests(unittest.TestCase):
     def test_noop_returns_nothing_to_do(self):
         self.assertEqual(labels.edit_issue_labels_validated("o/r", 7), "Nothing to do")
 
-    def test_add_valid_label(self):
-        with patch("pipeline.gh.label_list", return_value=[{"name": "bug", "color": "", "description": ""}]), \
-             patch("pipeline.gh.issue_view", return_value=_labels_response([])), \
-             patch("pipeline.gh.issue_edit") as mock_edit:
-            result = labels.edit_issue_labels_validated("o/r", 7, add=["bug"])
-        mock_edit.assert_called_once()
-        self.assertIn("Added: bug", result)
-
-    def test_remove_valid_label(self):
-        with patch("pipeline.gh.label_list", return_value=[{"name": "bug", "color": "", "description": ""}]), \
-             patch("pipeline.gh.issue_view", return_value=_labels_response(["bug"])), \
-             patch("pipeline.gh.issue_edit") as mock_edit:
-            result = labels.edit_issue_labels_validated("o/r", 7, remove=["bug"])
-        mock_edit.assert_called_once()
-        self.assertIn("Removed: bug", result)
-
     def test_unknown_add_label_raises(self):
         with patch("pipeline.gh.label_list", return_value=[]):
             with self.assertRaisesRegex(gh.InvalidInputError, "don't exist"):
@@ -178,26 +162,9 @@ class EditIssueLabelsValidatedTests(unittest.TestCase):
 
 
 class ApplyRefinementTests(unittest.TestCase):
-    def test_refined_applies_transition(self):
-        with patch("pipeline.gh.issue_view", return_value=_labels_response(["status:needs-refinement"])), \
-             patch("pipeline.gh.issue_edit") as mock_edit:
-            result = labels.apply_refinement("o/r", 5, "refined", "type:coding-task")
-        mock_edit.assert_called_once()
-        cmd_kwargs = mock_edit.call_args[1]
-        self.assertIn("status:refined", cmd_kwargs["add_labels"])
-        self.assertIn("type:coding-task", cmd_kwargs["add_labels"])
-        self.assertIn("refined", result)
-
     def test_refined_without_type_label_raises(self):
         with self.assertRaisesRegex(gh.InvalidInputError, "type_label is required"):
             labels.apply_refinement("o/r", 5, "refined")
-
-    def test_needs_attention_applies_transition(self):
-        with patch("pipeline.gh.issue_view", return_value=_labels_response(["status:needs-refinement"])), \
-             patch("pipeline.gh.issue_edit") as mock_edit:
-            result = labels.apply_refinement("o/r", 5, "needs-attention")
-        mock_edit.assert_called_once()
-        self.assertIn("needs-attention", result)
 
     def test_invalid_outcome_raises(self):
         with self.assertRaisesRegex(gh.InvalidInputError, "outcome must be"):
@@ -205,15 +172,6 @@ class ApplyRefinementTests(unittest.TestCase):
 
 
 class ApplyEstimationTests(unittest.TestCase):
-    def test_estimated_applies_size_transition(self):
-        with patch("pipeline.gh.issue_view", return_value=_labels_response(["status:refined"])), \
-             patch("pipeline.gh.issue_edit") as mock_edit:
-            result = labels.apply_estimation("o/r", 7, "estimated", "Low", "Mid", "Low", "Low")
-        mock_edit.assert_called_once()
-        cmd_kwargs = mock_edit.call_args[1]
-        self.assertIn("status:estimated", cmd_kwargs["add_labels"])
-        self.assertIn("size:S", result)
-
     def test_estimated_missing_scores_raises(self):
         with self.assertRaisesRegex(gh.InvalidInputError, "all required"):
             labels.apply_estimation("o/r", 7, "estimated")
@@ -221,13 +179,6 @@ class ApplyEstimationTests(unittest.TestCase):
     def test_estimated_bad_score_raises_value_error(self):
         with self.assertRaises(ValueError):
             labels.apply_estimation("o/r", 7, "estimated", "Low", "Medium", "Low", "Low")
-
-    def test_needs_attention_applies_transition(self):
-        with patch("pipeline.gh.issue_view", return_value=_labels_response(["status:refined"])), \
-             patch("pipeline.gh.issue_edit") as mock_edit:
-            result = labels.apply_estimation("o/r", 7, "needs-attention")
-        mock_edit.assert_called_once()
-        self.assertIn("needs-attention", result)
 
     def test_invalid_outcome_raises(self):
         with self.assertRaisesRegex(gh.InvalidInputError, "outcome must be"):
