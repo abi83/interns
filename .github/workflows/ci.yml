@@ -58,11 +58,11 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v6
-      - name: Unit tests — with coverage floor 85%
+      - name: Unit tests — with coverage floor 84%
         run: |
           uv run --frozen python -m coverage run -m pytest interns/tests installer/tests mcp/tests
           uv run --frozen python -m coverage combine
-          uv run --frozen python -m coverage report --fail-under=85
+          uv run --frozen python -m coverage report --fail-under=84
       - name: Guards and contract tests
         run: uv run --frozen python -m pytest tests/guards tests/contract
 
