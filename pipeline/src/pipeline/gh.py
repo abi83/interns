@@ -203,24 +203,21 @@ def pr_create(repo: str, head: str, base: str, title: str, body: str) -> str:
     return proc.stdout.strip()
 
 
-def _paginated_names(path: str, key: str) -> list[str] | None:
+def _paginated_names(path: str, key: str) -> list[str]:
     """Names from every page of a `{key: [...]}` collection endpoint, via
-    `gh api --paginate`. None means the token cannot read it (scope-blind)."""
-    try:
-        proc = run(["api", "-H", "Accept: application/vnd.github+json",
-                     "--paginate", "--jq", f".{key}[].name", path])
-    except GhCommandError:
-        return None
+    `gh api --paginate`. Raises GhCommandError when the token lacks scope."""
+    proc = run(["api", "-H", "Accept: application/vnd.github+json",
+                 "--paginate", "--jq", f".{key}[].name", path])
     return [line for line in proc.stdout.splitlines() if line]
 
 
-def list_secret_names(repo: str) -> list[str] | None:
-    """None means the token cannot read the secret list (scope-blind)."""
+def list_secret_names(repo: str) -> list[str]:
+    """Raises GhCommandError when the token cannot read the secret list."""
     return _paginated_names(f"repos/{repo}/actions/secrets", "secrets")
 
 
-def list_variable_names(repo: str) -> list[str] | None:
-    """None means the token cannot read the variable list (scope-blind)."""
+def list_variable_names(repo: str) -> list[str]:
+    """Raises GhCommandError when the token cannot read the variable list."""
     return _paginated_names(f"repos/{repo}/actions/variables", "variables")
 
 

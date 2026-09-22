@@ -1,11 +1,8 @@
-"""Fail on new `except ...: return <default>` in the pipeline package.
+"""Fail on `except ...: return <default>` anywhere in the pipeline package
+except best_effort.py, which is the one permitted place.
 
-CLAUDE.md: invalid state throws -- no `catch` that swallows and returns a
-default. Non-zero integer returns are exit codes (`return 1`) and don't count;
-`return 0`/`False` swallow.
-Existing sites are grandfathered in GRANDFATHERED; remove an entry when its
-site is fixed, and don't add one -- wire this to the error-handling policy
-once it lands.
+Also fail on best_effort.call() with an empty reason string -- empty reasons
+make the warning useless.
 """
 
 import ast
@@ -14,18 +11,6 @@ from pathlib import Path
 import pytest
 
 PACKAGE = Path(__file__).resolve().parents[2] / "pipeline/src/pipeline"
-
-GRANDFATHERED = {
-    ("execution.py", "result_field"),
-    ("gh.py", "_paginated_names"),
-    ("run_summary.py", "_issue_title"),
-    ("run_summary.py", "_pr_title"),
-    ("run_summary.py", "_pr_head_sha"),
-    ("run_summary.py", "_issue_labels"),
-    ("run_summary.py", "_pr_diff_file_count"),
-    ("run_summary.py", "_coder_fix_state"),
-    ("run_summary.py", "_reviewer_reviews"),
-}
 
 
 def is_default(value: ast.expr | None) -> bool:
@@ -70,11 +55,36 @@ def test_ignores_exit_codes_and_reraises(handler_body):
     assert swallowing_handlers(source) == []
 
 
-def test_no_new_swallowed_errors_in_the_pipeline_package():
+def _best_effort_calls_with_empty_reason(source: str) -> list[int]:
+    """Line numbers of best_effort.call() with an empty reason string."""
+    found = []
+    for node in ast.walk(ast.parse(source)):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if not (isinstance(func, ast.Attribute) and func.attr == "call" and
+                isinstance(func.value, ast.Name) and func.value.id == "best_effort"):
+            continue
+        if node.args and isinstance(node.args[0], ast.Constant) and node.args[0].value == "":
+            found.append(node.lineno)
+    return found
+
+
+def test_no_swallowed_errors_outside_the_mechanism():
     found = {
         (path.name, function)
         for path in PACKAGE.glob("*.py")
+        if path.name != "best_effort.py"
         for function, _ in swallowing_handlers(path.read_text())
     }
-    assert found - GRANDFATHERED == set(), "new `except: return <default>`; raise instead"
-    assert GRANDFATHERED - found == set(), "fixed sites: drop them from GRANDFATHERED"
+    assert found == set(), "new `except: return <default>`; raise instead or use best_effort.call"
+
+
+def test_no_empty_reason_in_best_effort_calls():
+    found = [
+        (path.name, line)
+        for path in PACKAGE.glob("*.py")
+        if path.name != "best_effort.py"
+        for line in _best_effort_calls_with_empty_reason(path.read_text())
+    ]
+    assert found == [], f"best_effort.call with empty reason string: {found}"
