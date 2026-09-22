@@ -27,13 +27,23 @@ from .gh_transport import (
 __all__ = [
     # Error types shared across ops and adapters
     "GhCommandError", "GhError", "GhNotInstalledError",
+    "InvalidInputError", "PushRefusedError",
     # Ops
-    "issue_view", "issue_edit", "issue_list", "issue_comment",
+    "issue_view", "issue_edit", "issue_edit_validated", "issue_list", "issue_comment",
     "pr_view", "pr_list", "pr_edit", "pr_comment", "pr_diff_names", "pr_checks", "pr_create",
+    "pr_submit_review",
     "default_branch", "dispatch_workflow",
     "label_list", "label_names", "label_create", "label_edit",
     "list_secret_names", "list_variable_names",
 ]
+
+
+class InvalidInputError(ValueError):
+    """Caller-supplied arguments are malformed or fail validation."""
+
+
+class PushRefusedError(RuntimeError):
+    """push_branch refused: protected branch, nothing to push, or a protected path."""
 
 
 def _label_flags(add_labels: list[str] | None, remove_labels: list[str] | None) -> list[str]:
@@ -61,6 +71,19 @@ def issue_edit(repo: str, number: int, *, body: str | None = None, title: str | 
         args += ["--title", title]
     args += _label_flags(add_labels, remove_labels)
     return run(args).stdout
+
+
+def issue_edit_validated(repo: str, number: int, *, body: str, title: str | None = None) -> str:
+    """Edit an issue body (and optionally title), with title validation.
+
+    Raises InvalidInputError if title contains newlines.
+    Returns a human-readable success string.
+    """
+    if title is not None and "\n" in title:
+        raise InvalidInputError("Title must be a single line")
+    output = issue_edit(repo, number, body=body, title=title)
+    updated = ["body"] + (["title"] if title is not None else [])
+    return output or f"Updated {' and '.join(updated)} on issue #{number}"
 
 
 def issue_list(repo: str, *, label: str | None = None) -> list[dict]:
@@ -145,6 +168,18 @@ def pr_create(repo: str, head: str, base: str, title: str, body: str) -> str:
     proc = run(["pr", "create", "--repo", repo, "--head", head, "--base", base,
                  "--title", title, "--body", body])
     return proc.stdout.strip()
+
+
+def pr_submit_review(repo: str, pr: int, event: str, body: str,
+                     comments: list[dict] | None = None) -> dict:
+    """Submit a formal PR review atomically. Raises InvalidInputError for unrecognised events."""
+    if event not in ("APPROVE", "REQUEST_CHANGES"):
+        raise InvalidInputError("event must be APPROVE or REQUEST_CHANGES")
+    payload = json.dumps({"event": event, "body": body, "comments": comments or []})
+    result = api(f"repos/{repo}/pulls/{pr}/reviews", method="POST", input_json=payload)
+    if not isinstance(result, dict):
+        raise GhCommandError(f"unexpected response from reviews endpoint: {result!r}")
+    return result
 
 
 def _paginated_names(path: str, key: str) -> list[str]:

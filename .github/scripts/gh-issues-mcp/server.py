@@ -6,39 +6,19 @@ import dataclasses
 import json
 import os
 import pathlib
-import re
-import subprocess
 from typing import Annotated, Literal
 
 from mcp.server.mcpserver import MCPServer
-from pipeline import fetch_issue, gh, labels
-from pipeline.size import roll_up_size
-from pipeline.gh import GhCommandError
+from pipeline import fetch_issue, gh, labels, push
+from pipeline.gh import GhCommandError, InvalidInputError, PushRefusedError  # noqa: F401 — re-exported for callers
 from pydantic import BaseModel, Field
 
 mcp = MCPServer("gh-issues")
 
 _REPO = os.environ.get("GITHUB_REPOSITORY", "")
-# Used as cwd for git operations so they run against the consumer repo, not
-# the server script directory.
 _WORKSPACE = os.environ.get("GITHUB_WORKSPACE", "")
 
 _LABELS_JSON = pathlib.Path(__file__).parent.parent.parent / "labels.json"
-# Agents are not allowed to push changes to these paths.
-_PROTECTED_PATHS_RE = r"^\.github/(workflows|scripts)/"
-
-# ---------------------------------------------------------------------------
-# Exceptions
-# ---------------------------------------------------------------------------
-
-
-class InvalidInputError(ValueError):
-    """Caller-supplied arguments are malformed or fail validation."""
-
-
-class PushRefusedError(RuntimeError):
-    """push_branch refused: protected branch, nothing to push, or a protected path."""
-
 
 # ---------------------------------------------------------------------------
 # Input models
@@ -52,18 +32,8 @@ class InlineComment(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Label description helper (computed once at import)
 # ---------------------------------------------------------------------------
-
-
-def _git(*args: str) -> str:
-    """Run `git` in the consumer workspace; re-raise failures with stderr so
-    agents see why. `gh` calls go through the shared `pipeline.gh` client."""
-    result = subprocess.run(["git", *args], cwd=_WORKSPACE or None, capture_output=True, text=True)
-    if result.returncode != 0:
-        detail = (result.stderr or result.stdout).strip()
-        raise GhCommandError(detail or f"'git' exited {result.returncode}")
-    return result.stdout.strip()
 
 
 def _load_label_names() -> list[str]:
@@ -137,11 +107,7 @@ def edit_issue(
     Always pass the full rewritten body. Pass title only when it needs
     correcting — omit it to leave the existing title in place.
     """
-    if title is not None and "\n" in title:
-        raise InvalidInputError("Title must be a single line")
-    output = gh.issue_edit(_REPO, issue_number, body=body, title=title)
-    updated = ["body"] + (["title"] if title is not None else [])
-    return output or f"Updated {' and '.join(updated)} on issue #{issue_number}"
+    return gh.issue_edit_validated(_REPO, issue_number, body=body, title=title)
 
 
 @mcp.tool()
@@ -155,30 +121,7 @@ def edit_issue_labels(
     Only labels that exist in the repository are accepted. Pass an empty list
     to skip adding or removing.
     """
-    add_labels = add_labels or []
-    remove_labels = remove_labels or []
-    if not add_labels and not remove_labels:
-        return "Nothing to do"
-
-    valid = set(gh.label_names(_REPO))
-
-    unknown_add = [lbl for lbl in add_labels if lbl not in valid]
-    unknown_remove = [lbl for lbl in remove_labels if lbl not in valid]
-    if unknown_add or unknown_remove:
-        msgs = []
-        if unknown_add:
-            msgs.append(f"Labels don't exist, not added: {', '.join(unknown_add)}")
-        if unknown_remove:
-            msgs.append(f"Labels don't exist, not removed: {', '.join(unknown_remove)}")
-        raise InvalidInputError("\n".join(msgs))
-
-    labels.edit_issue_labels_strict(_REPO, issue_number, add=add_labels, remove=remove_labels)
-    parts = []
-    if add_labels:
-        parts.append(f"Added: {', '.join(add_labels)}")
-    if remove_labels:
-        parts.append(f"Removed: {', '.join(remove_labels)}")
-    return "\n".join(parts)
+    return labels.edit_issue_labels_validated(_REPO, issue_number, add=add_labels, remove=remove_labels)
 
 
 # ---------------------------------------------------------------------------
@@ -206,11 +149,7 @@ def open_pr(
     Appends 'Closes #<issue_number>' to the body automatically so the PR is
     linked to the issue via GitHub's closing-reference mechanism.
     """
-    full_body = f"{body}\n\nCloses #{issue_number}"
-    head = _git("rev-parse", "--abbrev-ref", "HEAD")
-    if head == "HEAD":
-        raise GhCommandError("Cannot open a PR from a detached HEAD; check out a branch first")
-    return gh.pr_create(_REPO, head, gh.default_branch(_REPO), title, full_body)
+    return push.pr_open_for_issue(_REPO, _WORKSPACE, issue_number, title, body)
 
 
 @mcp.tool()
@@ -224,11 +163,8 @@ def submit_pr_review(
     ] = None,
 ) -> str:
     """Submit a formal PR review (verdict + optional inline comments) atomically."""
-    if event not in ("APPROVE", "REQUEST_CHANGES"):
-        raise InvalidInputError("event must be APPROVE or REQUEST_CHANGES")
-    payload = {"event": event, "body": body, "comments": [c.model_dump() for c in (comments or [])]}
-    result = gh.api(f"repos/{_REPO}/pulls/{pr_number}/reviews", method="POST", input_json=json.dumps(payload))
-    return json.dumps(result)
+    comment_dicts = [c.model_dump() for c in (comments or [])]
+    return json.dumps(gh.pr_submit_review(_REPO, pr_number, event, body, comment_dicts))
 
 
 # ---------------------------------------------------------------------------
@@ -245,32 +181,7 @@ def push_branch() -> str:
     Squashing happens before the protected-path check so an intermediate-only
     edit to a protected path is collapsed and doesn't trigger a false positive.
     """
-    branch = _git("rev-parse", "--abbrev-ref", "HEAD")
-    if branch in ("main", "master"):
-        raise PushRefusedError(f"Refusing to push {branch} directly")
-
-    default = gh.default_branch(_REPO)
-    _git("fetch", "origin", default, "--quiet")
-    base = _git("merge-base", f"origin/{default}", "HEAD")
-    head = _git("rev-parse", "HEAD")
-
-    if base == head:
-        raise PushRefusedError(f"No commits beyond origin/{default} — nothing to push")
-
-    message = _git("log", "-1", "--format=%B")
-    _git("reset", "--soft", base)
-    _git("commit", "--quiet", "-m", message)
-
-    changed = _git("diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD")
-    protected = [p for p in changed.splitlines() if re.search(_PROTECTED_PATHS_RE, p)]
-    if protected:
-        paths = "\n".join(f"  {p}" for p in protected)
-        raise PushRefusedError(
-            f"Cannot push: changes touch protected paths (drop these edits and push again):\n{paths}"
-        )
-
-    _git("push", "--force-with-lease", "-u", "origin", branch)
-    return f"Branch {branch!r} squashed and pushed to origin"
+    return push.push_branch(_REPO, _WORKSPACE)
 
 
 # ---------------------------------------------------------------------------
@@ -295,17 +206,7 @@ def apply_refinement_outcome(
                     (which triggers the estimate job).
     needs-attention → removes status:needs-refinement, adds status:needs-attention.
     """
-    if outcome == "refined":
-        if type_label is None:
-            raise InvalidInputError("type_label is required when outcome='refined'")
-        transition = labels.refined(type_label)
-    elif outcome == "needs-attention":
-        transition = labels.refinement_needs_attention()
-    else:
-        raise InvalidInputError("outcome must be 'refined' or 'needs-attention'")
-
-    labels.apply_transition(_REPO, issue_number, transition)
-    return f"Refinement outcome '{outcome}' applied to issue #{issue_number}"
+    return labels.apply_refinement(_REPO, issue_number, outcome, type_label)
 
 
 @mcp.tool()
@@ -336,23 +237,9 @@ def apply_estimation_outcome(
                     adds status:estimated and the computed size:* label.
     needs-attention → removes status:refined, adds status:needs-attention.
     """
-    if outcome == "estimated":
-        if None in (blast_radius, touch, human_involvement, review_overhead):
-            raise InvalidInputError(
-                "blast_radius, touch, human_involvement, and review_overhead are all required when outcome='estimated'"
-            )
-        size = roll_up_size(blast_radius, touch, human_involvement, review_overhead)  # type: ignore[arg-type]
-        transition = labels.estimated(size)
-    elif outcome == "needs-attention":
-        transition = labels.estimation_needs_attention()
-    else:
-        raise InvalidInputError("outcome must be 'estimated' or 'needs-attention'")
-
-    labels.apply_transition(_REPO, issue_number, transition)
-
-    if outcome == "estimated":
-        return f"Estimation outcome 'estimated' applied to issue #{issue_number} ({labels.size_label(size)})"
-    return f"Estimation outcome 'needs-attention' applied to issue #{issue_number}"
+    return labels.apply_estimation(
+        _REPO, issue_number, outcome, blast_radius, touch, human_involvement, review_overhead
+    )
 
 
 if __name__ == "__main__":
