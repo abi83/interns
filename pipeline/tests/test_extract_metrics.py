@@ -1,9 +1,7 @@
 import json
-import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 from pipeline import cli, extract_metrics
 from pipeline.ctx import ActionsCtx

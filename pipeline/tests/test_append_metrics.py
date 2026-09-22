@@ -1,12 +1,11 @@
 import json
-import os
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from pipeline import cli, append_metrics
+from pipeline import append_metrics
 from pipeline.ctx import ActionsCtx
 
 
