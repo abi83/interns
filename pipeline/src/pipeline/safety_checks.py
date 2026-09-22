@@ -15,7 +15,7 @@ from __future__ import annotations
 import os
 import sys
 
-from . import cli, gh
+from . import best_effort, cli, gh
 
 DEFAULT_REQUIRED_SECRETS = [
     "CLAUDE_CODE_OAUTH_TOKEN",
@@ -33,10 +33,13 @@ DEFAULT_REQUIRED_VARS = [
 def check_secrets(repo: str, required: list[str]) -> list[str]:
     """Returns failure message(s) -- empty when required secrets are all
     present, or when they can't be listed (a printed warning, not a failure)."""
-    existing = gh.list_secret_names(repo)
+    existing = best_effort.call(
+        f"token lacks secrets read scope; verify {' '.join(required)} manually",
+        gh.GhCommandError,
+        gh.list_secret_names,
+        repo,
+    )
     if existing is None:
-        print(f"safety-checks: WARNING: can't list repo secrets (token lacks the scope) "
-              f"-- verify manually: {' '.join(required)}")
         return []
     missing = [name for name in required if name not in existing]
     if missing:
@@ -50,10 +53,13 @@ def check_secrets(repo: str, required: list[str]) -> list[str]:
 
 def check_vars(repo: str, required: list[str]) -> list[str]:
     """Same as check_secrets, for Actions variables."""
-    existing = gh.list_variable_names(repo)
+    existing = best_effort.call(
+        f"token lacks variables read scope; verify {' '.join(required)} manually",
+        gh.GhCommandError,
+        gh.list_variable_names,
+        repo,
+    )
     if existing is None:
-        print(f"safety-checks: WARNING: can't list repo variables (token lacks the scope) "
-              f"-- verify manually: {' '.join(required)}")
         return []
     missing = [name for name in required if name not in existing]
     if missing:

@@ -2,9 +2,9 @@
 
 Label edits here are best-effort: a transient `gh` failure (rate limit, a
 concurrent edit) shouldn't abort the calling workflow step over a label that a
-later run will just re-set. `_best_effort` is the one place that swallows
-`GhCommandError`, and everything in this module routes through it -- no
-scattered `|| true` / bare `except` with its own judgment call.
+later run will just re-set. Everything routes through `_best_effort`, which
+delegates to `best_effort.call` -- the repo-wide single mechanism that logs a
+warning and continues rather than raising.
 
 That's also what makes the "target label not already present" case cheap:
 every transition reads current labels first and only issues `--add-label` /
@@ -18,7 +18,7 @@ import sys
 from collections.abc import Sequence
 from typing import NamedTuple
 
-from . import cli, gh
+from . import best_effort, cli, gh
 
 STATUS_NEEDS_REFINEMENT = "status:needs-refinement"
 STATUS_REFINED = "status:refined"
@@ -79,10 +79,7 @@ def estimation_needs_attention() -> Transition:
 
 
 def _best_effort(action: str, fn, *args, **kwargs) -> None:
-    try:
-        fn(*args, **kwargs)
-    except gh.GhCommandError as exc:
-        print(f"warning: {action} failed, continuing: {exc}", file=sys.stderr)
+    best_effort.call(action, gh.GhCommandError, fn, *args, **kwargs)
 
 
 def issue_labels(repo: str, issue: int) -> list[str]:

@@ -14,42 +14,31 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from . import actions_env, cli, execution, gh, labels, report_run, verdict
+from . import actions_env, best_effort, cli, execution, gh, labels, report_run, verdict
 
 
-def _issue_title(repo: str, issue: str) -> str:
-    try:
-        return gh.issue_view(repo, int(issue), ["title"])["title"]
-    except gh.GhCommandError:
-        return ""
+def _issue_title(repo: str, issue: str) -> str | None:
+    data = best_effort.call("issue title lookup", gh.GhCommandError, gh.issue_view, repo, int(issue), ["title"])
+    return data["title"] if data is not None else None
 
 
-def _pr_title(repo: str, pr: str) -> str:
-    try:
-        return gh.pr_view(repo, int(pr), ["title"])["title"]
-    except gh.GhCommandError:
-        return ""
+def _pr_title(repo: str, pr: str) -> str | None:
+    data = best_effort.call("PR title lookup", gh.GhCommandError, gh.pr_view, repo, int(pr), ["title"])
+    return data["title"] if data is not None else None
 
 
-def _pr_head_sha(repo: str, pr: str) -> str:
-    try:
-        return gh.pr_view(repo, int(pr), ["headRefOid"])["headRefOid"]
-    except gh.GhCommandError:
-        return ""
+def _pr_head_sha(repo: str, pr: str) -> str | None:
+    data = best_effort.call("PR head SHA lookup", gh.GhCommandError, gh.pr_view, repo, int(pr), ["headRefOid"])
+    return data["headRefOid"] if data is not None else None
 
 
-def _issue_labels(repo: str, issue: str) -> list[str]:
-    try:
-        return labels.issue_labels(repo, int(issue))
-    except gh.GhCommandError:
-        return []
+def _issue_labels(repo: str, issue: str) -> list[str] | None:
+    return best_effort.call("issue labels lookup", gh.GhCommandError, labels.issue_labels, repo, int(issue))
 
 
 def _pr_diff_file_count(repo: str, pr: str) -> int | None:
-    try:
-        return len(gh.pr_diff_names(repo, int(pr)))
-    except gh.GhCommandError:
-        return None
+    names = best_effort.call("PR diff file names", gh.GhCommandError, gh.pr_diff_names, repo, int(pr))
+    return len(names) if names is not None else None
 
 
 def _coder_fix_state(repo: str, pr: str) -> tuple[str, str]:
@@ -57,20 +46,21 @@ def _coder_fix_state(repo: str, pr: str) -> tuple[str, str]:
     check. Counts CHANGES_REQUESTED from any reviewer, not just
     REVIEWER_BOT -- a human can also request changes. ("", "") when the
     review list can't be fetched."""
-    try:
-        reviews = verdict.all_reviews(repo, int(pr))
-    except gh.GhCommandError:
+    reviews = best_effort.call("coder fix reviews", gh.GhCommandError, verdict.all_reviews, repo, int(pr))
+    if reviews is None:
         return "", ""
     changes_requested = [r for r in reviews if r.state == "CHANGES_REQUESTED"]
     last_sha = changes_requested[-1].commit_id if changes_requested else ""
     return str(len(changes_requested)), last_sha
 
 
-def _reviewer_reviews(repo: str, pr: str, reviewer_bot: str) -> list[verdict.Review]:
-    try:
-        return verdict.reviews_by(repo, int(pr), reviewer_bot)
-    except gh.GhCommandError:
-        return []
+def _reviewer_reviews(repo: str, pr: str, reviewer_bot: str) -> list[verdict.Review] | None:
+    return best_effort.call(
+        "reviewer reviews lookup",
+        gh.GhCommandError,
+        verdict.reviews_by,
+        repo, int(pr), reviewer_bot,
+    )
 
 
 def _round_line(round_: str, fix_n: str) -> str:
@@ -131,6 +121,10 @@ def _review_section(repo: str, server_url: str, pr: str, reviewer_bot: str) -> l
     # review against the current head is this run's and isn't a prior round.
     head_sha = _pr_head_sha(repo, pr)
     reviews = _reviewer_reviews(repo, pr, reviewer_bot)
+    if reviews is None:
+        lines.append("**Round:** unavailable")
+        lines.append("**Outcome:** ⚠️ Review lookup failed — see the step log.")
+        return lines
     rc_count = verdict.rounds_requested(reviews, exclude_commit=head_sha)
     if rc_count > 0:
         lines.append(f"**Round:** re-review (after {rc_count} changes-requested)")
@@ -140,7 +134,7 @@ def _review_section(repo: str, server_url: str, pr: str, reviewer_bot: str) -> l
     # A verdict is this run's outcome only if it was submitted against the
     # PR's current head -- otherwise it's a stale review from an earlier
     # round and this run submitted nothing.
-    last_state = verdict.verdict_for_head(reviews, head_sha)
+    last_state = verdict.verdict_for_head(reviews, head_sha or "")
     if last_state == "APPROVED":
         lines.append("**Outcome:** ✅ Approved")
     elif last_state == "CHANGES_REQUESTED":
@@ -157,7 +151,9 @@ def _refinement_section(repo: str, server_url: str, issue: str) -> list[str]:
     lines.append(f"**Issue:** [#{issue}]({server_url}/{repo}/issues/{issue})" + (f" — {title}" if title else ""))
 
     current_labels = _issue_labels(repo, issue)
-    if labels.STATUS_REFINED in current_labels:
+    if current_labels is None:
+        lines.append("**Outcome:** ⚠️ Label lookup failed — see the step log.")
+    elif labels.STATUS_REFINED in current_labels:
         lines.append("**Outcome:** Body refined")
     elif labels.STATUS_NEEDS_ATTENTION in current_labels:
         lines.append("**Outcome:** ⚠️ Stopped for clarification — see the final message below.")
@@ -173,13 +169,16 @@ def _estimation_section(repo: str, server_url: str, issue: str) -> list[str]:
     lines.append(f"**Issue:** [#{issue}]({server_url}/{repo}/issues/{issue})" + (f" — {title}" if title else ""))
 
     current_labels = _issue_labels(repo, issue)
-    size = labels.find_size_label(current_labels)
-    if size:
-        lines.append(f"**Outcome:** Estimate posted — `{size}`")
-    elif labels.STATUS_NEEDS_ATTENTION in current_labels:
-        lines.append("**Outcome:** ⚠️ Stopped for clarification — see the final message below.")
+    if current_labels is None:
+        lines.append("**Outcome:** ⚠️ Label lookup failed — see the step log.")
     else:
-        lines.append("**Outcome:** ⚠️ Ended without an estimate — see the final message below.")
+        size = labels.find_size_label(current_labels)
+        if size:
+            lines.append(f"**Outcome:** Estimate posted — `{size}`")
+        elif labels.STATUS_NEEDS_ATTENTION in current_labels:
+            lines.append("**Outcome:** ⚠️ Stopped for clarification — see the final message below.")
+        else:
+            lines.append("**Outcome:** ⚠️ Ended without an estimate — see the final message below.")
 
     return lines
 

@@ -10,7 +10,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import cli
+from . import best_effort, cli
 
 
 def result_field(exec_file: str | None, field: str) -> str | None:
@@ -25,9 +25,8 @@ def result_field(exec_file: str | None, field: str) -> str | None:
     path = Path(exec_file)
     if not path.is_file():
         return None
-    try:
-        entries = json.loads(path.read_text())
-    except json.JSONDecodeError:
+    entries = best_effort.call("exec log parse", json.JSONDecodeError, json.loads, path.read_text())
+    if entries is None:
         return None
     for entry in entries:
         if entry.get("type") == "result":

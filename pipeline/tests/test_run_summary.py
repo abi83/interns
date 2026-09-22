@@ -1,3 +1,4 @@
+import io
 import os
 import unittest
 from unittest.mock import patch
@@ -54,7 +55,8 @@ class CoderSectionTests(unittest.TestCase):
         def boom(*a, **k):
             raise gh.GhCommandError("rate limited")
         patches = _patch(pr_diff_names=boom)
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], \
+             patch("sys.stderr", io.StringIO()):
             summary = run_summary.build_summary(
                 REPO, SERVER, "Coder", None, issue="42", pr="99", round_="initial",
             )
@@ -107,7 +109,8 @@ class CoderSectionTests(unittest.TestCase):
         def boom(*a, **k):
             raise gh.GhCommandError("rate limited")
         patches = _patch(all_reviews=boom)
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], \
+             patch("sys.stderr", io.StringIO()):
             summary = run_summary.build_summary(
                 REPO, SERVER, "Coder", None, issue="42", pr="99", round_="fix",
             )
@@ -115,6 +118,19 @@ class CoderSectionTests(unittest.TestCase):
 
 
 class ReviewSectionTests(unittest.TestCase):
+    def test_a_failed_review_lookup_shows_outcome_unavailable_and_warns(self):
+        def boom(*a, **k):
+            raise gh.GhCommandError("rate limited")
+        patches = _patch(reviews_by=boom)
+        buf = io.StringIO()
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], \
+             patch("sys.stderr", buf):
+            summary = run_summary.build_summary(
+                REPO, SERVER, "Review", None, pr="99", reviewer_bot="reviewer-app[bot]",
+            )
+        self.assertIn("Review lookup failed", summary)
+        self.assertIn("warning:", buf.getvalue())
+
     def test_approved_verdict(self):
         patches = _patch(
             pr_view=lambda repo, pr, fields: {"title": "feat: widget", "headRefOid": "headsha"},
@@ -180,6 +196,17 @@ class ReviewSectionTests(unittest.TestCase):
 
 
 class RefinementSectionTests(unittest.TestCase):
+    def test_a_failed_label_lookup_shows_outcome_unavailable_and_warns(self):
+        def boom(*a, **k):
+            raise gh.GhCommandError("rate limited")
+        patches = _patch(issue_labels=boom)
+        buf = io.StringIO()
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], \
+             patch("sys.stderr", buf):
+            summary = run_summary.build_summary(REPO, SERVER, "Refinement", None, issue="7")
+        self.assertIn("Label lookup failed", summary)
+        self.assertIn("warning:", buf.getvalue())
+
     def test_body_refined(self):
         patches = _patch(
             issue_view=lambda repo, issue, fields: {"title": "Vague idea"},
@@ -198,6 +225,15 @@ class RefinementSectionTests(unittest.TestCase):
 
 
 class EstimationSectionTests(unittest.TestCase):
+    def test_a_failed_label_lookup_shows_outcome_unavailable(self):
+        def boom(*a, **k):
+            raise gh.GhCommandError("rate limited")
+        patches = _patch(issue_labels=boom)
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], \
+             patch("sys.stderr", io.StringIO()):
+            summary = run_summary.build_summary(REPO, SERVER, "Estimation", None, issue="7")
+        self.assertIn("Label lookup failed", summary)
+
     def test_estimate_posted_with_size_label(self):
         patches = _patch(issue_labels=lambda repo, issue: ["type:coding-task", "status:estimated", "size:M"])
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:

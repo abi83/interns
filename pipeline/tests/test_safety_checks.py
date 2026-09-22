@@ -1,8 +1,9 @@
+import io
 import os
 import unittest
 from unittest.mock import patch
 
-from pipeline import cli, safety_checks
+from pipeline import cli, gh, safety_checks
 
 SECRETS = safety_checks.DEFAULT_REQUIRED_SECRETS
 VARS = safety_checks.DEFAULT_REQUIRED_VARS
@@ -20,7 +21,8 @@ class CheckSecretsTests(unittest.TestCase):
         self.assertIn(f"missing repo secret(s): {' '.join(SECRETS[1:])}", failures[0])
 
     def test_warns_but_does_not_fail_when_secrets_cant_be_listed(self):
-        with patch("pipeline.safety_checks.gh.list_secret_names", return_value=None):
+        with patch("pipeline.safety_checks.gh.list_secret_names", side_effect=gh.GhCommandError("403")), \
+             patch("sys.stderr", io.StringIO()):
             self.assertEqual(safety_checks.check_secrets("acme/widgets", SECRETS), [])
 
 
@@ -32,7 +34,8 @@ class CheckVarsTests(unittest.TestCase):
         self.assertIn(f"missing repo variable(s): {' '.join(VARS[1:])}", failures[0])
 
     def test_warns_but_does_not_fail_when_variables_cant_be_listed(self):
-        with patch("pipeline.safety_checks.gh.list_variable_names", return_value=None):
+        with patch("pipeline.safety_checks.gh.list_variable_names", side_effect=gh.GhCommandError("403")), \
+             patch("sys.stderr", io.StringIO()):
             self.assertEqual(safety_checks.check_vars("acme/widgets", VARS), [])
 
 

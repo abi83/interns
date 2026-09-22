@@ -18,6 +18,8 @@ estimate → code → review), running as GitHub Actions workflows. See
   that — extract a function.
 - **Minimize optional fields.** Don't add one just because one code path
   happens not to set it.
+- **One error-swallowing mechanism.** Failures raise unless routed through
+  `best_effort.call` with a non-empty reason string. No other code swallows.
 
 ## Comments
 
