@@ -1,6 +1,6 @@
 """Admin-scoped `gh` calls used only by the installer: secrets, variables,
 the Git Data API, contents writes, branch protection and Pages. Built on the
-shared transport in `pipeline.gh`."""
+shared transport in `pipeline.gh_transport`."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import json
 import shutil
 from dataclasses import dataclass
 
-from pipeline import gh
+from pipeline import gh_transport as gh
 
 
 def ensure_available() -> None:

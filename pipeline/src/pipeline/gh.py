@@ -1,95 +1,36 @@
-"""Wrapper over the `gh` CLI shared by the pipeline scripts, the gh-issues
-MCP server and the `interns-install` CLI. Installer-only admin calls live in
-`interns_install.gh_admin`."""
+"""Issue/PR/label/review/check operations over the `gh` CLI, shared by the
+pipeline scripts and the gh-issues MCP server. The raw transport layer lives
+in `pipeline.gh_transport`. Installer-only admin calls live in
+`interns_install.gh_admin`.
+
+Error types and transport primitives are re-exported here so callers that do
+`from pipeline import gh; gh.GhCommandError` continue to work."""
 
 from __future__ import annotations
 
 import json
-import subprocess
 from urllib.parse import quote
 
+from .gh_transport import (
+    GhCommandError,
+    GhError,
+    GhNotInstalledError,
+    api,
+    api_all_pages,
+    api_status,
+    graphql,
+    run,
+)
 
-class GhError(RuntimeError):
-    """Base class for all errors raised by this module."""
-
-
-class GhNotInstalledError(GhError):
-    """The `gh` CLI is not installed or not on PATH."""
-
-
-class GhCommandError(GhError):
-    """A `gh` subprocess exited non-zero."""
-
-
-def _subcommand(args: list[str]) -> str:
-    """Leading non-flag tokens of `args` (e.g. `issue edit 5`), so error
-    messages name the command without echoing bodies or query payloads."""
-    tokens = []
-    for arg in args:
-        if arg.startswith("-"):
-            break
-        tokens.append(arg)
-    return " ".join(tokens[:3])
-
-
-def run(args: list[str], *, input_text: str | None = None, check: bool = True) -> subprocess.CompletedProcess:
-    try:
-        return subprocess.run(
-            ["gh", *args],
-            input=input_text,
-            capture_output=True,
-            text=True,
-            check=check,
-        )
-    except FileNotFoundError as exc:
-        raise GhNotInstalledError("the `gh` CLI is not installed or not on PATH") from exc
-    except subprocess.CalledProcessError as exc:
-        detail = (exc.stderr or exc.stdout or "").strip()
-        raise GhCommandError(f"`gh {_subcommand(args)}` failed: {detail}") from exc
-
-
-def api(path: str, *, method: str = "GET", fields: dict[str, str] | None = None,
-        input_json: str | None = None) -> object:
-    args = ["api", "-H", "Accept: application/vnd.github+json", "-X", method, path]
-    for key, value in (fields or {}).items():
-        args += ["-f", f"{key}={value}"]
-    if input_json is not None:
-        args += ["--input", "-"]
-    proc = run(args, input_text=input_json)
-    out = proc.stdout.strip()
-    return json.loads(out) if out else None
-
-
-def graphql(query: str, **variables: str | int) -> dict:
-    """Run a GraphQL query. Variables go as `-F`, so gh types numeric values."""
-    args = ["api", "graphql", "-f", f"query={query}"]
-    for key, value in variables.items():
-        args += ["-F", f"{key}={value}"]
-    return json.loads(run(args).stdout)
-
-
-def api_all_pages(path: str) -> list:
-    """Every item across every page of a paginated array endpoint."""
-    proc = run(["api", "-H", "Accept: application/vnd.github+json", "--paginate", "--slurp", path])
-    pages = json.loads(proc.stdout)
-    items: list = []
-    for page in pages:
-        items.extend(page)
-    return items
-
-
-def api_status(path: str) -> tuple[str, object]:
-    """GET `path`. Returns ("ok", body), ("missing", None) for a 404 (the
-    resource doesn't exist), or ("blocked", None) for a 403 (a token that
-    lacks admin access). Any other failure -- network, auth, 5xx -- raises."""
-    try:
-        return "ok", api(path)
-    except GhCommandError as exc:
-        if "HTTP 404" in str(exc):
-            return "missing", None
-        if "HTTP 403" in str(exc):
-            return "blocked", None
-        raise
+__all__ = [
+    "GhCommandError", "GhError", "GhNotInstalledError",
+    "api", "api_all_pages", "api_status", "graphql", "run",
+    "issue_view", "issue_edit", "issue_list", "issue_comment",
+    "pr_view", "pr_list", "pr_edit", "pr_comment", "pr_diff_names", "pr_checks", "pr_create",
+    "default_branch", "dispatch_workflow",
+    "label_list", "label_names", "label_create", "label_edit",
+    "list_secret_names", "list_variable_names",
+]
 
 
 def _label_flags(add_labels: list[str] | None, remove_labels: list[str] | None) -> list[str]:
