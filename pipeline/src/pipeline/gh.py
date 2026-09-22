@@ -3,8 +3,10 @@ pipeline scripts and the gh-issues MCP server. The raw transport layer lives
 in `pipeline.gh_transport`. Installer-only admin calls live in
 `interns_install.gh_admin`.
 
-Error types and transport primitives are re-exported here so callers that do
-`from pipeline import gh; gh.GhCommandError` continue to work."""
+Error types are re-exported here so callers that catch `gh.GhCommandError`
+continue to work. Transport primitives (run/api/graphql/…) are only
+re-imported for use by this module's own ops functions — patch them at
+`pipeline.gh_transport.*`, not `pipeline.gh.*`."""
 
 from __future__ import annotations
 
@@ -23,8 +25,9 @@ from .gh_transport import (
 )
 
 __all__ = [
+    # Error types shared across ops and adapters
     "GhCommandError", "GhError", "GhNotInstalledError",
-    "api", "api_all_pages", "api_status", "graphql", "run",
+    # Ops
     "issue_view", "issue_edit", "issue_list", "issue_comment",
     "pr_view", "pr_list", "pr_edit", "pr_comment", "pr_diff_names", "pr_checks", "pr_create",
     "default_branch", "dispatch_workflow",

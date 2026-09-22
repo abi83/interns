@@ -10,6 +10,11 @@ from __future__ import annotations
 import json
 import subprocess
 
+__all__ = [
+    "GhError", "GhNotInstalledError", "GhCommandError",
+    "run", "api", "graphql", "api_all_pages", "api_status",
+]
+
 
 class GhError(RuntimeError):
     """Base class for all errors raised by this module."""
