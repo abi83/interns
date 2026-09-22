@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from pipeline import check_review_cap
+from pipeline.ctx import ActionsCtx
 from pipeline.verdict import Review
 
 
@@ -23,8 +24,7 @@ class CheckCapTests(unittest.TestCase):
         reviews = [Review(login="reviewer[bot]", state="CHANGES_REQUESTED", commit_id=f"sha{i}") for i in range(5)]
         with patch("pipeline.check_review_cap.verdict.reviews_by", return_value=reviews), \
              patch("pipeline.check_review_cap.labels.escalate_pr") as escalate, \
-             patch("pipeline.check_review_cap.gh.pr_comment") as comment, \
-             patch("pipeline.check_review_cap.actions_env.run_url", return_value="https://x/runs/1"):
+             patch("pipeline.check_review_cap.gh.pr_comment") as comment:
             capped = check_review_cap.check_cap("acme/widgets", 12, "reviewer[bot]", 5)
         self.assertTrue(capped)
         escalate.assert_called_once_with("acme/widgets", 12)
@@ -36,15 +36,13 @@ class CheckCapTests(unittest.TestCase):
         reviews = [Review(login="reviewer[bot]", state="CHANGES_REQUESTED", commit_id=f"sha{i}") for i in range(7)]
         with patch("pipeline.check_review_cap.verdict.reviews_by", return_value=reviews), \
              patch("pipeline.check_review_cap.labels.escalate_pr"), \
-             patch("pipeline.check_review_cap.gh.pr_comment"), \
-             patch("pipeline.check_review_cap.actions_env.run_url", return_value="https://x/runs/1"):
+             patch("pipeline.check_review_cap.gh.pr_comment"):
             self.assertTrue(check_review_cap.check_cap("acme/widgets", 12, "reviewer[bot]", 5))
 
     def test_a_given_count_skips_the_fetch(self):
         with patch("pipeline.check_review_cap.verdict.reviews_by") as reviews_by, \
              patch("pipeline.check_review_cap.labels.escalate_pr") as escalate, \
-             patch("pipeline.check_review_cap.gh.pr_comment"), \
-             patch("pipeline.check_review_cap.actions_env.run_url", return_value="https://x/runs/1"):
+             patch("pipeline.check_review_cap.gh.pr_comment"):
             capped = check_review_cap.check_cap("acme/widgets", 12, "reviewer[bot]", 5, count=5)
         self.assertTrue(capped)
         reviews_by.assert_not_called()
@@ -52,16 +50,18 @@ class CheckCapTests(unittest.TestCase):
 
 
 class CliTests(unittest.TestCase):
-    def test_writes_capped_output_using_env_defaults(self):
+    def test_writes_capped_output_using_ctx(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             output_file = os.path.join(tmpdir, "output")
             Path(output_file).write_text("")
-            with patch.dict(os.environ, {
-                "GITHUB_REPOSITORY": "acme/widgets", "GITHUB_OUTPUT": output_file, "REVIEWER_BOT": "reviewer[bot]",
-            }, clear=False), \
+            ctx = ActionsCtx(repo="acme/widgets", token="", server_url="", run_id="",
+                             run_attempt=1, workspace=".", event_name="",
+                             reviewer_bot="reviewer[bot]", step_summary="")
+            with patch.dict(os.environ, {"GITHUB_OUTPUT": output_file}), \
                  patch("pipeline.check_review_cap.check_cap", return_value=True) as fn:
-                check_review_cap._main(["12"])
-            fn.assert_called_once_with("acme/widgets", 12, "reviewer[bot]", 5, count=None)
+                check_review_cap._main(ctx, ["--pr", "12"])
+            fn.assert_called_once_with("acme/widgets", 12, "reviewer[bot]", 5, count=None,
+                                        run_url=ctx.run_url())
             self.assertEqual(Path(output_file).read_text(), "capped=true\n")
 
 

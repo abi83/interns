@@ -82,6 +82,7 @@ class Scenario:
             "GITHUB_OUTPUT": str(self.github_output),
             "GITHUB_WORKSPACE": str(self.workspace),
             "REVIEWER_BOT": "reviewer-bot",
+            "GH_TOKEN": "fake-token",
             "HOME": str(tmp_path),
             **{k: v for k, v in os.environ.items() if k == "COVERAGE_FILE"},
         }

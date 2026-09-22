@@ -10,9 +10,8 @@ Invoked by the gate-issue-type composite action.
 
 from __future__ import annotations
 
-import sys
-
 from . import cli, gh, labels
+from .ctx import ActionsCtx
 
 
 def gate(repo: str, issue: int, accepted: list[str], remove_status: str, reject_comment: str) -> bool:
@@ -27,21 +26,18 @@ def gate(repo: str, issue: int, accepted: list[str], remove_status: str, reject_
     return False
 
 
-def _main(argv: list[str]) -> int:
+def _main(ctx: ActionsCtx, argv: list[str]) -> int:
     import argparse
 
-    parser = argparse.ArgumentParser(prog="python -m pipeline.gate_issue_type")
-    parser.add_argument("issue", type=int)
-    parser.add_argument("accepted", help="comma-separated type:* labels the calling job can handle")
-    parser.add_argument("remove_status")
-    parser.add_argument("reject_comment")
+    parser = argparse.ArgumentParser(prog="pipeline.entrypoint gate-issue-type")
+    parser.add_argument("--issue", type=int, required=True)
+    parser.add_argument("--accepted", required=True,
+                        help="comma-separated type:* labels the calling job can handle")
+    parser.add_argument("--remove-status", required=True)
+    parser.add_argument("--reject-comment", required=True)
     args = parser.parse_args(argv)
 
     accepted = [label for label in args.accepted.split(",") if label]
-    ok = gate(cli.require_env("GITHUB_REPOSITORY"), args.issue, accepted, args.remove_status, args.reject_comment)
+    ok = gate(ctx.repo, args.issue, accepted, args.remove_status, args.reject_comment)
     cli.write_output("skip", not ok)
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(cli.run(_main))

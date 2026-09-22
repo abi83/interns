@@ -8,12 +8,11 @@ a human.
 
 from __future__ import annotations
 
-import sys
+from . import cli, gh, labels
+from .ctx import ActionsCtx
 
-from . import actions_env, cli, gh, labels
 
-
-def handoff(repo: str, issue: int, pr: int | None) -> None:
+def handoff(repo: str, issue: int, pr: int | None, *, run_url: str = "") -> None:
     if pr is not None:
         labels.set_pr_pipeline_label(repo, pr, labels.PR_IN_REVIEW)
         return
@@ -22,22 +21,17 @@ def handoff(repo: str, issue: int, pr: int | None) -> None:
         repo, issue,
         "Coder run completed without leaving an open PR referencing this "
         f"issue — likely stopped for clarification or partway through. "
-        f"See the run: {actions_env.run_url(repo)}",
+        f"See the run: {run_url}",
     )
 
 
-def _main(argv: list[str]) -> int:
+def _main(ctx: ActionsCtx, argv: list[str]) -> int:
     import argparse
 
-    parser = argparse.ArgumentParser(prog="python -m pipeline.handoff_to_review")
-    parser.add_argument("issue", type=int)
-    parser.add_argument("pr", nargs="?", default=None)
+    parser = argparse.ArgumentParser(prog="pipeline.entrypoint handoff-to-review")
+    parser.add_argument("--issue", type=int, required=True)
+    parser.add_argument("--pr", default="")
     args = parser.parse_args(argv)
 
-    pr = cli.optional_int(args.pr)
-    handoff(cli.require_env("GITHUB_REPOSITORY"), args.issue, pr)
+    handoff(ctx.repo, args.issue, cli.optional_int(args.pr), run_url=ctx.run_url())
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(cli.run(_main))

@@ -7,10 +7,10 @@ pipeline.check_review_cap -- interns#157) into one place.
 
 from __future__ import annotations
 
-import sys
 from dataclasses import dataclass
 
-from . import cli, gh
+from . import gh
+from .ctx import ActionsCtx
 
 
 @dataclass(frozen=True)
@@ -73,13 +73,12 @@ def rounds_requested(reviews: list[Review], *, exclude_commit: str | None = None
     )
 
 
-def _main(argv: list[str]) -> int:
+def _main(ctx: ActionsCtx, argv: list[str]) -> int:
     import argparse
 
-    parser = argparse.ArgumentParser(prog="python -m pipeline.verdict")
-    parser.add_argument("repo")
-    parser.add_argument("pr", type=int)
-    parser.add_argument("login")
+    parser = argparse.ArgumentParser(prog="pipeline.entrypoint verdict")
+    parser.add_argument("--pr", type=int, required=True)
+    parser.add_argument("--login", default="")
     sub = parser.add_subparsers(dest="command", required=True)
 
     p = sub.add_parser("verdict-for-head")
@@ -98,7 +97,8 @@ def _main(argv: list[str]) -> int:
     p.add_argument("head_sha")
 
     args = parser.parse_args(argv)
-    reviews = reviews_by(args.repo, args.pr, args.login)
+    login = args.login or ctx.reviewer_bot
+    reviews = reviews_by(ctx.repo, args.pr, login)
 
     if args.command == "verdict-for-head":
         print(verdict_for_head(reviews, args.head_sha) or "")
@@ -110,7 +110,3 @@ def _main(argv: list[str]) -> int:
         print(f"verdict={verdict_for_head(reviews, args.head_sha) or ''}")
         print(f"count={len(reviews)}")
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(cli.run(_main))

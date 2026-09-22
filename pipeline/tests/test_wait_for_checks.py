@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from pipeline import wait_for_checks
+from pipeline.ctx import ActionsCtx
 
 
 def chk(name, bucket, run="99"):
@@ -70,14 +71,18 @@ class WaitForChecksTests(unittest.TestCase):
 
 
 class CliTests(unittest.TestCase):
+    def _ctx(self, event_name=""):
+        return ActionsCtx(repo="acme/widgets", token="", server_url="", run_id="42",
+                          run_attempt=1, workspace=".", event_name=event_name,
+                          reviewer_bot="", step_summary="")
+
     def test_workflow_dispatch_skips_the_gate(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             output_file = os.path.join(tmpdir, "output")
             Path(output_file).write_text("")
-            with patch.dict(os.environ, {"GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_OUTPUT": output_file,
-                                          "GITHUB_REPOSITORY": "acme/widgets"}), \
+            with patch.dict(os.environ, {"GITHUB_OUTPUT": output_file}), \
                  patch("pipeline.wait_for_checks.wait_for_checks") as fn:
-                wait_for_checks._main(["5"])
+                wait_for_checks._main(self._ctx(event_name="workflow_dispatch"), ["--pr", "5"])
             fn.assert_not_called()
             self.assertEqual(Path(output_file).read_text(), "ok=true\n")
 
@@ -85,11 +90,11 @@ class CliTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             output_file = os.path.join(tmpdir, "output")
             Path(output_file).write_text("")
-            with patch.dict(os.environ, {"GITHUB_OUTPUT": output_file, "GITHUB_REPOSITORY": "acme/widgets"}), \
+            with patch.dict(os.environ, {"GITHUB_OUTPUT": output_file}), \
                  patch("pipeline.wait_for_checks.config.checks_ignore", return_value=[]), \
                  patch("pipeline.wait_for_checks.config.load_raw", return_value={}), \
                  patch("pipeline.wait_for_checks.wait_for_checks", return_value=(False, "red checks: lint=fail")):
-                wait_for_checks._main(["5"])
+                wait_for_checks._main(self._ctx(), ["--pr", "5"])
             self.assertEqual(Path(output_file).read_text(), "ok=false\nreason=red checks: lint=fail\n")
 
 

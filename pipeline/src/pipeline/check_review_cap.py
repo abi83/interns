@@ -12,12 +12,14 @@ workflow_dispatch is an explicit human override and never calls this module.
 
 from __future__ import annotations
 
-import sys
+import os
 
-from . import actions_env, cli, gh, labels, verdict
+from . import cli, gh, labels, verdict
+from .ctx import ActionsCtx
 
 
-def check_cap(repo: str, pr: int, reviewer_bot: str, max_reviews: int, *, count: int | None = None) -> bool:
+def check_cap(repo: str, pr: int, reviewer_bot: str, max_reviews: int, *, count: int | None = None,
+              run_url: str = "") -> bool:
     """True when the PR is at or over the cap -- escalates and comments in
     that case. False (a no-op) otherwise.
 
@@ -33,27 +35,23 @@ def check_cap(repo: str, pr: int, reviewer_bot: str, max_reviews: int, *, count:
     labels.escalate_pr(repo, pr)
     gh.pr_comment(
         repo, pr,
-        f"Automatic review limit ({max_reviews}) reached — further review is manual. Run: {actions_env.run_url(repo)}",
+        f"Automatic review limit ({max_reviews}) reached — further review is manual. Run: {run_url}",
     )
     return True
 
 
-def _main(argv: list[str]) -> int:
+def _main(ctx: ActionsCtx, argv: list[str]) -> int:
     import argparse
-    import os
 
-    parser = argparse.ArgumentParser(prog="python -m pipeline.check_review_cap")
-    parser.add_argument("pr", type=int)
+    parser = argparse.ArgumentParser(prog="pipeline.entrypoint check-review-cap")
+    parser.add_argument("--pr", type=int, required=True)
     parser.add_argument("--count", type=int, default=None,
-                         help="skip the review-count fetch and use this instead")
+                        help="skip the review-count fetch and use this instead")
+    parser.add_argument("--max-reviews", type=int,
+                        default=int(os.environ.get("MAX_AUTOMATIC_REVIEWS_PER_PR", "5")))
     args = parser.parse_args(argv)
 
-    max_reviews = int(os.environ.get("MAX_AUTOMATIC_REVIEWS_PER_PR", "5"))
-    capped = check_cap(cli.require_env("GITHUB_REPOSITORY"), args.pr, cli.require_env("REVIEWER_BOT"), max_reviews,
-                        count=args.count)
+    capped = check_cap(ctx.repo, args.pr, ctx.reviewer_bot, args.max_reviews,
+                       count=args.count, run_url=ctx.run_url())
     cli.write_output("capped", capped)
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(cli.run(_main))

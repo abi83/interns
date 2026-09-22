@@ -8,12 +8,12 @@ breaking shape change.
 from __future__ import annotations
 
 import json
-import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 from . import cli
+from .ctx import ActionsCtx
 
 SCHEMA_VERSION = 1
 JOBS = ("refiner", "estimator", "coder", "reviewer")
@@ -88,11 +88,11 @@ def _num_or_null(value: str) -> int | None:
     return int(value) if value.isdigit() else None
 
 
-def _main(argv: list[str]) -> int:
+def _main(ctx: ActionsCtx, argv: list[str]) -> int:
     import argparse
 
-    parser = argparse.ArgumentParser(prog="python -m pipeline.extract_metrics")
-    parser.add_argument("exec_file")
+    parser = argparse.ArgumentParser(prog="pipeline.entrypoint extract-metrics")
+    parser.add_argument("--exec-file", required=True)
     parser.add_argument("--job", required=True, choices=JOBS)
     parser.add_argument("--issue", default="")
     parser.add_argument("--pr", default="")
@@ -102,8 +102,8 @@ def _main(argv: list[str]) -> int:
         print(f"extract-metrics: execution file not found: {args.exec_file}", file=sys.stderr)
         return 1
 
-    repo = cli.require_env("GITHUB_REPOSITORY")
-    run_id = int(cli.require_env("GITHUB_RUN_ID"))
+    if not ctx.run_id:
+        raise cli.MissingEnvError("GITHUB_RUN_ID unset")
 
     try:
         record = build_record(
@@ -111,9 +111,9 @@ def _main(argv: list[str]) -> int:
             job=args.job,
             issue=_num_or_null(args.issue),
             pr=_num_or_null(args.pr),
-            repo=repo,
-            run_id=run_id,
-            run_attempt=int(os.environ.get("GITHUB_RUN_ATTEMPT", "1")),
+            repo=ctx.repo,
+            run_id=int(ctx.run_id),
+            run_attempt=ctx.run_attempt,
         )
     except NoResultEventError as exc:
         print(f"extract-metrics: {exc}", file=sys.stderr)
@@ -121,7 +121,3 @@ def _main(argv: list[str]) -> int:
 
     print(json.dumps(record, separators=(",", ":")))
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(cli.run(_main))

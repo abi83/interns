@@ -3,10 +3,8 @@ printed for `$(...)` capture or appended to `$GITHUB_OUTPUT`."""
 
 from __future__ import annotations
 
-import argparse
-import sys
-
-from . import cli, gh
+from . import gh
+from .ctx import ActionsCtx
 
 
 def head_ref(repo: str, pr: int) -> str:
@@ -34,15 +32,17 @@ def pr_for_issue(repo: str, issue: int) -> dict[str, str]:
     return {"pr_number": "", "head_ref": ""}
 
 
-def _main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(prog="python -m pipeline.gh_query")
-    parser.add_argument("repo")
-    parser.add_argument("query", choices=["head-ref", "head-sha", "closing-issue", "pr-for-issue"])
-    parser.add_argument("number", type=int)
+def _main(ctx: ActionsCtx, argv: list[str]) -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(prog="pipeline.entrypoint gh-query")
+    parser.add_argument("--query", required=True,
+                        choices=["head-ref", "head-sha", "closing-issue", "pr-for-issue"])
+    parser.add_argument("--number", type=int, required=True)
     args = parser.parse_args(argv)
 
     if args.query == "pr-for-issue":
-        for key, value in pr_for_issue(args.repo, args.number).items():
+        for key, value in pr_for_issue(ctx.repo, args.number).items():
             print(f"{key}={value}")
         return 0
     handlers = {
@@ -50,9 +50,5 @@ def _main(argv: list[str]) -> int:
         "head-sha": head_sha,
         "closing-issue": closing_issue,
     }
-    print(handlers[args.query](args.repo, args.number))
+    print(handlers[args.query](ctx.repo, args.number))
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(cli.run(_main))

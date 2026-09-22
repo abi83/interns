@@ -31,7 +31,8 @@ def test_extract_metrics_builds_a_record_from_the_result_event(scenario):
          "modelUsage": {"claude": {"inputTokens": 10, "outputTokens": 5, "costUSD": 0.01}}},
     ]))
 
-    result = scenario.run("pipeline.extract_metrics", str(exec_file), "--job", "coder", "--issue", "7", "--pr", "12")
+    result = scenario.run("pipeline.entrypoint", "extract-metrics",
+                          "--exec-file", str(exec_file), "--job", "coder", "--issue", "7", "--pr", "12")
 
     assert result.returncode == 0
     record = json.loads(result.stdout)
@@ -46,7 +47,8 @@ def test_extract_metrics_treats_missing_issue_and_pr_as_null(scenario):
     exec_file = scenario.dir / "execution.json"
     exec_file.write_text(json.dumps([{"type": "result", "session_id": "sess-1"}]))
 
-    result = scenario.run("pipeline.extract_metrics", str(exec_file), "--job", "estimator")
+    result = scenario.run("pipeline.entrypoint", "extract-metrics",
+                          "--exec-file", str(exec_file), "--job", "estimator")
 
     assert result.returncode == 0
     record = json.loads(result.stdout)
@@ -54,7 +56,8 @@ def test_extract_metrics_treats_missing_issue_and_pr_as_null(scenario):
 
 
 def test_extract_metrics_fails_when_the_execution_file_is_missing(scenario):
-    result = scenario.run("pipeline.extract_metrics", str(scenario.dir / "absent.json"), "--job", "coder")
+    result = scenario.run("pipeline.entrypoint", "extract-metrics",
+                          "--exec-file", str(scenario.dir / "absent.json"), "--job", "coder")
 
     assert result.returncode == 1
     assert "execution file not found" in result.stderr
@@ -64,7 +67,8 @@ def test_extract_metrics_fails_when_there_is_no_result_event(scenario):
     exec_file = scenario.dir / "execution.json"
     exec_file.write_text(json.dumps([{"type": "system"}]))
 
-    result = scenario.run("pipeline.extract_metrics", str(exec_file), "--job", "coder")
+    result = scenario.run("pipeline.entrypoint", "extract-metrics",
+                          "--exec-file", str(exec_file), "--job", "coder")
 
     assert result.returncode == 1
     assert "no result event" in result.stderr
@@ -74,7 +78,8 @@ def test_extract_metrics_treats_a_truncated_file_the_same_as_no_result_event(sce
     exec_file = scenario.dir / "execution.json"
     exec_file.write_text('[{"type": "result", "session_id": "sess-1"')  # killed mid-write
 
-    result = scenario.run("pipeline.extract_metrics", str(exec_file), "--job", "coder")
+    result = scenario.run("pipeline.entrypoint", "extract-metrics",
+                          "--exec-file", str(exec_file), "--job", "coder")
 
     assert result.returncode == 1
     assert "no result event" in result.stderr
@@ -87,7 +92,7 @@ def _record(path, **fields):
 
 
 def test_append_metrics_fails_validation_before_touching_git(scenario):
-    result = scenario.run("pipeline.append_metrics", str(scenario.dir / "absent.json"),
+    result = scenario.run("pipeline.entrypoint", "append-metrics", str(scenario.dir / "absent.json"),
                           env={"GH_TOKEN": "tok"})
 
     assert result.returncode == 1
@@ -99,7 +104,7 @@ def test_append_metrics_fails_validation_on_invalid_json(scenario):
     record = scenario.dir / "record.json"
     record.write_text("not json")
 
-    result = scenario.run("pipeline.append_metrics", str(record), env={"GH_TOKEN": "tok"})
+    result = scenario.run("pipeline.entrypoint", "append-metrics", str(record), env={"GH_TOKEN": "tok"})
 
     assert result.returncode == 1
     assert "not a JSON object" in result.stderr
@@ -110,7 +115,7 @@ def test_append_metrics_fails_validation_on_a_valid_but_non_object_json_value(sc
     record = scenario.dir / "record.json"
     record.write_text("[1, 2, 3]")  # valid JSON, but not the single record object expected
 
-    result = scenario.run("pipeline.append_metrics", str(record), env={"GH_TOKEN": "tok"})
+    result = scenario.run("pipeline.entrypoint", "append-metrics", str(record), env={"GH_TOKEN": "tok"})
 
     assert result.returncode == 1
     assert "not a JSON object" in result.stderr
@@ -124,7 +129,7 @@ def test_append_metrics_pushes_once_on_the_first_try(scenario):
         scenario.git(cmd)
     scenario.git("add")
 
-    result = scenario.run("pipeline.append_metrics", str(record), env={"GH_TOKEN": "tok"})
+    result = scenario.run("pipeline.entrypoint", "append-metrics", str(record), env={"GH_TOKEN": "tok"})
 
     assert result.returncode == 0
     assert "appended 1 record(s)" in result.stdout
@@ -136,7 +141,7 @@ def test_append_metrics_requires_a_token(scenario):
     record = scenario.dir / "record.json"
     _record(record, job="coder")
 
-    result = scenario.run("pipeline.append_metrics", str(record), env={"GH_TOKEN": ""})
+    result = scenario.run("pipeline.entrypoint", "append-metrics", str(record), env={"GH_TOKEN": ""})
 
     assert result.returncode == 1
     assert "GH_TOKEN unset" in result.stderr
@@ -172,17 +177,17 @@ def test_append_metrics_main_reports_the_exhausted_retry_error(scenario, monkeyp
 
     scenario.activate(monkeypatch)
     monkeypatch.setattr(append_metrics.time, "sleep", lambda _: None)
-    monkeypatch.setenv("GH_TOKEN", "tok")
-    monkeypatch.setenv("GITHUB_REPOSITORY", REPO)
-    monkeypatch.setenv("GITHUB_RUN_ID", "4242")
+    from pipeline.ctx import ActionsCtx
     record = scenario.dir / "record.json"
     _record(record, job="coder", session_id="s1")
     for cmd in ("init", "config", "remote"):
         scenario.git(cmd)
     scenario.git("add")
     scenario.git("push", code=1)
+    ctx = ActionsCtx(repo=REPO, token="tok", server_url="https://github.example", run_id="4242",
+                     run_attempt=1, workspace=".", event_name="", reviewer_bot="", step_summary="")
 
-    exit_code = append_metrics._main([str(record)])
+    exit_code = append_metrics._main(ctx, [str(record)])
 
     assert exit_code == 1
     err = capsys.readouterr().err

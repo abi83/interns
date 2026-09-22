@@ -15,7 +15,8 @@ from __future__ import annotations
 import os
 import sys
 
-from . import best_effort, cli, gh
+from . import best_effort, gh
+from .ctx import ActionsCtx
 
 DEFAULT_REQUIRED_SECRETS = [
     "CLAUDE_CODE_OAUTH_TOKEN",
@@ -71,14 +72,11 @@ def check_vars(repo: str, required: list[str]) -> list[str]:
     return []
 
 
-def _main() -> int:
-    repo = cli.require_env("GITHUB_REPOSITORY")
-    cli.require_env("GH_TOKEN")
-
+def _main(ctx: ActionsCtx) -> int:
     required_secrets = os.environ.get("REQUIRED_SECRETS", " ".join(DEFAULT_REQUIRED_SECRETS)).split()
     required_vars = os.environ.get("REQUIRED_VARS", " ".join(DEFAULT_REQUIRED_VARS)).split()
 
-    failures = check_secrets(repo, required_secrets) + check_vars(repo, required_vars)
+    failures = check_secrets(ctx.repo, required_secrets) + check_vars(ctx.repo, required_vars)
 
     if failures:
         print(file=sys.stderr)
@@ -86,7 +84,3 @@ def _main() -> int:
         return 1
     print("safety-checks: all safety checks passed")
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(_main())

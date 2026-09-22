@@ -14,11 +14,11 @@ absent label -- which `gh` would reject -- never happens in the first place.
 
 from __future__ import annotations
 
-import sys
 from collections.abc import Sequence
 from typing import NamedTuple
 
-from . import best_effort, cli, gh
+from . import best_effort, gh
+from .ctx import ActionsCtx
 from .size import roll_up_size
 
 STATUS_NEEDS_REFINEMENT = "status:needs-refinement"
@@ -232,11 +232,10 @@ def apply_estimation(
     raise gh.InvalidInputError("outcome must be 'estimated' or 'needs-attention'")
 
 
-def _main(argv: list[str]) -> int:
+def _main(ctx: ActionsCtx, argv: list[str]) -> int:
     import argparse
 
-    parser = argparse.ArgumentParser(prog="python -m pipeline.labels")
-    parser.add_argument("repo")
+    parser = argparse.ArgumentParser(prog="pipeline.entrypoint labels")
     sub = parser.add_subparsers(dest="command", required=True)
 
     p = sub.add_parser("issue-labels")
@@ -264,19 +263,15 @@ def _main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "issue-labels":
-        print(",".join(issue_labels(args.repo, args.issue)))
+        print(",".join(issue_labels(ctx.repo, args.issue)))
     elif args.command == "pr-labels":
-        print(",".join(pr_labels(args.repo, args.pr)))
+        print(",".join(pr_labels(ctx.repo, args.pr)))
     elif args.command == "set-issue-status":
-        set_issue_status(args.repo, args.issue, args.target)
+        set_issue_status(ctx.repo, args.issue, args.target)
     elif args.command == "edit-issue-labels":
-        edit_issue_labels(args.repo, args.issue, add=args.add, remove=args.remove)
+        edit_issue_labels(ctx.repo, args.issue, add=args.add, remove=args.remove)
     elif args.command == "set-pr-label":
-        set_pr_pipeline_label(args.repo, args.pr, args.target)
+        set_pr_pipeline_label(ctx.repo, args.pr, args.target)
     elif args.command == "escalate-pr":
-        escalate_pr(args.repo, args.pr)
+        escalate_pr(ctx.repo, args.pr)
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(cli.run(_main))

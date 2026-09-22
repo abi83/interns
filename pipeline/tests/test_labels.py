@@ -133,16 +133,22 @@ class EscalatePrTests(unittest.TestCase):
 
 
 class CliTests(unittest.TestCase):
+    def setUp(self):
+        from pipeline.ctx import ActionsCtx
+        self.ctx = ActionsCtx(repo="o/r", token="", server_url="", run_id="",
+                               run_attempt=1, workspace=".", event_name="",
+                               reviewer_bot="", step_summary="")
+
     def test_issue_labels_prints_csv(self):
         with patch("pipeline.gh.issue_view", return_value=_labels_response(["a", "b"])), \
              patch("sys.stdout") as mock_stdout:
-            labels._main(["o/r", "issue-labels", "7"])
+            labels._main(self.ctx, ["issue-labels", "7"])
         mock_stdout.write.assert_any_call("a,b")
 
     def test_set_pr_label_with_no_target(self):
         with patch("pipeline.gh.pr_view", return_value=_labels_response(["pr:coding"])), \
              patch("pipeline.gh.pr_edit") as mock_edit:
-            labels._main(["o/r", "set-pr-label", "3"])
+            labels._main(self.ctx, ["set-pr-label", "3"])
         mock_edit.assert_called_once_with("o/r", 3, add_labels=[], remove_labels=["pr:coding"])
 
 

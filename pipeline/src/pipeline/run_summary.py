@@ -11,10 +11,10 @@ to a plain line instead.
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
-from . import actions_env, best_effort, cli, execution, gh, labels, report_run, verdict
+from . import best_effort, cli, execution, gh, labels, report_run, verdict
+from .ctx import ActionsCtx
 
 
 def _issue_title(repo: str, issue: str) -> str | None:
@@ -98,11 +98,11 @@ def _coder_section(repo: str, server_url: str, issue: str, pr: str, round_: str)
     elif round_ == "fix":
         head_sha = _pr_head_sha(repo, pr)
         if head_sha and last_flagged_sha and head_sha != last_flagged_sha:
-            lines.append(f"**Outcome:** PR updated — [#{pr}]({actions_env.pr_url(repo, int(pr), server_url=server_url)})")
+            lines.append(f"**Outcome:** PR updated — [#{pr}]({server_url}/{repo}/pull/{pr})")
         else:
             lines.append("**Outcome:** ⚠️ No new commit pushed — see the final message below.")
     else:
-        lines.append(f"**Outcome:** PR opened — [#{pr}]({actions_env.pr_url(repo, int(pr), server_url=server_url)})")
+        lines.append(f"**Outcome:** PR opened — [#{pr}]({server_url}/{repo}/pull/{pr})")
 
     if pr:
         count = _pr_diff_file_count(repo, pr)
@@ -114,7 +114,7 @@ def _coder_section(repo: str, server_url: str, issue: str, pr: str, round_: str)
 def _review_section(repo: str, server_url: str, pr: str, reviewer_bot: str) -> list[str]:
     lines = []
     title = _pr_title(repo, pr)
-    lines.append(f"**PR:** [#{pr}]({actions_env.pr_url(repo, int(pr), server_url=server_url)})" + (f" — {title}" if title else ""))
+    lines.append(f"**PR:** [#{pr}]({server_url}/{repo}/pull/{pr})" + (f" — {title}" if title else ""))
 
     # This run's own verdict is already posted by the time we get here, so
     # count only CHANGES_REQUESTED reviews against *earlier* commits -- a
@@ -189,7 +189,7 @@ def _execution_file_written(exec_file: str | None) -> bool:
 
 def build_summary(repo: str, server_url: str, phase: str, exec_file: str | None, *,
                    issue: str = "", pr: str = "", round_: str = "", cost_warn: str = "",
-                   reviewer_bot: str = "") -> str:
+                   reviewer_bot: str = "", run_url: str = "") -> str:
     raw_cost = execution.result_field(exec_file, "total_cost_usd")
     num_turns = execution.result_field(exec_file, "num_turns")
     final_msg = execution.result_field(exec_file, "result")
@@ -218,39 +218,33 @@ def build_summary(repo: str, server_url: str, phase: str, exec_file: str | None,
     if raw_cost and cost_warn and float(raw_cost) > float(cost_warn):
         lines += ["", f"⚠️ cost ${report_run.format_cost(raw_cost)} over the ${float(cost_warn):.2f} warn limit"]
 
-    lines += [f"[Full run log]({actions_env.run_url(repo)})", "", "### Agent's final message", ""]
+    lines += [f"[Full run log]({run_url})", "", "### Agent's final message", ""]
     lines += _quote_final_message(final_msg)
 
     return "\n".join(lines) + "\n"
 
 
-def _main(argv: list[str]) -> int:
+def _main(ctx: ActionsCtx, argv: list[str]) -> int:
     import argparse
-    import os
 
-    parser = argparse.ArgumentParser(prog="python -m pipeline.run_summary")
-    parser.add_argument("phase")
-    parser.add_argument("exec_file", nargs="?", default="")
+    parser = argparse.ArgumentParser(prog="pipeline.entrypoint run-summary")
+    parser.add_argument("--phase", required=True)
+    parser.add_argument("--exec-file", default="")
     parser.add_argument("--issue", default="")
     parser.add_argument("--pr", default="")
     parser.add_argument("--round", dest="round_", default="")
     parser.add_argument("--cost-warn", dest="cost_warn", default="")
     args = parser.parse_args(argv)
 
-    repo = cli.require_env("GITHUB_REPOSITORY")
-    server_url = cli.require_env("GITHUB_SERVER_URL")
-    summary_path = cli.require_env("GITHUB_STEP_SUMMARY")
-    reviewer_bot = os.environ.get("REVIEWER_BOT", "")
+    if not ctx.step_summary:
+        raise cli.MissingEnvError("GITHUB_STEP_SUMMARY unset")
+    summary_path = ctx.step_summary
 
     summary = build_summary(
-        repo, server_url, args.phase, args.exec_file or None,
+        ctx.repo, ctx.server_url, args.phase, args.exec_file or None,
         issue=args.issue, pr=args.pr, round_=args.round_, cost_warn=args.cost_warn,
-        reviewer_bot=reviewer_bot,
+        reviewer_bot=ctx.reviewer_bot, run_url=ctx.run_url(),
     )
     with open(summary_path, "a") as f:
         f.write(summary)
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(cli.run(_main))

@@ -7,9 +7,9 @@ when the run produced none.
 
 from __future__ import annotations
 
-import sys
 
-from . import actions_env, cli, execution, gh
+from . import cli, execution, gh
+from .ctx import ActionsCtx
 
 
 def format_cost(raw: str | None) -> str:
@@ -17,9 +17,9 @@ def format_cost(raw: str | None) -> str:
 
 
 def report(repo: str, phase: str, exec_file: str | None, issue: int | None,
-           pr: int | None, warn: str | None) -> None:
+           pr: int | None, warn: str | None, *, run_url: str = "") -> None:
     raw_cost = execution.result_field(exec_file, "total_cost_usd")
-    body = f"{phase} [pipeline run]({actions_env.run_url(repo)}) — cost: ${format_cost(raw_cost)}"
+    body = f"{phase} [pipeline run]({run_url}) — cost: ${format_cost(raw_cost)}"
     if warn:
         body += f"\n\n⚠️ {warn}"
 
@@ -31,27 +31,24 @@ def report(repo: str, phase: str, exec_file: str | None, issue: int | None,
         raise ValueError("report-run: need an issue or PR number")
 
 
-def _main(argv: list[str]) -> int:
+def _main(ctx: ActionsCtx, argv: list[str]) -> int:
     import argparse
 
-    parser = argparse.ArgumentParser(prog="python -m pipeline.report_run")
-    parser.add_argument("phase")
-    parser.add_argument("exec_file")
-    parser.add_argument("issue", nargs="?", default="")
-    parser.add_argument("pr", nargs="?", default="")
+    parser = argparse.ArgumentParser(prog="pipeline.entrypoint report-run")
+    parser.add_argument("--phase", required=True)
+    parser.add_argument("--exec-file", required=True)
+    parser.add_argument("--issue", default="")
+    parser.add_argument("--pr", default="")
     parser.add_argument("--warn", default=None)
     args = parser.parse_args(argv)
 
     report(
-        cli.require_env("GITHUB_REPOSITORY"),
+        ctx.repo,
         args.phase,
         args.exec_file,
         cli.optional_int(args.issue),
         cli.optional_int(args.pr),
         args.warn,
+        run_url=ctx.run_url(),
     )
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(cli.run(_main))

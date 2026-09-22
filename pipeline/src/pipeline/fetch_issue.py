@@ -6,10 +6,10 @@ behind the MCP server's `view_issue` tool.
 from __future__ import annotations
 
 import os
-import sys
 from dataclasses import dataclass, field
 
 from . import cli, gh
+from .ctx import ActionsCtx
 
 _VIEW_QUERY = """
 query($owner: String!, $repo: String!, $number: Int!) {
@@ -114,13 +114,11 @@ def write_github_output(issue: Issue) -> None:
         write("comments", "", multiline=True)
 
 
-def _main(argv: list[str]) -> int:
-    if len(argv) != 1:
-        print("usage: python -m pipeline.fetch_issue <issue-number>", file=sys.stderr)
-        return 2
-    write_github_output(fetch_issue(cli.require_env("GITHUB_REPOSITORY"), int(argv[0])))
+def _main(ctx: ActionsCtx, argv: list[str]) -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(prog="pipeline.entrypoint fetch-issue")
+    parser.add_argument("--issue", type=int, required=True)
+    args = parser.parse_args(argv)
+    write_github_output(fetch_issue(ctx.repo, args.issue))
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(cli.run(_main))
