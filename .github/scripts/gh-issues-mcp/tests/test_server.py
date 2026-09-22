@@ -1,8 +1,12 @@
-"""Tests for gh-issues MCP server."""
+"""Tests for gh-issues MCP server (dispatch layer only).
+
+Business-logic tests for push_branch, pr_open_for_issue, issue_edit_validated,
+edit_issue_labels_validated, apply_refinement, and apply_estimation live in
+pipeline/tests/ and tests/contract/test_mcp_contract.py.
+"""
 
 import json
-import subprocess
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -23,30 +27,6 @@ from server import (
     submit_pr_review,
     view_issue,
 )
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-def _make_proc(stdout: str = "", returncode: int = 0, stderr: str = "") -> MagicMock:
-    m = MagicMock()
-    m.stdout = stdout
-    m.returncode = returncode
-    m.stderr = stderr
-    return m
-
-
-def _gh_failure(stderr: str) -> subprocess.CalledProcessError:
-    return subprocess.CalledProcessError(1, ["gh"], stderr=stderr)
-
-
-def _issue_labels_proc(*names: str) -> MagicMock:
-    return _make_proc(json.dumps({"labels": [{"name": n} for n in names]}))
-
-
-def _label_names_proc(*names: str) -> MagicMock:
-    return _make_proc(json.dumps([[{"name": n, "color": "", "description": ""} for n in names]]))
-
 
 # ---------------------------------------------------------------------------
 # _load_label_names
@@ -83,19 +63,11 @@ def test_load_label_names_valid_file(tmp_path):
 
 
 def test_known_labels_are_loaded_once_at_import_time(tmp_path):
-    """_KNOWN_LABELS/_LABEL_DESCRIPTION are computed once at import, from the
-    labels.json on disk at that time. Changing the file afterwards has no
-    effect on the module-level cache -- this is intentional (labels.json only
-    changes via a separate PR, never mid-process), so _load_label_names is not
-    re-run on every tool call.
-    """
     original = list(server._KNOWN_LABELS)
     good_file = tmp_path / "labels.json"
     good_file.write_text(json.dumps({"labels": [{"name": "brand-new-label"}]}))
     with patch.object(server, "_LABELS_JSON", good_file):
-        # A fresh call reflects the new file...
         assert _load_label_names() == ["brand-new-label"]
-        # ...but the cached module-level constants computed at import do not.
         assert server._KNOWN_LABELS == original
 
 
@@ -123,152 +95,87 @@ def test_view_issue_returns_flat_json():
 
 
 # ---------------------------------------------------------------------------
-# list_issues
+# edit_issue — dispatches to gh.issue_edit_validated
 # ---------------------------------------------------------------------------
 
 
-# ---------------------------------------------------------------------------
-# comment_issue
-# ---------------------------------------------------------------------------
-
-
-# ---------------------------------------------------------------------------
-# edit_issue
-# ---------------------------------------------------------------------------
+def test_edit_issue_dispatches_to_pipeline():
+    with patch("server.gh.issue_edit_validated", return_value="Updated body on issue #5") as mock:
+        with patch.object(server, "_REPO", "owner/repo"):
+            result = edit_issue(issue_number=5, body="New body here", title="New title")
+    mock.assert_called_once_with("owner/repo", 5, body="New body here", title="New title")
+    assert result == "Updated body on issue #5"
 
 
 def test_edit_issue_rejects_multiline_title():
-    with pytest.raises(InvalidInputError, match="single line"):
-        edit_issue(issue_number=5, body="Some body content here", title="Line one\nLine two")
+    with patch("server.gh.issue_edit_validated", side_effect=InvalidInputError("Title must be a single line")):
+        with pytest.raises(InvalidInputError, match="single line"):
+            edit_issue(issue_number=5, body="Some body content here", title="Line one\nLine two")
 
 
 # ---------------------------------------------------------------------------
-# edit_issue_labels
+# edit_issue_labels — dispatches to labels.edit_issue_labels_validated
 # ---------------------------------------------------------------------------
 
 
-def test_edit_issue_labels_add():
-    with patch("server.subprocess.run") as mock_run:
-        mock_run.side_effect = [
-            _label_names_proc("bug", "priority:high", "status:ready"),  # label list
-            _issue_labels_proc(),  # current issue labels
-            _make_proc(),  # issue edit
-        ]
+def test_edit_issue_labels_dispatches_to_pipeline():
+    with patch("server.labels.edit_issue_labels_validated", return_value="Added: bug") as mock:
         with patch.object(server, "_REPO", "owner/repo"):
-            edit_issue_labels(issue_number=7, add_labels=["bug"])
-
-    edit_call = mock_run.call_args_list[2][0][0]
-    assert "--add-label" in edit_call
-    assert "bug" in edit_call
-
-
-def test_edit_issue_labels_remove():
-    with patch("server.subprocess.run") as mock_run:
-        mock_run.side_effect = [
-            _label_names_proc("bug", "priority:high"),
-            _issue_labels_proc("bug"),
-            _make_proc(),
-        ]
-        with patch.object(server, "_REPO", "owner/repo"):
-            edit_issue_labels(issue_number=7, remove_labels=["bug"])
-
-    edit_call = mock_run.call_args_list[2][0][0]
-    assert "--remove-label" in edit_call
-
-
-def test_edit_issue_labels_rejects_unknown():
-    with patch("server.subprocess.run") as mock_run:
-        mock_run.return_value = _label_names_proc("bug")
-        with patch.object(server, "_REPO", "owner/repo"):
-            with pytest.raises(InvalidInputError, match="don't exist"):
-                edit_issue_labels(issue_number=7, add_labels=["no-such-label"])
+            result = edit_issue_labels(issue_number=7, add_labels=["bug"])
+    mock.assert_called_once_with("owner/repo", 7, add=["bug"], remove=None)
+    assert result == "Added: bug"
 
 
 def test_edit_issue_labels_noop():
-    result = edit_issue_labels(issue_number=7)
+    with patch("server.labels.edit_issue_labels_validated", return_value="Nothing to do") as mock:
+        result = edit_issue_labels(issue_number=7)
+    mock.assert_called_once_with("", 7, add=None, remove=None)
     assert result == "Nothing to do"
 
 
-def test_edit_issue_labels_surfaces_gh_error_on_label_list():
-    with patch("server.subprocess.run") as mock_run:
-        mock_run.side_effect = _gh_failure("gh: not authenticated")
-        with patch.object(server, "_REPO", "owner/repo"):
-            with pytest.raises(GhCommandError, match="not authenticated"):
-                edit_issue_labels(issue_number=7, add_labels=["bug"])
-
-
-def test_edit_issue_labels_surfaces_gh_error_on_edit():
-    with patch("server.subprocess.run") as mock_run:
-        mock_run.side_effect = [
-            _label_names_proc("bug"),  # label list succeeds
-            _issue_labels_proc(),
-            _gh_failure("gh: issue not found"),  # edit fails
-        ]
-        with patch.object(server, "_REPO", "owner/repo"):
-            with pytest.raises(GhCommandError, match="issue not found"):
-                edit_issue_labels(issue_number=7, add_labels=["bug"])
+def test_edit_issue_labels_rejects_unknown():
+    with patch("server.labels.edit_issue_labels_validated",
+               side_effect=InvalidInputError("Labels don't exist, not added: no-such-label")):
+        with pytest.raises(InvalidInputError, match="don't exist"):
+            edit_issue_labels(issue_number=7, add_labels=["no-such-label"])
 
 
 # ---------------------------------------------------------------------------
-# comment_pr
+# open_pr — dispatches to push.pr_open_for_issue
 # ---------------------------------------------------------------------------
 
 
-# ---------------------------------------------------------------------------
-# open_pr
-# ---------------------------------------------------------------------------
-
-
-def test_open_pr_appends_closes():
-    with patch("server.subprocess.run") as mock_run:
-        mock_run.side_effect = [
-            _make_proc("feat/x"),  # git rev-parse --abbrev-ref HEAD
-            _make_proc('{"default_branch": "main"}'),  # gh api repos/...
-            _make_proc("https://github.com/owner/repo/pull/1"),  # gh pr create
-        ]
+def test_open_pr_dispatches_to_pipeline():
+    with patch("server.push.pr_open_for_issue", return_value="https://github.com/owner/repo/pull/1") as mock:
         with patch.object(server, "_REPO", "owner/repo"):
             with patch.object(server, "_WORKSPACE", "/workspace"):
-                open_pr(issue_number=42, title="feat: add thing", body="Implements the thing")
-
-    assert mock_run.call_args_list[0][1].get("cwd") == "/workspace"
-    cmd = mock_run.call_args_list[2][0][0]
-    assert cmd[cmd.index("--head") + 1] == "feat/x"
-    assert cmd[cmd.index("--base") + 1] == "main"
-    body = cmd[cmd.index("--body") + 1]
-    assert "Closes #42" in body
-    assert "Implements the thing" in body
+                result = open_pr(issue_number=42, title="feat: add thing", body="Implements the thing")
+    mock.assert_called_once_with("owner/repo", "/workspace", 42, "feat: add thing", "Implements the thing")
+    assert "github.com" in result
 
 
 def test_open_pr_rejects_detached_head():
-    with patch("server.subprocess.run", return_value=_make_proc("HEAD")):
-        with patch.object(server, "_REPO", "owner/repo"):
-            with pytest.raises(GhCommandError, match="detached HEAD"):
-                open_pr(issue_number=42, title="feat: add thing", body="Implements the thing")
+    with patch("server.push.pr_open_for_issue",
+               side_effect=GhCommandError("Cannot open a PR from a detached HEAD; check out a branch first")):
+        with pytest.raises(GhCommandError, match="detached HEAD"):
+            open_pr(issue_number=42, title="feat: add thing", body="Implements the thing")
 
 
 # ---------------------------------------------------------------------------
-# submit_pr_review
+# submit_pr_review — dispatches to gh.pr_submit_review
 # ---------------------------------------------------------------------------
 
 
 def test_submit_pr_review_approve():
-    with patch("server.subprocess.run") as mock_run:
-        mock_run.return_value = _make_proc('{"id": 1}')
+    with patch("server.gh.pr_submit_review", return_value={"id": 1}) as mock:
         with patch.object(server, "_REPO", "owner/repo"):
-            submit_pr_review(pr_number=10, event="APPROVE", body="Looks good")
-
-    cmd = mock_run.call_args[0][0]
-    assert "POST" in cmd
-    assert any("pulls/10/reviews" in arg for arg in cmd)
-    payload = json.loads(mock_run.call_args[1]["input"])
-    assert payload["event"] == "APPROVE"
-    assert payload["body"] == "Looks good"
-    assert payload["comments"] == []
+            result = submit_pr_review(pr_number=10, event="APPROVE", body="Looks good")
+    mock.assert_called_once_with("owner/repo", 10, "APPROVE", "Looks good", [])
+    assert json.loads(result) == {"id": 1}
 
 
 def test_submit_pr_review_request_changes_with_comments():
-    with patch("server.subprocess.run") as mock_run:
-        mock_run.return_value = _make_proc('{"id": 2}')
+    with patch("server.gh.pr_submit_review", return_value={"id": 2}) as mock:
         with patch.object(server, "_REPO", "owner/repo"):
             submit_pr_review(
                 pr_number=10,
@@ -276,245 +183,78 @@ def test_submit_pr_review_request_changes_with_comments():
                 body="Needs work here",
                 comments=[InlineComment(path="foo.py", line=5, body="Fix this")],
             )
-
-    payload = json.loads(mock_run.call_args[1]["input"])
-    assert payload["event"] == "REQUEST_CHANGES"
-    assert len(payload["comments"]) == 1
-    assert payload["comments"][0] == {"path": "foo.py", "line": 5, "body": "Fix this"}
+    _, _, _, _, comments_arg = mock.call_args[0]
+    assert comments_arg == [{"path": "foo.py", "line": 5, "body": "Fix this"}]
 
 
 def test_submit_pr_review_rejects_bad_event():
-    with pytest.raises(InvalidInputError, match="APPROVE or REQUEST_CHANGES"):
-        submit_pr_review(pr_number=10, event="COMMENT", body="hi")
+    with patch("server.gh.pr_submit_review",
+               side_effect=InvalidInputError("event must be APPROVE or REQUEST_CHANGES")):
+        with pytest.raises(InvalidInputError, match="APPROVE or REQUEST_CHANGES"):
+            submit_pr_review(pr_number=10, event="COMMENT", body="hi")  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------
-# push_branch
+# push_branch — dispatches to push.push_branch
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture
-def _default_branch():
-    with patch("server.gh.default_branch", return_value="main") as m:
-        yield m
+def test_push_branch_dispatches_to_pipeline():
+    with patch("server.push.push_branch", return_value="Branch 'feat/x' squashed and pushed to origin") as mock:
+        with patch.object(server, "_REPO", "owner/repo"):
+            with patch.object(server, "_WORKSPACE", "/workspace"):
+                result = push_branch()
+    mock.assert_called_once_with("owner/repo", "/workspace")
+    assert "feat/x" in result
 
 
-def _git_seq(*stdout_values: str) -> list[MagicMock]:
-    return [_make_proc(v) for v in stdout_values]
-
-
-@pytest.mark.usefixtures("_default_branch")
-def test_push_branch_squashes_and_pushes():
-    seq = _git_seq(
-        "feat/my-branch",   # rev-parse --abbrev-ref HEAD
-        "",                 # fetch origin main
-        "abc123",           # merge-base
-        "def456",           # rev-parse HEAD
-        "commit message",   # log -1
-        "",                 # reset --soft
-        "",                 # commit
-        "file.py",          # diff-tree (no protected paths)
-        "",                 # push
-    )
-    with patch("server.subprocess.run", side_effect=seq):
-        result = push_branch()
-
-    assert "feat/my-branch" in result
-
-
-def test_push_branch_uses_the_repos_default_branch(_default_branch):
-    _default_branch.return_value = "develop"
-    seq = _git_seq("feat/x", "", "abc123", "def456", "msg", "", "", "file.py", "")
-    with patch("server.subprocess.run", side_effect=seq) as run:
-        push_branch()
-    cmds = [c[0][0] for c in run.call_args_list]
-    assert ["git", "fetch", "origin", "develop", "--quiet"] in cmds
-    assert ["git", "merge-base", "origin/develop", "HEAD"] in cmds
-
-
-@pytest.mark.usefixtures("_default_branch")
-def test_push_branch_rejects_main():
-    with patch("server.subprocess.run", return_value=_make_proc("main")):
+def test_push_branch_raises_push_refused():
+    with patch("server.push.push_branch", side_effect=PushRefusedError("Refusing to push main directly")):
         with pytest.raises(PushRefusedError, match="Refusing"):
             push_branch()
 
 
-@pytest.mark.usefixtures("_default_branch")
-def test_push_branch_rejects_no_commits():
-    seq = _git_seq(
-        "my-branch",  # branch name
-        "",           # fetch
-        "abc123",     # merge-base
-        "abc123",     # HEAD == base => nothing to push
-    )
-    with patch("server.subprocess.run", side_effect=seq):
-        with pytest.raises(PushRefusedError, match="nothing to push"):
-            push_branch()
-
-
-@pytest.mark.usefixtures("_default_branch")
-def test_push_branch_rejects_protected_paths():
-    seq = _git_seq(
-        "my-branch",
-        "",
-        "abc123",
-        "def456",
-        "fix: update",
-        "",
-        "",
-        ".github/workflows/ci.yml",  # protected path
-    )
-    with patch("server.subprocess.run", side_effect=seq):
-        with pytest.raises(PushRefusedError, match="protected paths"):
-            push_branch()
-
-
-@pytest.mark.usefixtures("_default_branch")
-def test_push_branch_surfaces_git_error():
-    seq = [
-        _make_proc("my-branch"),  # rev-parse --abbrev-ref HEAD
-        _make_proc(returncode=1, stderr="fatal: unable to access origin"),  # fetch fails
-    ]
-    with patch("server.subprocess.run", side_effect=seq):
-        with pytest.raises(GhCommandError, match="unable to access origin"):
-            push_branch()
-
-
-@pytest.mark.usefixtures("_default_branch")
-def test_push_branch_rejects_scripts_protected_paths():
-    seq = _git_seq(
-        "my-branch",
-        "",
-        "abc123",
-        "def456",
-        "chore: update",
-        "",
-        "",
-        ".github/workflows/code-pipeline.yml",
-    )
-    with patch("server.subprocess.run", side_effect=seq):
-        with pytest.raises(PushRefusedError, match="protected paths"):
-            push_branch()
-
-
 # ---------------------------------------------------------------------------
-# apply_refinement_outcome
+# apply_refinement_outcome — dispatches to labels.apply_refinement
 # ---------------------------------------------------------------------------
 
 
-def test_apply_refinement_outcome_refined():
-    with patch("server.subprocess.run") as mock_run:
-        mock_run.side_effect = [_issue_labels_proc("status:needs-refinement"), _make_proc()]
+def test_apply_refinement_outcome_dispatches_to_pipeline():
+    with patch("server.labels.apply_refinement", return_value="Refinement outcome 'refined' applied to issue #5") as mock:
         with patch.object(server, "_REPO", "owner/repo"):
             result = apply_refinement_outcome(
                 issue_number=5, outcome="refined", type_label="type:coding-task"
             )
-
-    cmd = mock_run.call_args_list[1][0][0]
-    assert "--add-label" in cmd
-    assert "status:refined" in cmd
-    assert "type:coding-task" in cmd
-    assert "--remove-label" in cmd
-    assert "status:needs-refinement" in cmd
+    mock.assert_called_once_with("owner/repo", 5, "refined", "type:coding-task")
     assert "refined" in result
 
 
 def test_apply_refinement_outcome_missing_type_label():
-    with pytest.raises(InvalidInputError, match="type_label is required"):
-        apply_refinement_outcome(issue_number=5, outcome="refined")
-
-
-def test_apply_refinement_outcome_needs_attention():
-    with patch("server.subprocess.run") as mock_run:
-        mock_run.side_effect = [_issue_labels_proc("status:needs-refinement"), _make_proc()]
-        with patch.object(server, "_REPO", "owner/repo"):
-            result = apply_refinement_outcome(issue_number=5, outcome="needs-attention")
-
-    cmd = mock_run.call_args_list[1][0][0]
-    assert "--add-label" in cmd
-    assert "status:needs-attention" in cmd
-    assert "--remove-label" in cmd
-    assert "status:needs-refinement" in cmd
-    assert "status:refined" not in cmd
-    assert "needs-attention" in result
-
-
-def test_apply_refinement_outcome_invalid():
-    with pytest.raises(InvalidInputError):
-        apply_refinement_outcome(issue_number=5, outcome="done")
-
-
-def test_apply_refinement_outcome_surfaces_gh_error():
-    with patch("server.subprocess.run") as mock_run:
-        mock_run.side_effect = _gh_failure("gh: issue not found")
-        with patch.object(server, "_REPO", "owner/repo"):
-            with pytest.raises(GhCommandError, match="issue not found"):
-                apply_refinement_outcome(issue_number=5, outcome="needs-attention")
+    with patch("server.labels.apply_refinement",
+               side_effect=InvalidInputError("type_label is required when outcome='refined'")):
+        with pytest.raises(InvalidInputError, match="type_label is required"):
+            apply_refinement_outcome(issue_number=5, outcome="refined")
 
 
 # ---------------------------------------------------------------------------
-# apply_estimation_outcome
+# apply_estimation_outcome — dispatches to labels.apply_estimation
 # ---------------------------------------------------------------------------
 
 
-def test_apply_estimation_outcome_estimated():
-    with patch("server.subprocess.run") as mock_run:
-        mock_run.side_effect = [_issue_labels_proc("status:refined"), _make_proc()]
+def test_apply_estimation_outcome_dispatches_to_pipeline():
+    with patch("server.labels.apply_estimation",
+               return_value="Estimation outcome 'estimated' applied to issue #7 (size:S)") as mock:
         with patch.object(server, "_REPO", "owner/repo"):
             result = apply_estimation_outcome(
-                issue_number=7,
-                outcome="estimated",
-                blast_radius="Low",
-                touch="Mid",
-                human_involvement="Low",
-                review_overhead="Low",
+                issue_number=7, outcome="estimated",
+                blast_radius="Low", touch="Mid", human_involvement="Low", review_overhead="Low",
             )
-
-    cmd = mock_run.call_args_list[1][0][0]
-    assert "--add-label" in cmd
-    assert "status:estimated" in cmd
-    assert "size:S" in cmd
-    assert "--remove-label" in cmd
-    assert "status:refined" in cmd
+    mock.assert_called_once_with("owner/repo", 7, "estimated", "Low", "Mid", "Low", "Low")
     assert "estimated" in result
-    assert "size:S" in result
-
-
-def test_apply_estimation_outcome_needs_attention():
-    with patch("server.subprocess.run") as mock_run:
-        mock_run.side_effect = [_issue_labels_proc("status:refined"), _make_proc()]
-        with patch.object(server, "_REPO", "owner/repo"):
-            result = apply_estimation_outcome(issue_number=7, outcome="needs-attention")
-
-    cmd = mock_run.call_args_list[1][0][0]
-    assert "--add-label" in cmd
-    assert "status:needs-attention" in cmd
-    assert "--remove-label" in cmd
-    assert "status:refined" in cmd
-    assert "needs-attention" in result
 
 
 def test_apply_estimation_outcome_missing_scores():
-    with pytest.raises(InvalidInputError):
-        apply_estimation_outcome(issue_number=7, outcome="estimated")
-
-
-def test_apply_estimation_outcome_rejects_bad_score():
-    with pytest.raises(ValueError, match="Not a Low|Mid|High score"):
-        apply_estimation_outcome(
-            issue_number=7, outcome="estimated",
-            blast_radius="Low", touch="Medium", human_involvement="Low", review_overhead="Low",
-        )
-
-
-def test_apply_estimation_outcome_invalid():
-    with pytest.raises(InvalidInputError):
-        apply_estimation_outcome(issue_number=7, outcome="done")
-
-
-def test_apply_estimation_outcome_surfaces_gh_error():
-    with patch("server.subprocess.run") as mock_run:
-        mock_run.side_effect = _gh_failure("gh: issue not found")
-        with patch.object(server, "_REPO", "owner/repo"):
-            with pytest.raises(GhCommandError, match="issue not found"):
-                apply_estimation_outcome(issue_number=7, outcome="needs-attention")
+    with patch("server.labels.apply_estimation",
+               side_effect=InvalidInputError("blast_radius, touch, human_involvement, and review_overhead are all required")):
+        with pytest.raises(InvalidInputError):
+            apply_estimation_outcome(issue_number=7, outcome="estimated")

@@ -19,6 +19,7 @@ from collections.abc import Sequence
 from typing import NamedTuple
 
 from . import best_effort, cli, gh
+from .size import roll_up_size
 
 STATUS_NEEDS_REFINEMENT = "status:needs-refinement"
 STATUS_REFINED = "status:refined"
@@ -141,6 +142,94 @@ def escalate_pr(repo: str, pr: int) -> None:
     """Mark a PR as stuck: the pipeline escalated it to a human and no agent
     is working it. Cleared by the next pickup or an APPROVE."""
     set_pr_pipeline_label(repo, pr, PR_NEEDS_ATTENTION)
+
+
+def edit_issue_labels_validated(
+    repo: str,
+    issue: int,
+    add: list[str] | None = None,
+    remove: list[str] | None = None,
+) -> str:
+    """Add or remove labels after verifying they exist in the repo.
+
+    Raises gh.InvalidInputError for any label not present in the repo.
+    Returns a human-readable summary, or 'Nothing to do' when both lists are empty.
+    """
+    add = add or []
+    remove = remove or []
+    if not add and not remove:
+        return "Nothing to do"
+    valid = set(gh.label_names(repo))
+    unknown_add = [lbl for lbl in add if lbl not in valid]
+    unknown_remove = [lbl for lbl in remove if lbl not in valid]
+    if unknown_add or unknown_remove:
+        msgs = []
+        if unknown_add:
+            msgs.append(f"Labels don't exist, not added: {', '.join(unknown_add)}")
+        if unknown_remove:
+            msgs.append(f"Labels don't exist, not removed: {', '.join(unknown_remove)}")
+        raise gh.InvalidInputError("\n".join(msgs))
+    edit_issue_labels_strict(repo, issue, add=add, remove=remove)
+    parts = []
+    if add:
+        parts.append(f"Added: {', '.join(add)}")
+    if remove:
+        parts.append(f"Removed: {', '.join(remove)}")
+    return "\n".join(parts)
+
+
+def apply_refinement(
+    repo: str,
+    issue: int,
+    outcome: str,
+    type_label: str | None = None,
+) -> str:
+    """Apply the lifecycle label transition after refinement.
+
+    refined        → requires type_label; transitions issue to status:refined.
+    needs-attention → transitions issue to status:needs-attention.
+    Raises gh.InvalidInputError for invalid inputs.
+    """
+    if outcome == "refined":
+        if type_label is None:
+            raise gh.InvalidInputError("type_label is required when outcome='refined'")
+        transition = refined(type_label)
+    elif outcome == "needs-attention":
+        transition = refinement_needs_attention()
+    else:
+        raise gh.InvalidInputError("outcome must be 'refined' or 'needs-attention'")
+    apply_transition(repo, issue, transition)
+    return f"Refinement outcome '{outcome}' applied to issue #{issue}"
+
+
+def apply_estimation(
+    repo: str,
+    issue: int,
+    outcome: str,
+    blast_radius: str | None = None,
+    touch: str | None = None,
+    human_involvement: str | None = None,
+    review_overhead: str | None = None,
+) -> str:
+    """Apply the lifecycle label transition after estimation.
+
+    estimated      → rolls the four Low|Mid|High scores into a size:* label.
+    needs-attention → transitions issue to status:needs-attention.
+    Raises gh.InvalidInputError for invalid inputs; ValueError for bad scores.
+    """
+    if outcome == "estimated":
+        if None in (blast_radius, touch, human_involvement, review_overhead):
+            raise gh.InvalidInputError(
+                "blast_radius, touch, human_involvement, and review_overhead are all required when outcome='estimated'"
+            )
+        size = roll_up_size(blast_radius, touch, human_involvement, review_overhead)  # type: ignore[arg-type]
+        transition = estimated(size)
+        apply_transition(repo, issue, transition)
+        return f"Estimation outcome 'estimated' applied to issue #{issue} ({size_label(size)})"
+    if outcome == "needs-attention":
+        apply_transition(repo, issue, estimation_needs_attention())
+        return f"Estimation outcome 'needs-attention' applied to issue #{issue}"
+    raise gh.InvalidInputError("outcome must be 'estimated' or 'needs-attention'")
 
 
 def _main(argv: list[str]) -> int:
