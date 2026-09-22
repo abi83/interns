@@ -21,12 +21,30 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from pipeline.ctx import ActionsCtx
+
 ROOT = Path(__file__).resolve().parents[1]
 FAKE_CLI = Path(__file__).with_name("fake_cli.py")
 MCP_TOOL = Path(__file__).with_name("mcp_tool.py")
 PYTHONPATH = [ROOT / "pipeline/src", ROOT / "installer/src", ROOT / ".github/scripts/gh-issues-mcp"]
 
 REPO = "acme/widgets"
+
+
+def default_ctx(**overrides) -> ActionsCtx:
+    defaults: dict = dict(
+        repo=REPO,
+        token="",
+        server_url="",
+        run_id="",
+        run_attempt=1,
+        workspace=".",
+        event_name="",
+        reviewer_bot="",
+        step_summary="",
+    )
+    defaults.update(overrides)
+    return ActionsCtx(**defaults)
 
 
 @dataclass

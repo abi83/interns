@@ -77,6 +77,19 @@ def _quote_final_message(final_msg: str | None) -> list[str]:
     return [f"> {line}" for line in final_msg.splitlines()]
 
 
+def _outcome_line(server_url: str, repo: str, pr: str, round_: str, head_sha: str | None, last_flagged_sha: str) -> str:
+    # `pr` only resolves an already-open PR -- for a fix round it says
+    # nothing about whether this run pushed anything. Treat it as "updated"
+    # only when the head has moved off the commit the reviewer flagged.
+    if not pr:
+        return "**Outcome:** ⚠️ No PR — see the final message below."
+    if round_ != "fix":
+        return f"**Outcome:** PR opened — [#{pr}]({server_url}/{repo}/pull/{pr})"
+    if head_sha and last_flagged_sha and head_sha != last_flagged_sha:
+        return f"**Outcome:** PR updated — [#{pr}]({server_url}/{repo}/pull/{pr})"
+    return "**Outcome:** ⚠️ No new commit pushed — see the final message below."
+
+
 def _coder_section(repo: str, server_url: str, issue: str, pr: str, round_: str) -> list[str]:
     lines = []
     title = _issue_title(repo, issue)
@@ -89,20 +102,8 @@ def _coder_section(repo: str, server_url: str, issue: str, pr: str, round_: str)
     if round_line:
         lines.append(f"**Round:** {round_line}")
 
-    # `pr` only resolves an already-open PR -- for a fix round it says
-    # nothing about whether this run pushed anything. Treat it as "updated"
-    # only when the head has moved off the commit the reviewer flagged;
-    # otherwise the run failed silently after the PR already existed.
-    if not pr:
-        lines.append("**Outcome:** ⚠️ No PR — see the final message below.")
-    elif round_ == "fix":
-        head_sha = _pr_head_sha(repo, pr)
-        if head_sha and last_flagged_sha and head_sha != last_flagged_sha:
-            lines.append(f"**Outcome:** PR updated — [#{pr}]({server_url}/{repo}/pull/{pr})")
-        else:
-            lines.append("**Outcome:** ⚠️ No new commit pushed — see the final message below.")
-    else:
-        lines.append(f"**Outcome:** PR opened — [#{pr}]({server_url}/{repo}/pull/{pr})")
+    head_sha = _pr_head_sha(repo, pr) if round_ == "fix" and pr else None
+    lines.append(_outcome_line(server_url, repo, pr, round_, head_sha, last_flagged_sha))
 
     if pr:
         count = _pr_diff_file_count(repo, pr)
@@ -187,9 +188,15 @@ def _execution_file_written(exec_file: str | None) -> bool:
     return exec_file is not None and Path(exec_file).is_file()
 
 
+_PHASES = {"Coder", "Review", "Refinement", "Estimation"}
+
+
 def build_summary(repo: str, server_url: str, phase: str, exec_file: str | None, *,
                    issue: str = "", pr: str = "", round_: str = "", cost_warn: str = "",
                    reviewer_bot: str = "", run_url: str = "") -> str:
+    if phase not in _PHASES:
+        raise ValueError(f"run-summary: unknown phase {phase}")
+
     raw_cost = execution.result_field(exec_file, "total_cost_usd")
     num_turns = execution.result_field(exec_file, "num_turns")
     final_msg = execution.result_field(exec_file, "result")
@@ -202,10 +209,8 @@ def build_summary(repo: str, server_url: str, phase: str, exec_file: str | None,
         lines += _review_section(repo, server_url, pr, reviewer_bot)
     elif phase == "Refinement":
         lines += _refinement_section(repo, server_url, issue)
-    elif phase == "Estimation":
-        lines += _estimation_section(repo, server_url, issue)
     else:
-        raise ValueError(f"run-summary: unknown phase {phase}")
+        lines += _estimation_section(repo, server_url, issue)
 
     if not _execution_file_written(exec_file):
         lines += ["", "> _No execution file — the agent step was killed (timed out) before writing results._"]

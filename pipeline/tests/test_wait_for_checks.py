@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from pipeline import wait_for_checks
-from pipeline.ctx import ActionsCtx
+from testkit.harness import default_ctx
 
 
 def chk(name, bucket, run="99"):
@@ -72,9 +72,7 @@ class WaitForChecksTests(unittest.TestCase):
 
 class CliTests(unittest.TestCase):
     def _ctx(self, event_name=""):
-        return ActionsCtx(repo="acme/widgets", token="", server_url="", run_id="42",
-                          run_attempt=1, workspace=".", event_name=event_name,
-                          reviewer_bot="", step_summary="")
+        return default_ctx(run_id="42", event_name=event_name)
 
     def test_workflow_dispatch_skips_the_gate(self):
         with tempfile.TemporaryDirectory() as tmpdir:

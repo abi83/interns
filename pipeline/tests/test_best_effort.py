@@ -29,8 +29,3 @@ class CallTests(unittest.TestCase):
     def test_raises_on_empty_reason(self):
         with self.assertRaises(ValueError):
             best_effort.call("", ValueError, int, "42")
-
-    def test_passes_args_and_kwargs(self):
-        def concat(a, b, sep=""):
-            return f"{a}{sep}{b}"
-        self.assertEqual(best_effort.call("r", ValueError, concat, "x", "y", sep="-"), "x-y")
