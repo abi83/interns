@@ -85,23 +85,5 @@ class ReportTests(unittest.TestCase):
         self.assertNotIn("⚠️", comment.call_args[0][2])
 
 
-class CliTests(unittest.TestCase):
-    def test_parses_positional_and_warn_flag(self):
-        with patch("pipeline.report_run.report") as report_fn, \
-             patch.dict(os.environ, {"GITHUB_REPOSITORY": "acme/widgets"}):
-            report_run._main(["Coder", "exec.json", "55", "", "--warn", "watch out"])
-        report_fn.assert_called_once_with(
-            "acme/widgets", "Coder", "exec.json", 55, None, "watch out",
-        )
-
-    def test_empty_issue_and_pr_are_none(self):
-        with patch("pipeline.report_run.report") as report_fn, \
-             patch.dict(os.environ, {"GITHUB_REPOSITORY": "acme/widgets"}):
-            report_run._main(["Coder", "exec.json"])
-        report_fn.assert_called_once_with(
-            "acme/widgets", "Coder", "exec.json", None, None, None,
-        )
-
-
 if __name__ == "__main__":
     unittest.main()

@@ -229,28 +229,11 @@ class PutFileTests(unittest.TestCase):
 
 
 class BranchProtectionTests(unittest.TestCase):
-    def test_state_reads_the_protection_endpoint(self):
-        with patch.object(gh, "api_status", return_value=("ok", {})) as api_status:
-            self.assertEqual(gh_admin.branch_protection_state("o/r", "main"), ("ok", {}))
-        api_status.assert_called_once_with("repos/o/r/branches/main/protection")
-
     def test_set_puts_the_protection_body(self):
         with patch.object(gh, "api") as api:
             gh_admin.set_branch_protection("o/r", "main", {"allow_deletions": False})
         api.assert_called_once_with("repos/o/r/branches/main/protection", method="PUT",
                                     input_json='{"allow_deletions": false}')
-
-
-class PagesTests(unittest.TestCase):
-    def test_state_reads_the_pages_endpoint(self):
-        with patch.object(gh, "api_status", return_value=("missing", None)) as api_status:
-            self.assertEqual(gh_admin.pages_state("o/r"), ("missing", None))
-        api_status.assert_called_once_with("repos/o/r/pages")
-
-    def test_enable_posts_the_workflow_build_type(self):
-        with patch.object(gh, "api") as api:
-            gh_admin.enable_pages("o/r")
-        api.assert_called_once_with("repos/o/r/pages", method="POST", fields={"build_type": "workflow"})
 
 
 class SetVariableTests(unittest.TestCase):

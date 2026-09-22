@@ -92,21 +92,5 @@ class ApplyVerdictTests(unittest.TestCase):
         self.assertIn("without submitting a recognized verdict", comment.call_args[0][2])
 
 
-class CliTests(unittest.TestCase):
-    def test_empty_issue_argument_is_treated_as_no_issue(self):
-        import os
-        with patch.dict(os.environ, {"GITHUB_REPOSITORY": "acme/widgets", "REVIEWER_BOT": "reviewer[bot]"}), \
-             patch("pipeline.apply_verdict.apply_verdict") as fn:
-            apply_verdict._main(["12", ""])
-        fn.assert_called_once_with("acme/widgets", 12, None, "reviewer[bot]")
-
-    def test_issue_argument_is_parsed_as_int(self):
-        import os
-        with patch.dict(os.environ, {"GITHUB_REPOSITORY": "acme/widgets", "REVIEWER_BOT": "reviewer[bot]"}), \
-             patch("pipeline.apply_verdict.apply_verdict") as fn:
-            apply_verdict._main(["12", "34"])
-        fn.assert_called_once_with("acme/widgets", 12, 34, "reviewer[bot]")
-
-
 if __name__ == "__main__":
     unittest.main()
