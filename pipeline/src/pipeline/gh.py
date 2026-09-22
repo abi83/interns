@@ -19,8 +19,8 @@ from .gh_transport import (
     GhNotInstalledError,
     api,
     api_all_pages,
-    api_status,
-    graphql,
+    api_status,  # noqa: F401 — callers migrate to gh_transport.* in later PRs
+    graphql,     # noqa: F401 — callers migrate to gh_transport.* in later PRs
     run,
 )
 
