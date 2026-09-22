@@ -39,6 +39,15 @@ def test_advisory_is_skipped_unless_an_estimated_spike(scenario, current):
     assert scenario.comments("issue") == []
 
 
+def test_spike_advisory_does_not_swallow_a_gh_failure(scenario):
+    scenario.gh("issue", "view", "labels", code=1, stderr="gh: rate limited")
+
+    result = scenario.run("pipeline.spike_advisory", ISSUE)
+
+    assert result.returncode != 0
+    assert scenario.comments("issue") == []
+
+
 def test_merged_pr_retires_the_issue_run_label(scenario):
     scenario.gh("pr", "view", "labels", stdout=labels_payload("pr:in-review"))
     scenario.gh("issue", "view", "labels", stdout=labels_payload("status:in-progress"))
@@ -94,6 +103,18 @@ def test_no_give_up_sentinel_leaves_everything_alone(scenario):
     assert scenario.calls("gh") == []
 
 
+def test_empty_give_up_sentinel_uses_a_placeholder_reason(scenario):
+    (scenario.workspace / ".coder-gave-up.md").write_text("")
+    scenario.gh("pr", "view", "labels", stdout=labels_payload("pr:coding"))
+    scenario.gh("issue", "view", "labels", stdout=labels_payload("status:in-progress"))
+
+    result = scenario.run("pipeline.handle_giveup", ISSUE, PR)
+
+    assert result.outputs == {"gave_up": "true"}
+    (_, body), = scenario.comments("issue")
+    assert "_(no reason given)_" in body
+
+
 def test_review_crash_flags_the_pr_and_the_issue(scenario):
     scenario.gh("pr", "view", "labels", stdout=labels_payload("pr:in-review"))
     scenario.gh("issue", "view", "labels", stdout=labels_payload("status:in-progress"))
@@ -126,6 +147,17 @@ def test_flag_failure_with_no_target_fails(scenario):
 
     assert result.returncode != 0
     assert scenario.calls("gh") == []
+
+
+def test_fix_round_failure_without_an_issue_fails_after_clearing_the_pr_label(scenario):
+    scenario.gh("pr", "view", "labels", stdout=labels_payload("pr:coding"))
+
+    result = scenario.run("pipeline.flag_failure", "--noun", "implementation", "--pr", PR, "--fix-round")
+
+    assert result.returncode != 0
+    assert scenario.label_edits("pr") == [(PR, set(), {"pr:coding"})]
+    assert scenario.comments("issue") == []
+    assert scenario.comments("pr") == []
 
 
 def test_accepted_issue_type_passes_the_gate(scenario):
