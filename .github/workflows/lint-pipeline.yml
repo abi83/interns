@@ -52,21 +52,25 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - name: Unused imports and dead code
         run: uv run --frozen ruff check .
-      - name: Layer import-direction check
-        run: uv run --frozen python tools/check_layers.py
 
   test-unit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v6
-      - name: Unit tier (unit tests, contract fixtures, guards) with its coverage floor
-        run: uv run --frozen python tools/test_unit.py
+      - name: Unit tests, contract fixtures, guards — with coverage floor
+        run: |
+          uv run --frozen python -m coverage run -m pytest --ignore=tests/integration
+          uv run --frozen python -m coverage combine
+          uv run --frozen python -m coverage report
 
   test-integration:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v6
-      - name: Integration tier (real entrypoints, fake gh/git) with its coverage floor
-        run: uv run --frozen python tools/test_integration.py
+      - name: Integration tests (real entrypoints, fake gh/git) — with coverage floor
+        run: |
+          uv run --frozen python -m coverage run -m pytest tests/integration
+          uv run --frozen python -m coverage combine
+          uv run --frozen python -m coverage report

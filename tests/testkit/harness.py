@@ -23,7 +23,7 @@ from pathlib import Path
 
 from interns.ctx import ActionsCtx
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 FAKE_CLI = Path(__file__).with_name("fake_cli.py")
 MCP_TOOL = Path(__file__).with_name("mcp_tool.py")
 PYTHONPATH = [ROOT / "interns/src", ROOT / "installer/src", ROOT / "mcp"]
