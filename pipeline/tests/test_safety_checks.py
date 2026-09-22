@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import patch
 
 from pipeline import cli, gh, safety_checks
-from pipeline.ctx import ActionsCtx
+from testkit.harness import default_ctx
 
 SECRETS = safety_checks.DEFAULT_REQUIRED_SECRETS
 VARS = safety_checks.DEFAULT_REQUIRED_VARS
@@ -41,10 +41,7 @@ class CheckVarsTests(unittest.TestCase):
 
 class MainTests(unittest.TestCase):
     def _ctx(self, **kwargs):
-        defaults = dict(repo="acme/widgets", token="x", server_url="", run_id="",
-                        run_attempt=1, workspace=".", event_name="", reviewer_bot="", step_summary="")
-        defaults.update(kwargs)
-        return ActionsCtx(**defaults)
+        return default_ctx(token="x", **kwargs)
 
     def test_reports_every_failure_not_just_the_first(self):
         with patch("pipeline.safety_checks.gh.list_secret_names", return_value=[]), \

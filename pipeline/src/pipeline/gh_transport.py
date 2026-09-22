@@ -8,6 +8,7 @@ installer operations live in `interns_install.gh_admin`."""
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 
 __all__ = [
@@ -85,14 +86,20 @@ def api_all_pages(path: str) -> list:
     return items
 
 
+def _http_status_code(exc: GhCommandError) -> str | None:
+    m = re.search(r"HTTP (\d{3})", str(exc))
+    return m.group(1) if m else None
+
+
 def api_status(path: str) -> tuple[str, object]:
     """GET `path`. Returns ("ok", body), ("missing", None) for a 404, or
     ("blocked", None) for a 403. Any other failure raises."""
     try:
         return "ok", api(path)
     except GhCommandError as exc:
-        if "HTTP 404" in str(exc):
+        code = _http_status_code(exc)
+        if code == "404":
             return "missing", None
-        if "HTTP 403" in str(exc):
+        if code == "403":
             return "blocked", None
         raise

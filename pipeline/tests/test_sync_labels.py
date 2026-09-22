@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from pipeline import sync_labels
-from pipeline.ctx import ActionsCtx
+from testkit.harness import default_ctx
 
 
 class SyncLabelsTests(unittest.TestCase):
@@ -83,8 +83,7 @@ class SyncLabelsTests(unittest.TestCase):
 
 class MainTests(unittest.TestCase):
     def _ctx(self):
-        return ActionsCtx(repo="acme/widgets", token="x", server_url="", run_id="",
-                          run_attempt=1, workspace=".", event_name="", reviewer_bot="", step_summary="")
+        return default_ctx(token="x")
 
     def test_fails_on_a_missing_manifest(self):
         self.assertEqual(sync_labels._main(self._ctx(), ["/no/such/labels.json"]), 1)

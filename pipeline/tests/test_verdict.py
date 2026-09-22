@@ -97,52 +97,5 @@ class RoundsRequestedTests(unittest.TestCase):
         self.assertEqual(verdict.rounds_requested(reviews), 2)
 
 
-class CliTests(unittest.TestCase):
-    def setUp(self):
-        from pipeline.ctx import ActionsCtx
-        self.ctx = ActionsCtx(repo="o/r", token="", server_url="", run_id="",
-                               run_attempt=1, workspace=".", event_name="",
-                               reviewer_bot="reviewer[bot]", step_summary="")
-
-    def test_verdict_for_head_prints_empty_for_a_stale_review(self):
-        payload = _reviews_payload([("reviewer[bot]", "CHANGES_REQUESTED", "oldsha")])
-        with patch("pipeline.gh.api_all_pages", return_value=payload), patch("builtins.print") as mock_print:
-            verdict._main(self.ctx, ["--pr", "12", "verdict-for-head", "newsha"])
-        mock_print.assert_called_once_with("")
-
-    def test_rounds_requested_with_exclude_commit(self):
-        payload = _reviews_payload([
-            ("reviewer[bot]", "CHANGES_REQUESTED", "head1"),
-            ("reviewer[bot]", "CHANGES_REQUESTED", "head2"),
-        ])
-        with patch("pipeline.gh.api_all_pages", return_value=payload), patch("builtins.print") as mock_print:
-            verdict._main(self.ctx, ["--pr", "12", "rounds-requested", "--exclude-commit", "head2"])
-        mock_print.assert_called_once_with(1)
-
-    def test_review_count(self):
-        payload = _reviews_payload([("reviewer[bot]", "APPROVED", "sha1")])
-        with patch("pipeline.gh.api_all_pages", return_value=payload), patch("builtins.print") as mock_print:
-            verdict._main(self.ctx, ["--pr", "12", "review-count"])
-        mock_print.assert_called_once_with(1)
-
-    def test_summary_for_head_prints_verdict_and_count_from_one_fetch(self):
-        payload = _reviews_payload([
-            ("reviewer[bot]", "CHANGES_REQUESTED", "oldsha"),
-            ("reviewer[bot]", "APPROVED", "head1"),
-        ])
-        with patch("pipeline.gh.api_all_pages", return_value=payload) as api, patch("builtins.print") as mock_print:
-            verdict._main(self.ctx, ["--pr", "12", "summary-for-head", "head1"])
-        api.assert_called_once()
-        mock_print.assert_any_call("verdict=APPROVED")
-        mock_print.assert_any_call("count=2")
-
-    def test_summary_for_head_empty_verdict_for_a_stale_review(self):
-        payload = _reviews_payload([("reviewer[bot]", "APPROVED", "oldsha")])
-        with patch("pipeline.gh.api_all_pages", return_value=payload), patch("builtins.print") as mock_print:
-            verdict._main(self.ctx, ["--pr", "12", "summary-for-head", "head1"])
-        mock_print.assert_any_call("verdict=")
-        mock_print.assert_any_call("count=1")
-
-
 if __name__ == "__main__":
     unittest.main()

@@ -15,10 +15,12 @@ absent label -- which `gh` would reject -- never happens in the first place.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
 from . import best_effort, gh
-from .ctx import ActionsCtx
+
+if TYPE_CHECKING:
+    from .ctx import ActionsCtx
 from .size import roll_up_size
 
 STATUS_NEEDS_REFINEMENT = "status:needs-refinement"
