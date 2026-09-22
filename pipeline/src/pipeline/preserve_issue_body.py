@@ -4,9 +4,9 @@ rewrite never loses the original text."""
 from __future__ import annotations
 
 import os
-import sys
 
-from . import cli, gh
+from . import gh
+from .ctx import ActionsCtx
 
 
 def preserve_issue_body(repo: str, issue: int, body: str) -> None:
@@ -16,12 +16,12 @@ def preserve_issue_body(repo: str, issue: int, body: str) -> None:
     )
 
 
-def _main(argv: list[str]) -> int:
-    repo, issue = argv
+def _main(ctx: ActionsCtx, argv: list[str]) -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(prog="pipeline.entrypoint preserve-issue-body")
+    parser.add_argument("--issue", type=int, required=True)
+    args = parser.parse_args(argv)
     # os.environ, not require_env: an empty issue body is valid
-    preserve_issue_body(repo, int(issue), os.environ["ISSUE_BODY"])
+    preserve_issue_body(ctx.repo, args.issue, os.environ["ISSUE_BODY"])
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(cli.run(_main))

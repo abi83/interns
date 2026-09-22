@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from pipeline import gather_fix_feedback
+from pipeline.ctx import ActionsCtx
 from pipeline.verdict import Review
 
 
@@ -43,19 +44,22 @@ class BuildFeedbackTextTests(unittest.TestCase):
 
 
 class CliTests(unittest.TestCase):
+    def setUp(self):
+        self.ctx = ActionsCtx(repo="acme/widgets", token="", server_url="", run_id="",
+                               run_attempt=1, workspace=".", event_name="",
+                               reviewer_bot="", step_summary="")
+
     def test_no_pr_returns_failure_without_calling_git(self):
-        with patch("pipeline.gather_fix_feedback.checkout_branch") as checkout, \
-             patch.dict(os.environ, {"GITHUB_REPOSITORY": "acme/widgets"}):
-            rc = gather_fix_feedback._main(["", "some-branch", "5"])
+        with patch("pipeline.gather_fix_feedback.checkout_branch") as checkout:
+            rc = gather_fix_feedback._main(self.ctx, ["--pr", "", "--head-ref", "some-branch", "--issue", "5"])
         self.assertEqual(rc, 1)
         checkout.assert_not_called()
 
     def test_no_changes_requested_review_returns_failure(self):
         with patch("pipeline.gather_fix_feedback.checkout_branch"), \
              patch("pipeline.gather_fix_feedback.build_feedback_text",
-                   side_effect=gather_fix_feedback.NoChangesRequestedReviewError("no CHANGES_REQUESTED review found for PR #6")), \
-             patch.dict(os.environ, {"GITHUB_REPOSITORY": "acme/widgets"}):
-            rc = gather_fix_feedback._main(["6", "feature-x", "5"])
+                   side_effect=gather_fix_feedback.NoChangesRequestedReviewError("no CHANGES_REQUESTED review found for PR #6")):
+            rc = gather_fix_feedback._main(self.ctx, ["--pr", "6", "--head-ref", "feature-x", "--issue", "5"])
         self.assertEqual(rc, 1)
 
     def test_writes_the_feedback_block_to_github_output(self):
@@ -64,8 +68,8 @@ class CliTests(unittest.TestCase):
             Path(output_file).write_text("")
             with patch("pipeline.gather_fix_feedback.checkout_branch") as checkout, \
                  patch("pipeline.gather_fix_feedback.build_feedback_text", return_value="## Latest REQUEST_CHANGES review — x"), \
-                 patch.dict(os.environ, {"GITHUB_REPOSITORY": "acme/widgets", "GITHUB_OUTPUT": output_file}):
-                rc = gather_fix_feedback._main(["6", "feature-x", "5"])
+                 patch.dict(os.environ, {"GITHUB_OUTPUT": output_file}):
+                rc = gather_fix_feedback._main(self.ctx, ["--pr", "6", "--head-ref", "feature-x", "--issue", "5"])
             self.assertEqual(rc, 0)
             checkout.assert_called_once_with("feature-x")
             out = Path(output_file).read_text()
@@ -81,8 +85,8 @@ class CliTests(unittest.TestCase):
             with patch("pipeline.gather_fix_feedback.checkout_branch"), \
                  patch("pipeline.gather_fix_feedback.build_feedback_text",
                        return_value="please fix this:\nghadelim_0000000000000000000000000000000\nthanks"), \
-                 patch.dict(os.environ, {"GITHUB_REPOSITORY": "acme/widgets", "GITHUB_OUTPUT": output_file}):
-                rc = gather_fix_feedback._main(["6", "feature-x", "5"])
+                 patch.dict(os.environ, {"GITHUB_OUTPUT": output_file}):
+                rc = gather_fix_feedback._main(self.ctx, ["--pr", "6", "--head-ref", "feature-x", "--issue", "5"])
             self.assertEqual(rc, 0)
             out = Path(output_file).read_text()
             self.assertIn("ghadelim_0000000000000000000000000000000\nthanks", out)

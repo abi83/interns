@@ -1,9 +1,9 @@
 import io
-import os
 import unittest
 from unittest.mock import patch
 
 from pipeline import cli, gh, safety_checks
+from pipeline.ctx import ActionsCtx
 
 SECRETS = safety_checks.DEFAULT_REQUIRED_SECRETS
 VARS = safety_checks.DEFAULT_REQUIRED_VARS
@@ -40,27 +40,30 @@ class CheckVarsTests(unittest.TestCase):
 
 
 class MainTests(unittest.TestCase):
-    def _env(self, **extra):
-        return patch.dict(os.environ, {"GITHUB_REPOSITORY": "acme/widgets", "GH_TOKEN": "x", **extra})
+    def _ctx(self, **kwargs):
+        defaults = dict(repo="acme/widgets", token="x", server_url="", run_id="",
+                        run_attempt=1, workspace=".", event_name="", reviewer_bot="", step_summary="")
+        defaults.update(kwargs)
+        return ActionsCtx(**defaults)
 
     def test_reports_every_failure_not_just_the_first(self):
-        with self._env(), \
-             patch("pipeline.safety_checks.gh.list_secret_names", return_value=[]), \
+        with patch("pipeline.safety_checks.gh.list_secret_names", return_value=[]), \
              patch("pipeline.safety_checks.gh.list_variable_names", return_value=[]):
-            status = safety_checks._main()
+            status = safety_checks._main(self._ctx(), [])
         self.assertEqual(status, 1)
 
     def test_all_pass_returns_zero(self):
-        with self._env(), \
-             patch("pipeline.safety_checks.gh.list_secret_names", return_value=SECRETS), \
+        with patch("pipeline.safety_checks.gh.list_secret_names", return_value=SECRETS), \
              patch("pipeline.safety_checks.gh.list_variable_names", return_value=VARS):
-            status = safety_checks._main()
+            status = safety_checks._main(self._ctx(), [])
         self.assertEqual(status, 0)
 
     def test_fails_when_gh_token_unset(self):
+        import os
         with patch.dict(os.environ, {"GITHUB_REPOSITORY": "acme/widgets"}, clear=True):
             with self.assertRaises(cli.MissingEnvError):
-                safety_checks._main()
+                from pipeline.ctx import ActionsCtx as _Ctx
+                _Ctx.from_env()
 
 
 if __name__ == "__main__":

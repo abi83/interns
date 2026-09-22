@@ -16,14 +16,13 @@ workflow-behaviour constant here, not an execution limit in the config file.
 
 from __future__ import annotations
 
-import sys
-
-from . import actions_env, cli, gh, labels, verdict
+from . import cli, gh, labels, verdict
+from .ctx import ActionsCtx
 
 MAX_FIX_ROUNDS = 1
 
 
-def apply_verdict(repo: str, pr: int, issue: int | None, reviewer_bot: str) -> None:
+def apply_verdict(repo: str, pr: int, issue: int | None, reviewer_bot: str, *, server_url: str = "", run_url: str = "") -> None:
     head_sha = gh.pr_view(repo, pr, ["headRefOid"])["headRefOid"]
     reviews = verdict.reviews_by(repo, pr, reviewer_bot)
     last_state = verdict.verdict_for_head(reviews, head_sha)
@@ -33,8 +32,8 @@ def apply_verdict(repo: str, pr: int, issue: int | None, reviewer_bot: str) -> N
         if issue is not None:
             gh.issue_comment(
                 repo, issue,
-                f"Reviewer approved [PR #{pr}]({actions_env.pr_url(repo, pr)}) — awaiting owner merge. "
-                f"Run: {actions_env.run_url(repo)}",
+                f"Reviewer approved [PR #{pr}]({server_url}/{repo}/pull/{pr}) — awaiting owner merge. "
+                f"Run: {run_url}",
             )
         return
 
@@ -47,7 +46,7 @@ def apply_verdict(repo: str, pr: int, issue: int | None, reviewer_bot: str) -> N
             gh.pr_comment(
                 repo, pr,
                 "Second review still requests changes — the automatic fix round didn't converge. "
-                f"Escalating to a human. See the run: {actions_env.run_url(repo)}",
+                f"Escalating to a human. See the run: {run_url}",
             )
         elif issue is not None:
             labels.set_pr_pipeline_label(repo, pr, labels.PR_CODING)
@@ -62,7 +61,7 @@ def apply_verdict(repo: str, pr: int, issue: int | None, reviewer_bot: str) -> N
             gh.pr_comment(
                 repo, pr,
                 "Changes requested but this PR has no linked issue — can't dispatch a coder fix round "
-                f"automatically. See the run: {actions_env.run_url(repo)}",
+                f"automatically. See the run: {run_url}",
             )
         return
 
@@ -72,26 +71,24 @@ def apply_verdict(repo: str, pr: int, issue: int | None, reviewer_bot: str) -> N
     gh.pr_comment(
         repo, pr,
         "Review run completed without submitting a recognized verdict — likely stopped partway through. "
-        f"See the run: {actions_env.run_url(repo)}",
+        f"See the run: {run_url}",
     )
 
 
-def _main(argv: list[str]) -> int:
+def _main(ctx: ActionsCtx, argv: list[str]) -> int:
     import argparse
 
-    parser = argparse.ArgumentParser(prog="python -m pipeline.apply_verdict")
-    parser.add_argument("pr", type=int)
-    parser.add_argument("issue", nargs="?", default="")
+    parser = argparse.ArgumentParser(prog="pipeline.entrypoint apply-verdict")
+    parser.add_argument("--pr", type=int, required=True)
+    parser.add_argument("--issue", default="")
     args = parser.parse_args(argv)
 
     apply_verdict(
-        cli.require_env("GITHUB_REPOSITORY"),
+        ctx.repo,
         args.pr,
         cli.optional_int(args.issue),
-        cli.require_env("REVIEWER_BOT"),
+        ctx.reviewer_bot,
+        server_url=ctx.server_url,
+        run_url=ctx.run_url(),
     )
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(cli.run(_main))

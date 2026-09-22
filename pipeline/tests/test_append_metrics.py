@@ -1,12 +1,12 @@
 import json
-import os
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from pipeline import cli, append_metrics
+from pipeline import append_metrics
+from pipeline.ctx import ActionsCtx
 
 
 def _git(args, cwd):
@@ -150,24 +150,21 @@ class RetryPathTests(unittest.TestCase):
 
 
 class CliTests(unittest.TestCase):
+    def _ctx(self, token="tok123", repo="owner/repo", server_url="https://github.com", run_id="42"):
+        return ActionsCtx(repo=repo, token=token, server_url=server_url, run_id=run_id,
+                          run_attempt=1, workspace=".", event_name="", reviewer_bot="", step_summary="")
+
     def test_errors_with_no_arguments(self):
         with self.assertRaises(SystemExit):
-            append_metrics._main([])
+            append_metrics._main(self._ctx(), [])
 
-    def test_builds_remote_from_env_and_reports_success(self):
-        env = {
-            "GH_TOKEN": "tok123",
-            "GITHUB_REPOSITORY": "owner/repo",
-            "GITHUB_SERVER_URL": "https://github.com",
-            "GITHUB_RUN_ID": "42",
-        }
+    def test_builds_remote_from_ctx_and_reports_success(self):
         with tempfile.TemporaryDirectory() as tmp_s:
             tmp = Path(tmp_s)
             record = _record_file(tmp, {"job": "coder"})
-            with patch.dict(os.environ, env), \
-                 patch.object(append_metrics, "append_records", return_value=1) as mock_append, \
+            with patch.object(append_metrics, "append_records", return_value=1) as mock_append, \
                  patch("builtins.print") as mock_print:
-                status = append_metrics._main([str(record)])
+                status = append_metrics._main(self._ctx(), [str(record)])
 
         self.assertEqual(status, 0)
         _, kwargs = mock_append.call_args
@@ -176,32 +173,14 @@ class CliTests(unittest.TestCase):
         mock_print.assert_called_once()
 
     def test_reports_failure_after_exhausted_retries(self):
-        env = {"GH_TOKEN": "t", "GITHUB_REPOSITORY": "owner/repo"}
         with tempfile.TemporaryDirectory() as tmp_s:
             tmp = Path(tmp_s)
             record = _record_file(tmp, {"job": "coder"})
-            with patch.dict(os.environ, env), \
-                 patch.object(append_metrics, "append_records",
-                              side_effect=append_metrics.AppendMetricsError("push to metrics failed after 3 attempts")):
-                status = append_metrics._main([str(record)])
+            with patch.object(append_metrics, "append_records",
+                               side_effect=append_metrics.AppendMetricsError("push to metrics failed after 3 attempts")):
+                status = append_metrics._main(self._ctx(), [str(record)])
 
         self.assertEqual(status, 1)
-
-    def test_missing_gh_token_fails_cleanly_not_a_traceback(self):
-        with tempfile.TemporaryDirectory() as tmp_s:
-            tmp = Path(tmp_s)
-            record = _record_file(tmp, {"job": "coder"})
-            with patch.dict(os.environ, {"GITHUB_REPOSITORY": "owner/repo"}, clear=True):
-                with self.assertRaisesRegex(cli.MissingEnvError, "unset"):
-                    append_metrics._main([str(record)])
-
-    def test_missing_github_repository_fails_cleanly_not_a_traceback(self):
-        with tempfile.TemporaryDirectory() as tmp_s:
-            tmp = Path(tmp_s)
-            record = _record_file(tmp, {"job": "coder"})
-            with patch.dict(os.environ, {"GH_TOKEN": "t"}, clear=True):
-                with self.assertRaisesRegex(cli.MissingEnvError, "unset"):
-                    append_metrics._main([str(record)])
 
 
 if __name__ == "__main__":

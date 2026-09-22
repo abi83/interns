@@ -1,11 +1,10 @@
 import json
-import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 from pipeline import cli, extract_metrics
+from pipeline.ctx import ActionsCtx
 
 EXEC_EVENTS = [
     {"type": "system", "subtype": "init", "session_id": "sess-1"},
@@ -109,15 +108,11 @@ class CliTests(unittest.TestCase):
         self._tmpdir = tempfile.TemporaryDirectory()
         self.exec_file = Path(self._tmpdir.name) / "exec.json"
         self.exec_file.write_text(json.dumps(EXEC_EVENTS))
-        self._env = patch.dict(os.environ, {
-            "GITHUB_REPOSITORY": "owner/repo",
-            "GITHUB_RUN_ID": "42",
-            "GITHUB_RUN_ATTEMPT": "2",
-        })
-        self._env.start()
+        self.ctx = ActionsCtx(repo="owner/repo", token="", server_url="", run_id="42",
+                               run_attempt=2, workspace=".", event_name="",
+                               reviewer_bot="", step_summary="")
 
     def tearDown(self):
-        self._env.stop()
         self._tmpdir.cleanup()
 
     def _run_capture(self, argv):
@@ -125,11 +120,11 @@ class CliTests(unittest.TestCase):
         import contextlib
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            status = extract_metrics._main(argv)
+            status = extract_metrics._main(self.ctx, argv)
         return status, out.getvalue()
 
     def test_emits_one_line_with_core_run_fields(self):
-        status, out = self._run_capture([str(self.exec_file), "--job", "coder",
+        status, out = self._run_capture(["--exec-file", str(self.exec_file), "--job", "coder",
                                           "--issue", "117", "--pr", "128"])
         self.assertEqual(status, 0)
         lines = out.splitlines()
@@ -140,31 +135,28 @@ class CliTests(unittest.TestCase):
 
     def test_rejects_an_unknown_job(self):
         with self.assertRaises(SystemExit):
-            self._run_capture([str(self.exec_file), "--job", "nope"])
+            self._run_capture(["--exec-file", str(self.exec_file), "--job", "nope"])
 
     def test_fails_when_the_execution_file_has_no_result_event(self):
         no_result = Path(self._tmpdir.name) / "noresult.json"
         no_result.write_text(json.dumps([{"type": "system"}]))
-        status, out = self._run_capture([str(no_result), "--job", "coder"])
+        status, out = self._run_capture(["--exec-file", str(no_result), "--job", "coder"])
         self.assertNotEqual(status, 0)
         self.assertEqual(out, "")
 
     def test_fails_when_the_execution_file_is_missing(self):
-        status, out = self._run_capture(["/no/such/file", "--job", "coder"])
+        status, out = self._run_capture(["--exec-file", "/no/such/file", "--job", "coder"])
         self.assertNotEqual(status, 0)
         self.assertEqual(out, "")
 
-    def test_missing_github_repository_fails_cleanly_not_a_traceback(self):
-        with patch.dict(os.environ, {}, clear=True), \
-             patch.dict(os.environ, {"GITHUB_RUN_ID": "42"}):
-            with self.assertRaisesRegex(cli.MissingEnvError, "unset"):
-                self._run_capture([str(self.exec_file), "--job", "coder"])
-
-    def test_missing_github_run_id_fails_cleanly_not_a_traceback(self):
-        with patch.dict(os.environ, {}, clear=True), \
-             patch.dict(os.environ, {"GITHUB_REPOSITORY": "owner/repo"}):
-            with self.assertRaisesRegex(cli.MissingEnvError, "unset"):
-                self._run_capture([str(self.exec_file), "--job", "coder"])
+    def test_missing_run_id_fails_cleanly(self):
+        ctx_no_run = ActionsCtx(repo="owner/repo", token="", server_url="", run_id="",
+                                 run_attempt=1, workspace=".", event_name="",
+                                 reviewer_bot="", step_summary="")
+        with self.assertRaisesRegex(cli.MissingEnvError, "unset"):
+            import io, contextlib
+            with contextlib.redirect_stdout(io.StringIO()):
+                extract_metrics._main(ctx_no_run, ["--exec-file", str(self.exec_file), "--job", "coder"])
 
 
 if __name__ == "__main__":

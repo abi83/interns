@@ -11,11 +11,11 @@ gate loudly instead of silently ignoring nothing.
 
 from __future__ import annotations
 
-import sys
 import time
 from dataclasses import dataclass
 
 from . import cli, config, gh
+from .ctx import ActionsCtx
 
 
 @dataclass(frozen=True)
@@ -66,15 +66,15 @@ def wait_for_checks(
     return False, f"timed out waiting for checks to finish: {', '.join(last_pending) or 'unknown'}"
 
 
-def _main(argv: list[str]) -> int:
+def _main(ctx: ActionsCtx, argv: list[str]) -> int:
     import argparse
     import os
 
-    parser = argparse.ArgumentParser(prog="python -m pipeline.wait_for_checks")
-    parser.add_argument("pr", type=int)
+    parser = argparse.ArgumentParser(prog="pipeline.entrypoint wait-for-checks")
+    parser.add_argument("--pr", type=int, required=True)
     args = parser.parse_args(argv)
 
-    if os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch":
+    if ctx.event_name == "workflow_dispatch":
         print("Manual dispatch — skipping the check gate.")
         cli.write_output("ok", True)
         return 0
@@ -83,7 +83,7 @@ def _main(argv: list[str]) -> int:
     ignore = config.checks_ignore(config.load_raw(config_path), config_path)
 
     ok, reason = wait_for_checks(
-        cli.require_env("GITHUB_REPOSITORY"), args.pr, os.environ.get("GITHUB_RUN_ID", ""), ignore,
+        ctx.repo, args.pr, ctx.run_id, ignore,
         timeout=float(os.environ.get("CHECK_TIMEOUT_SECONDS", "1200")),
         poll=float(os.environ.get("CHECK_POLL_SECONDS", "20")),
         settle=float(os.environ.get("CHECK_SETTLE_SECONDS", "30")),
@@ -92,7 +92,3 @@ def _main(argv: list[str]) -> int:
     if not ok:
         cli.write_output("reason", reason)
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(cli.run(_main))

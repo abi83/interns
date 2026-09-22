@@ -45,8 +45,9 @@ def test_coder_success_squashes_pushes_opens_pr_and_reports_cost(scenario):
     pushed = scenario.run_tool("push_branch")
     opened = scenario.run_tool("open_pr", issue_number=int(ISSUE), title="feat: add thing",
                                body="Adds the thing to the widget.")
-    reported = scenario.run("pipeline.report_run", "Coder", str(exec_file), ISSUE)
-    handed_off = scenario.run("pipeline.handoff_to_review", ISSUE, PR)
+    reported = scenario.run("pipeline.entrypoint", "report-run",
+                            "--phase", "Coder", "--exec-file", str(exec_file), "--issue", ISSUE)
+    handed_off = scenario.run("pipeline.entrypoint", "handoff-to-review", "--issue", ISSUE, "--pr", PR)
 
     assert [r.returncode for r in (pushed, opened, reported, handed_off)] == [0, 0, 0, 0]
     assert scenario.calls("git", "reset") == [["reset", "--soft", "base-sha"]]
@@ -63,7 +64,7 @@ def test_coder_success_squashes_pushes_opens_pr_and_reports_cost(scenario):
 def test_coder_leaving_no_pr_flags_the_issue(scenario):
     scenario.gh("issue", "view", "labels", stdout=labels_payload("status:in-progress"))
 
-    result = scenario.run("pipeline.handoff_to_review", ISSUE)
+    result = scenario.run("pipeline.entrypoint", "handoff-to-review", "--issue", ISSUE)
 
     assert result.returncode == 0
     assert scenario.label_edits("issue") == [(ISSUE, {"status:needs-attention"}, {"status:in-progress"})]
@@ -74,7 +75,7 @@ def test_reviewer_approval_clears_the_pr_label(scenario):
     reviews_on_pr(scenario, review("APPROVED"))
     scenario.gh("pr", "view", "labels", stdout=labels_payload("pr:in-review"))
 
-    result = scenario.run("pipeline.apply_verdict", PR, ISSUE)
+    result = scenario.run("pipeline.entrypoint", "apply-verdict", "--pr", PR, "--issue", ISSUE)
 
     assert result.returncode == 0
     assert scenario.label_edits("pr") == [(PR, set(), {"pr:in-review"})]
@@ -87,7 +88,7 @@ def test_first_change_request_dispatches_a_fix_round(scenario):
     reviews_on_pr(scenario, review("CHANGES_REQUESTED"))
     scenario.gh("pr", "view", "labels", stdout=labels_payload("pr:in-review"))
 
-    result = scenario.run("pipeline.apply_verdict", PR, ISSUE)
+    result = scenario.run("pipeline.entrypoint", "apply-verdict", "--pr", PR, "--issue", ISSUE)
 
     assert result.returncode == 0
     assert scenario.label_edits("pr") == [(PR, {"pr:coding"}, {"pr:in-review"})]
@@ -101,7 +102,7 @@ def test_change_request_past_the_cap_escalates_to_a_human(scenario):
     scenario.gh("pr", "view", "labels", stdout=labels_payload("pr:in-review"))
     scenario.gh("issue", "view", "labels", stdout=labels_payload("status:in-progress"))
 
-    result = scenario.run("pipeline.apply_verdict", PR, ISSUE)
+    result = scenario.run("pipeline.entrypoint", "apply-verdict", "--pr", PR, "--issue", ISSUE)
 
     assert result.returncode == 0
     assert scenario.calls("gh", "workflow") == []
@@ -117,10 +118,11 @@ def test_red_check_routes_to_a_human_without_running_the_reviewer(scenario):
     scenario.gh("issue", "view", "labels", stdout=labels_payload("status:in-progress"))
     no_config = {"INTERNS_CONFIG": str(scenario.workspace / "absent.yml")}
 
-    gate = scenario.run("pipeline.wait_for_checks", PR, env=no_config)
+    gate = scenario.run("pipeline.entrypoint", "wait-for-checks", "--pr", PR, env=no_config)
     assert gate.outputs == {"ok": "false", "reason": "red checks: ci=fail"}
 
-    routed = scenario.run("pipeline.route_red_checks", PR, ISSUE, gate.outputs["reason"])
+    routed = scenario.run("pipeline.entrypoint", "route-red-checks",
+                          "--pr", PR, "--issue", ISSUE, "--reason", gate.outputs["reason"])
 
     assert routed.returncode == 0
     assert scenario.label_edits("pr") == [(PR, {"pr:needs-attention"}, {"pr:coding"})]

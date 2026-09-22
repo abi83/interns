@@ -40,7 +40,7 @@ def test_bug_label_derives_a_fix_hint_and_branch(scenario):
     scenario.gh("issue", "view", "labels", stdout=labels_payload("type:bug", "status:ready"))
     scenario.gh("issue", "view", "title", stdout={"title": "Export drops rows with commas"})
 
-    result = scenario.run("pipeline.derive_code_hints", ISSUE)
+    result = scenario.run("pipeline.entrypoint", "derive-code-hints", "--issue", ISSUE)
 
     assert result.returncode == 0
     assert result.outputs["commit_type_hint"] == "fix:"
@@ -51,7 +51,7 @@ def test_coding_task_label_derives_a_feat_hint_and_branch(scenario):
     scenario.gh("issue", "view", "labels", stdout=labels_payload("type:coding-task", "status:ready"))
     scenario.gh("issue", "view", "title", stdout={"title": "Add CSV export"})
 
-    result = scenario.run("pipeline.derive_code_hints", ISSUE)
+    result = scenario.run("pipeline.entrypoint", "derive-code-hints", "--issue", ISSUE)
 
     assert result.returncode == 0
     assert result.outputs["commit_type_hint"] == "feat:"
@@ -61,7 +61,7 @@ def test_coding_task_label_derives_a_feat_hint_and_branch(scenario):
 def test_neither_type_label_fails_instead_of_guessing(scenario):
     scenario.gh("issue", "view", "labels", stdout=labels_payload("type:spike", "status:ready"))
 
-    result = scenario.run("pipeline.derive_code_hints", ISSUE)
+    result = scenario.run("pipeline.entrypoint", "derive-code-hints", "--issue", ISSUE)
 
     assert result.returncode != 0
     assert "neither type:bug nor type:coding-task" in result.stderr

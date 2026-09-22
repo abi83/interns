@@ -13,7 +13,8 @@ import json
 import os
 import sys
 
-from . import cli, gh
+from . import gh
+from .ctx import ActionsCtx
 
 
 class ManifestError(ValueError):
@@ -53,24 +54,12 @@ def sync_labels(repo: str, manifest_path: str) -> str:
             f"{created} created, {updated} updated, {unchanged} unchanged")
 
 
-def _main(argv: list[str]) -> int:
+def _main(ctx: ActionsCtx, argv: list[str]) -> int:
     manifest_path = argv[0] if argv else ".github/labels.json"
 
-    repo = os.environ.get("GITHUB_REPOSITORY")
-    if not repo:
-        print("sync-labels: GITHUB_REPOSITORY unset", file=sys.stderr)
-        return 1
-    if not os.environ.get("GH_TOKEN"):
-        print("sync-labels: GH_TOKEN unset", file=sys.stderr)
-        return 1
-
     try:
-        print(sync_labels(repo, manifest_path))
+        print(sync_labels(ctx.repo, manifest_path))
     except ManifestError as exc:
         print(f"sync-labels: {exc}", file=sys.stderr)
         return 1
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(cli.run(_main))

@@ -7,8 +7,6 @@ from pipeline import apply_verdict
 class ApplyVerdictTests(unittest.TestCase):
     def test_approved_clears_the_pr_label_and_tells_the_issue(self):
         with patch("pipeline.apply_verdict.gh.pr_view", return_value={"headRefOid": "headsha"}), \
-             patch("pipeline.apply_verdict.actions_env.pr_url", return_value="https://github.com/acme/widgets/pull/12"), \
-             patch("pipeline.apply_verdict.actions_env.run_url", return_value="https://x/runs/1"), \
              patch("pipeline.apply_verdict.verdict.reviews_by", return_value=[
                  apply_verdict.verdict.Review(login="reviewer[bot]", state="APPROVED", commit_id="headsha"),
              ]), \
@@ -21,7 +19,6 @@ class ApplyVerdictTests(unittest.TestCase):
 
     def test_first_changes_requested_with_linked_issue_dispatches_a_fix_round(self):
         with patch("pipeline.apply_verdict.gh.pr_view", return_value={"headRefOid": "headsha"}), \
-             patch("pipeline.apply_verdict.actions_env.run_url", return_value="https://x/runs/1"), \
              patch("pipeline.apply_verdict.verdict.reviews_by", return_value=[
                  apply_verdict.verdict.Review(login="reviewer[bot]", state="CHANGES_REQUESTED", commit_id="headsha"),
              ]), \
@@ -36,7 +33,6 @@ class ApplyVerdictTests(unittest.TestCase):
 
     def test_second_changes_requested_escalates_without_dispatching(self):
         with patch("pipeline.apply_verdict.gh.pr_view", return_value={"headRefOid": "headsha"}), \
-             patch("pipeline.apply_verdict.actions_env.run_url", return_value="https://x/runs/1"), \
              patch("pipeline.apply_verdict.verdict.reviews_by", return_value=[
                  apply_verdict.verdict.Review(login="reviewer[bot]", state="CHANGES_REQUESTED", commit_id="oldsha"),
                  apply_verdict.verdict.Review(login="reviewer[bot]", state="CHANGES_REQUESTED", commit_id="headsha"),
@@ -53,7 +49,6 @@ class ApplyVerdictTests(unittest.TestCase):
 
     def test_changes_requested_with_no_linked_issue_cannot_dispatch(self):
         with patch("pipeline.apply_verdict.gh.pr_view", return_value={"headRefOid": "headsha"}), \
-             patch("pipeline.apply_verdict.actions_env.run_url", return_value="https://x/runs/1"), \
              patch("pipeline.apply_verdict.verdict.reviews_by", return_value=[
                  apply_verdict.verdict.Review(login="reviewer[bot]", state="CHANGES_REQUESTED", commit_id="headsha"),
              ]), \
@@ -67,7 +62,6 @@ class ApplyVerdictTests(unittest.TestCase):
 
     def test_unrecognized_verdict_flags_for_a_human(self):
         with patch("pipeline.apply_verdict.gh.pr_view", return_value={"headRefOid": "headsha"}), \
-             patch("pipeline.apply_verdict.actions_env.run_url", return_value="https://x/runs/1"), \
              patch("pipeline.apply_verdict.verdict.reviews_by", return_value=[
                  apply_verdict.verdict.Review(login="reviewer[bot]", state="COMMENTED", commit_id="headsha"),
              ]), \
@@ -81,7 +75,6 @@ class ApplyVerdictTests(unittest.TestCase):
 
     def test_stale_review_against_an_earlier_commit_flags_for_a_human(self):
         with patch("pipeline.apply_verdict.gh.pr_view", return_value={"headRefOid": "headsha"}), \
-             patch("pipeline.apply_verdict.actions_env.run_url", return_value="https://x/runs/1"), \
              patch("pipeline.apply_verdict.verdict.reviews_by", return_value=[
                  apply_verdict.verdict.Review(login="reviewer[bot]", state="APPROVED", commit_id="oldsha"),
              ]), \

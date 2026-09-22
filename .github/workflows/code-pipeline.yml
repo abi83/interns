@@ -175,7 +175,7 @@ jobs:
             echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          LABELS=$(python3 -m pipeline.labels "$GITHUB_REPOSITORY" issue-labels "$NUM")
+          LABELS=$(python3 -m pipeline.entrypoint labels issue-labels "$NUM")
           # A fix round is an explicit dispatch from the reviewer against an issue
           # that is *already* status:in-progress — the stale-trigger guard below
           # would wrongly skip it, so let it through.
@@ -210,7 +210,7 @@ jobs:
           # set-issue-status also clears status:needs-attention so a human
           # re-dispatch after a failed run (initial or fix round) leaves no
           # contradictory labels.
-          python3 -m pipeline.labels "$GITHUB_REPOSITORY" set-issue-status "${{ steps.issue.outputs.number }}" status:in-progress
+          python3 -m pipeline.entrypoint labels set-issue-status "${{ steps.issue.outputs.number }}" status:in-progress
 
       - name: Resolve agent config
         id: cfg
@@ -238,7 +238,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          python3 -m pipeline.labels "$GITHUB_REPOSITORY" set-pr-label "${{ steps.pr.outputs.pr_number }}" pr:coding
+          python3 -m pipeline.entrypoint labels set-pr-label "${{ steps.pr.outputs.pr_number }}" pr:coding
 
       - name: Gather reviewer feedback (fix round)
         id: feedback
@@ -246,10 +246,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
-          python3 -m pipeline.gather_fix_feedback
-          "${{ steps.pr.outputs.pr_number }}"
-          "${{ steps.pr.outputs.head_ref }}"
-          "${{ steps.issue.outputs.number }}"
+          python3 -m pipeline.entrypoint gather-fix-feedback
+          --pr "${{ steps.pr.outputs.pr_number }}"
+          --head-ref "${{ steps.pr.outputs.head_ref }}"
+          --issue "${{ steps.issue.outputs.number }}"
 
       # Both the Conventional Commit prefix and the branch name are derivable
       # from the issue's type:* label and title before the agent runs — the
@@ -262,8 +262,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: >
-          python3 -m pipeline.derive_code_hints
-          "${{ steps.issue.outputs.number }}"
+          python3 -m pipeline.entrypoint derive-code-hints
+          --issue "${{ steps.issue.outputs.number }}"
 
       # Creating the branch is as mechanical as naming it -- do it here rather
       # than have the coder spend a tool call discovering it's still on the
@@ -393,9 +393,10 @@ jobs:
           if [[ "${{ steps.build_config.outputs.configured }}" != "true" ]]; then
             warn_args=(--warn "tests/build aren't configured for this repo — fill in the test/build targets in Makefile so the pipeline can actually verify changes.")
           fi
-          python3 -m pipeline.report_run Coder \
-            "${{ steps.claude_initial.outputs.execution_file }}${{ steps.claude_fix.outputs.execution_file }}" \
-            "${{ steps.issue.outputs.number }}" \
+          python3 -m pipeline.entrypoint report-run \
+            --phase Coder \
+            --exec-file "${{ steps.claude_initial.outputs.execution_file }}${{ steps.claude_fix.outputs.execution_file }}" \
+            --issue "${{ steps.issue.outputs.number }}" \
             "${warn_args[@]}"
 
       # A fix round that can't do the work (protected path, out-of-scope or
@@ -410,8 +411,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
-          python3 -m pipeline.handle_giveup
-          "${{ steps.issue.outputs.number }}" "${{ steps.pr.outputs.pr_number }}"
+          python3 -m pipeline.entrypoint handle-giveup
+          --issue "${{ steps.issue.outputs.number }}"
+          --pr "${{ steps.pr.outputs.pr_number }}"
 
       - name: Check PR now exists
         id: verify_pr
@@ -425,8 +427,8 @@ jobs:
         continue-on-error: true
         if: steps.guard.outputs.skip != 'true' && always() && (steps.claude_initial.outputs.execution_file != '' || steps.claude_fix.outputs.execution_file != '')
         run: >
-          python3 -m pipeline.extract_metrics
-          "${{ steps.claude_initial.outputs.execution_file }}${{ steps.claude_fix.outputs.execution_file }}"
+          python3 -m pipeline.entrypoint extract-metrics
+          --exec-file "${{ steps.claude_initial.outputs.execution_file }}${{ steps.claude_fix.outputs.execution_file }}"
           --job coder
           --issue "${{ steps.issue.outputs.number }}"
           --pr "${{ steps.verify_pr.outputs.pr_number || steps.pr.outputs.pr_number }}"
@@ -446,16 +448,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
-          python3 -m pipeline.handoff_to_review
-          "${{ steps.issue.outputs.number }}" "${{ steps.verify_pr.outputs.pr_number }}"
+          python3 -m pipeline.entrypoint handoff-to-review
+          --issue "${{ steps.issue.outputs.number }}"
+          --pr "${{ steps.verify_pr.outputs.pr_number }}"
 
       - name: Write run summary
         if: steps.guard.outputs.skip != 'true' && always() && (steps.claude_initial.outcome != 'skipped' || steps.claude_fix.outcome != 'skipped')
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
-          python3 -m pipeline.run_summary Coder
-          "${{ steps.claude_initial.outputs.execution_file }}${{ steps.claude_fix.outputs.execution_file }}"
+          python3 -m pipeline.entrypoint run-summary
+          --phase Coder
+          --exec-file "${{ steps.claude_initial.outputs.execution_file }}${{ steps.claude_fix.outputs.execution_file }}"
           --issue "${{ steps.issue.outputs.number }}"
           --pr "${{ steps.verify_pr.outputs.pr_number || steps.pr.outputs.pr_number }}"
           --round ${{ steps.mode.outputs.fix_round == 'true' && 'fix' || 'initial' }}
@@ -467,11 +471,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           if [[ "${{ steps.mode.outputs.fix_round }}" == "true" ]]; then
-            python3 -m pipeline.flag_failure --noun implementation \
+            python3 -m pipeline.entrypoint flag-failure --noun implementation \
               --issue "${{ steps.issue.outputs.number }}" \
               --pr "${{ steps.pr.outputs.pr_number }}" --fix-round
           else
-            python3 -m pipeline.flag_failure --noun implementation \
+            python3 -m pipeline.entrypoint flag-failure --noun implementation \
               --issue "${{ steps.issue.outputs.number }}"
           fi
 
@@ -539,7 +543,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           PR="${{ github.event.pull_request.number || inputs.pr_number }}"
-          HEAD_REF=$(python3 -m pipeline.gh_query "$GITHUB_REPOSITORY" head-ref "$PR")
+          HEAD_REF=$(python3 -m pipeline.entrypoint gh-query --query head-ref --number "$PR")
           git fetch origin "$HEAD_REF"
           git checkout "$HEAD_REF"
 
@@ -566,17 +570,17 @@ jobs:
         id: checks
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 -m pipeline.wait_for_checks "${{ github.event.pull_request.number }}"
+        run: python3 -m pipeline.entrypoint wait-for-checks --pr "${{ github.event.pull_request.number }}"
 
       - name: Route red checks to a human
         if: steps.checks.outputs.ok == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
-          python3 -m pipeline.route_red_checks
-          "${{ github.event.pull_request.number }}"
-          "${{ steps.linked.outputs.issue_number }}"
-          "${{ steps.checks.outputs.reason }}"
+          python3 -m pipeline.entrypoint route-red-checks
+          --pr "${{ github.event.pull_request.number }}"
+          --issue "${{ steps.linked.outputs.issue_number }}"
+          --reason "${{ steps.checks.outputs.reason }}"
 
       # The reviewer runs under its own GitHub App identity, distinct from the
       # coder's, so it can actually submit an APPROVE review — GitHub forbids
@@ -635,11 +639,11 @@ jobs:
           fi
 
           PR="${{ github.event.pull_request.number || inputs.pr_number }}"
-          HEAD_SHA=$(python3 -m pipeline.gh_query "$GITHUB_REPOSITORY" head-sha "$PR")
+          HEAD_SHA=$(python3 -m pipeline.entrypoint gh-query --query head-sha --number "$PR")
           # One fetch of the reviewer bot's reviews covers both this check and
           # "Enforce automatic review cap" below -- review_count is threaded
           # through so that step doesn't hit the same endpoint again.
-          readarray -t summary < <(python3 -m pipeline.verdict "$GITHUB_REPOSITORY" "$PR" "$REVIEWER_BOT" summary-for-head "$HEAD_SHA")
+          readarray -t summary < <(python3 -m pipeline.entrypoint verdict --pr "$PR" summary-for-head "$HEAD_SHA")
           LAST_VERDICT="${summary[0]#verdict=}"
           echo "review_count=${summary[1]#count=}" >> "$GITHUB_OUTPUT"
 
@@ -659,8 +663,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REVIEWER_BOT: ${{ steps.ident.outputs.bot }}
         run: >
-          python3 -m pipeline.check_review_cap
-          "${{ github.event.pull_request.number }}"
+          python3 -m pipeline.entrypoint check-review-cap
+          --pr "${{ github.event.pull_request.number }}"
           --count "${{ steps.check.outputs.review_count }}"
 
       - name: Load reviewer instructions
@@ -715,18 +719,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
-          python3 -m pipeline.report_run Review
-          "${{ steps.claude.outputs.execution_file }}"
-          "${{ steps.linked.outputs.issue_number }}"
-          "${{ github.event.pull_request.number || inputs.pr_number }}"
+          python3 -m pipeline.entrypoint report-run
+          --phase Review
+          --exec-file "${{ steps.claude.outputs.execution_file }}"
+          --issue "${{ steps.linked.outputs.issue_number }}"
+          --pr "${{ github.event.pull_request.number || inputs.pr_number }}"
 
       - name: Extract run metrics
         id: metrics
         continue-on-error: true
         if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.cap.outputs.capped != 'true' && always() && steps.claude.outputs.execution_file != ''
         run: >
-          python3 -m pipeline.extract_metrics
-          "${{ steps.claude.outputs.execution_file }}"
+          python3 -m pipeline.entrypoint extract-metrics
+          --exec-file "${{ steps.claude.outputs.execution_file }}"
           --job reviewer
           --issue "${{ steps.linked.outputs.issue_number }}"
           --pr "${{ github.event.pull_request.number || inputs.pr_number }}"
@@ -747,9 +752,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REVIEWER_BOT: ${{ steps.ident.outputs.bot }}
         run: >
-          python3 -m pipeline.apply_verdict
-          "${{ github.event.pull_request.number || inputs.pr_number }}"
-          "${{ steps.linked.outputs.issue_number }}"
+          python3 -m pipeline.entrypoint apply-verdict
+          --pr "${{ github.event.pull_request.number || inputs.pr_number }}"
+          --issue "${{ steps.linked.outputs.issue_number }}"
 
       - name: Write run summary
         if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.cap.outputs.capped != 'true' && always() && steps.claude.outcome != 'skipped'
@@ -757,8 +762,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REVIEWER_BOT: ${{ steps.ident.outputs.bot }}
         run: >
-          python3 -m pipeline.run_summary Review
-          "${{ steps.claude.outputs.execution_file }}"
+          python3 -m pipeline.entrypoint run-summary
+          --phase Review
+          --exec-file "${{ steps.claude.outputs.execution_file }}"
           --pr "${{ github.event.pull_request.number || inputs.pr_number }}"
           --issue "${{ steps.linked.outputs.issue_number }}"
           --cost-warn "${{ steps.cfg.outputs.cost_warn_usd }}"
@@ -775,7 +781,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
-          python3 -m pipeline.flag_failure --noun review
+          python3 -m pipeline.entrypoint flag-failure --noun review
           --pr "${{ github.event.pull_request.number || inputs.pr_number }}"
           --issue "${{ steps.linked.outputs.issue_number }}"
 
@@ -818,10 +824,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
-          python3 -m pipeline.handle_pr_closed
-          "${{ github.event.pull_request.number }}"
-          "${{ steps.linked.outputs.issue_number }}"
-          "${{ github.event.pull_request.merged }}"
+          python3 -m pipeline.entrypoint handle-pr-closed
+          --pr "${{ github.event.pull_request.number }}"
+          --issue "${{ steps.linked.outputs.issue_number }}"
+          --merged "${{ github.event.pull_request.merged }}"
 
   metrics:
     # One commit per workflow run: append the records the agent jobs uploaded to
@@ -866,4 +872,4 @@ jobs:
             echo "No metrics records produced by this run — nothing to append."
             exit 0
           fi
-          python3 -m pipeline.append_metrics "${files[@]}"
+          python3 -m pipeline.entrypoint append-metrics "${files[@]}"

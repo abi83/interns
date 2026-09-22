@@ -109,9 +109,8 @@ jobs:
       - name: Preserve original body
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
           ISSUE_BODY: ${{ steps.issue.outputs.body }}
-        run: python3 -m pipeline.preserve_issue_body "$GITHUB_REPOSITORY" "$ISSUE_NUMBER"
+        run: python3 -m pipeline.entrypoint preserve-issue-body --issue "${{ steps.issue.outputs.number }}"
 
       # Inlines the actual instructions instead of telling the agent to Read
       # them -- both files are already on disk from "Checkout pipeline
@@ -177,17 +176,18 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
-          python3 -m pipeline.report_run Refinement
-          "${{ steps.claude.outputs.execution_file }}"
-          "${{ steps.issue.outputs.number }}"
+          python3 -m pipeline.entrypoint report-run
+          --phase Refinement
+          --exec-file "${{ steps.claude.outputs.execution_file }}"
+          --issue "${{ steps.issue.outputs.number }}"
 
       - name: Extract run metrics
         id: metrics
         continue-on-error: true
         if: always() && steps.claude.outputs.execution_file != ''
         run: >
-          python3 -m pipeline.extract_metrics
-          "${{ steps.claude.outputs.execution_file }}"
+          python3 -m pipeline.entrypoint extract-metrics
+          --exec-file "${{ steps.claude.outputs.execution_file }}"
           --job refiner
           --issue "${{ steps.issue.outputs.number }}"
           > "${{ runner.temp }}/metrics-refiner.json"
@@ -206,8 +206,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
-          python3 -m pipeline.run_summary Refinement
-          "${{ steps.claude.outputs.execution_file }}"
+          python3 -m pipeline.entrypoint run-summary
+          --phase Refinement
+          --exec-file "${{ steps.claude.outputs.execution_file }}"
           --issue "${{ steps.issue.outputs.number }}"
           --cost-warn "${{ steps.cfg.outputs.cost_warn_usd }}"
 
@@ -216,7 +217,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
-          python3 -m pipeline.flag_failure --noun refinement
+          python3 -m pipeline.entrypoint flag-failure --noun refinement
           --issue "${{ steps.issue.outputs.number }}"
 
   estimate:
@@ -340,8 +341,7 @@ jobs:
         if: steps.gate.outputs.skip != 'true' && steps.claude.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-        run: python3 -m pipeline.spike_advisory "${{ steps.issue.outputs.number }}"
+        run: python3 -m pipeline.entrypoint spike-advisory --issue "${{ steps.issue.outputs.number }}"
 
       - name: Upload estimator execution log (debug)
         if: steps.gate.outputs.skip != 'true' && inputs.debug == 'true' && always() && steps.claude.outputs.execution_file != ''
@@ -355,17 +355,18 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
-          python3 -m pipeline.report_run Estimation
-          "${{ steps.claude.outputs.execution_file }}"
-          "${{ steps.issue.outputs.number }}"
+          python3 -m pipeline.entrypoint report-run
+          --phase Estimation
+          --exec-file "${{ steps.claude.outputs.execution_file }}"
+          --issue "${{ steps.issue.outputs.number }}"
 
       - name: Extract run metrics
         id: metrics
         continue-on-error: true
         if: always() && steps.claude.outputs.execution_file != ''
         run: >
-          python3 -m pipeline.extract_metrics
-          "${{ steps.claude.outputs.execution_file }}"
+          python3 -m pipeline.entrypoint extract-metrics
+          --exec-file "${{ steps.claude.outputs.execution_file }}"
           --job estimator
           --issue "${{ steps.issue.outputs.number }}"
           > "${{ runner.temp }}/metrics-estimator.json"
@@ -384,8 +385,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
-          python3 -m pipeline.run_summary Estimation
-          "${{ steps.claude.outputs.execution_file }}"
+          python3 -m pipeline.entrypoint run-summary
+          --phase Estimation
+          --exec-file "${{ steps.claude.outputs.execution_file }}"
           --issue "${{ steps.issue.outputs.number }}"
           --cost-warn "${{ steps.cfg.outputs.cost_warn_usd }}"
 
@@ -394,7 +396,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
-          python3 -m pipeline.flag_failure --noun estimation
+          python3 -m pipeline.entrypoint flag-failure --noun estimation
           --issue "${{ steps.issue.outputs.number }}"
 
   metrics:
@@ -440,4 +442,4 @@ jobs:
             echo "No metrics records produced by this run — nothing to append."
             exit 0
           fi
-          python3 -m pipeline.append_metrics "${files[@]}"
+          python3 -m pipeline.entrypoint append-metrics "${files[@]}"

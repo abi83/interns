@@ -15,14 +15,14 @@ reviewer hand-off when the task was declined.
 from __future__ import annotations
 
 import os
-import sys
 
-from . import actions_env, cli, gh, labels
+from . import cli, gh, labels
+from .ctx import ActionsCtx
 
 SENTINEL_NAME = ".coder-gave-up.md"
 
 
-def handle_giveup(repo: str, issue: int, pr: int | None, workspace: str) -> bool:
+def handle_giveup(repo: str, issue: int, pr: int | None, workspace: str, *, run_url: str = "") -> bool:
     sentinel = os.path.join(workspace, SENTINEL_NAME)
     if not os.path.isfile(sentinel):
         cli.write_output("gave_up", False)
@@ -39,29 +39,26 @@ def handle_giveup(repo: str, issue: int, pr: int | None, workspace: str) -> bool
         "The coder fix round declined this task and set `status:needs-attention` "
         "— it was not handed back to the reviewer.\n\n"
         f"{reason}\n\n"
-        f"Run: {actions_env.run_url(repo)}",
+        f"Run: {run_url}",
     )
     cli.write_output("gave_up", True)
     return True
 
 
-def _main(argv: list[str]) -> int:
+def _main(ctx: ActionsCtx, argv: list[str]) -> int:
     import argparse
 
-    parser = argparse.ArgumentParser(prog="python -m pipeline.handle_giveup")
-    parser.add_argument("issue", type=int)
-    parser.add_argument("pr", nargs="?", default="")
+    parser = argparse.ArgumentParser(prog="pipeline.entrypoint handle-giveup")
+    parser.add_argument("--issue", type=int, required=True)
+    parser.add_argument("--pr", default="")
     args = parser.parse_args(argv)
 
     cli.require_env("GITHUB_OUTPUT")  # fail before the give-up side effects, not after
     handle_giveup(
-        cli.require_env("GITHUB_REPOSITORY"),
+        ctx.repo,
         args.issue,
         cli.optional_int(args.pr),
-        os.environ.get("GITHUB_WORKSPACE", "."),
+        ctx.workspace,
+        run_url=ctx.run_url(),
     )
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(cli.run(_main))

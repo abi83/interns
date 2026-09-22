@@ -11,9 +11,9 @@ the issue-type gate, which guarantees a type:coding-task or type:bug label.
 from __future__ import annotations
 
 import re
-import sys
 
 from . import cli, gh, labels
+from .ctx import ActionsCtx
 
 
 def _slug(title: str) -> str:
@@ -36,16 +36,16 @@ def derive_code_hints(repo: str, issue: int) -> tuple[str, str]:
     return f"{prefix}:", f"{prefix}/issue-{issue}-{_slug(title)}"
 
 
-def _main(argv: list[str]) -> int:
+def _main(ctx: ActionsCtx, argv: list[str]) -> int:
     import argparse
+    import sys
 
-    parser = argparse.ArgumentParser(prog="python -m pipeline.derive_code_hints")
-    parser.add_argument("issue", type=int)
+    parser = argparse.ArgumentParser(prog="pipeline.entrypoint derive-code-hints")
+    parser.add_argument("--issue", type=int, required=True)
     args = parser.parse_args(argv)
 
-    repo = cli.require_env("GITHUB_REPOSITORY")
     try:
-        commit_type_hint, branch = derive_code_hints(repo, args.issue)
+        commit_type_hint, branch = derive_code_hints(ctx.repo, args.issue)
     except ValueError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
@@ -53,7 +53,3 @@ def _main(argv: list[str]) -> int:
     cli.write_output("commit_type_hint", commit_type_hint)
     cli.write_output("branch", branch)
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(cli.run(_main))

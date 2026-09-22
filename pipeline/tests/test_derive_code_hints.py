@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from pipeline import derive_code_hints
+from pipeline.ctx import ActionsCtx
 
 
 class DeriveCodeHintsTests(unittest.TestCase):
@@ -39,21 +40,24 @@ class CliTests(unittest.TestCase):
         self._tmpdir = tempfile.TemporaryDirectory()
         self.output_file = Path(self._tmpdir.name) / "output"
         self.output_file.write_text("")
+        self.ctx = ActionsCtx(repo="acme/widgets", token="", server_url="", run_id="",
+                               run_attempt=1, workspace=".", event_name="",
+                               reviewer_bot="", step_summary="")
 
     def tearDown(self):
         self._tmpdir.cleanup()
 
     def test_writes_the_hints_to_github_output(self):
         with patch("pipeline.derive_code_hints.derive_code_hints", return_value=("feat:", "feat/issue-42-x")), \
-             patch.dict(os.environ, {"GITHUB_REPOSITORY": "acme/widgets", "GITHUB_OUTPUT": str(self.output_file)}):
-            status = derive_code_hints._main(["42"])
+             patch.dict(os.environ, {"GITHUB_OUTPUT": str(self.output_file)}):
+            status = derive_code_hints._main(self.ctx, ["--issue", "42"])
         self.assertEqual(status, 0)
         self.assertEqual(self.output_file.read_text(), "commit_type_hint=feat:\nbranch=feat/issue-42-x\n")
 
     def test_fails_when_no_implementable_type_label_is_present(self):
         with patch("pipeline.derive_code_hints.labels.issue_labels", return_value=["type:spike"]), \
-             patch.dict(os.environ, {"GITHUB_REPOSITORY": "acme/widgets", "GITHUB_OUTPUT": str(self.output_file)}):
-            status = derive_code_hints._main(["42"])
+             patch.dict(os.environ, {"GITHUB_OUTPUT": str(self.output_file)}):
+            status = derive_code_hints._main(self.ctx, ["--issue", "42"])
         self.assertEqual(status, 1)
         self.assertEqual(self.output_file.read_text(), "")
 

@@ -11,6 +11,7 @@ import subprocess
 import sys
 
 from . import cli, gh, verdict
+from .ctx import ActionsCtx
 
 
 class NoChangesRequestedReviewError(RuntimeError):
@@ -63,32 +64,27 @@ def build_feedback_text(repo: str, pr: int) -> str:
     return "\n".join(lines)
 
 
-def _main(argv: list[str]) -> int:
+def _main(ctx: ActionsCtx, argv: list[str]) -> int:
     import argparse
 
-    parser = argparse.ArgumentParser(prog="python -m pipeline.gather_fix_feedback")
-    parser.add_argument("pr")
-    parser.add_argument("head_ref")
-    parser.add_argument("issue")
+    parser = argparse.ArgumentParser(prog="pipeline.entrypoint gather-fix-feedback")
+    parser.add_argument("--pr", required=True)
+    parser.add_argument("--head-ref", required=True)
+    parser.add_argument("--issue", required=True)
     args = parser.parse_args(argv)
 
     if not args.pr:
-        print(f"Error: fix round dispatched but no open PR references issue #{args.issue}", file=sys.stderr)
+        print(f"error: --pr is required (no open PR for issue #{args.issue})", file=sys.stderr)
         return 1
 
-    repo = cli.require_env("GITHUB_REPOSITORY")
     pr = int(args.pr)
     checkout_branch(args.head_ref)
 
     try:
-        text = build_feedback_text(repo, pr)
+        text = build_feedback_text(ctx.repo, pr)
     except NoChangesRequestedReviewError as exc:
         print(f"Error: fix round for PR #{pr} but {exc}", file=sys.stderr)
         return 1
 
     cli.append_output(cli.github_output_block("text", text.encode()))
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(cli.run(_main))

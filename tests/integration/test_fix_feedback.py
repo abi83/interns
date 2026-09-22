@@ -40,7 +40,8 @@ def test_gathers_the_latest_review_its_comments_and_later_conversation(scenario)
         {"user": {"login": "bob"}, "body": "too early", "created_at": "2024-01-01T12:00:00Z"},
     ]])
 
-    result = scenario.run("pipeline.gather_fix_feedback", PR, HEAD_REF, ISSUE)
+    result = scenario.run("pipeline.entrypoint", "gather-fix-feedback",
+                          "--pr", PR, "--head-ref", HEAD_REF, "--issue", ISSUE)
 
     assert result.returncode == 0
     text = result.outputs["text"]
@@ -59,7 +60,8 @@ def test_no_summary_body_gets_a_placeholder(scenario):
     scenario.gh(f"repos/{REPO}/pulls/{PR}/comments", stdout=[[]])
     scenario.gh(f"repos/{REPO}/issues/{PR}/comments", stdout=[[]])
 
-    result = scenario.run("pipeline.gather_fix_feedback", PR, HEAD_REF, ISSUE)
+    result = scenario.run("pipeline.entrypoint", "gather-fix-feedback",
+                          "--pr", PR, "--head-ref", HEAD_REF, "--issue", ISSUE)
 
     assert result.returncode == 0
     assert "(no summary body)" in result.outputs["text"]
@@ -70,7 +72,8 @@ def test_fails_when_the_pr_has_no_changes_requested_review(scenario):
     scenario.git("checkout", HEAD_REF)
     scenario.gh(f"repos/{REPO}/pulls/{PR}/reviews", stdout=[[review(1, "APPROVED", "2024-01-01T00:00:00Z")]])
 
-    result = scenario.run("pipeline.gather_fix_feedback", PR, HEAD_REF, ISSUE)
+    result = scenario.run("pipeline.entrypoint", "gather-fix-feedback",
+                          "--pr", PR, "--head-ref", HEAD_REF, "--issue", ISSUE)
 
     assert result.returncode == 1
     assert f"no CHANGES_REQUESTED review found for PR #{PR}" in result.stderr
@@ -78,8 +81,9 @@ def test_fails_when_the_pr_has_no_changes_requested_review(scenario):
 
 
 def test_fails_fast_when_the_dispatch_has_no_open_pr(scenario):
-    result = scenario.run("pipeline.gather_fix_feedback", "", HEAD_REF, ISSUE)
+    result = scenario.run("pipeline.entrypoint", "gather-fix-feedback",
+                          "--pr", "", "--head-ref", HEAD_REF, "--issue", ISSUE)
 
     assert result.returncode == 1
-    assert f"no open PR references issue #{ISSUE}" in result.stderr
+    assert f"no open PR for issue #{ISSUE}" in result.stderr
     assert scenario.calls("git") == []

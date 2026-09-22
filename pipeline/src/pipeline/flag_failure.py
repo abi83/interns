@@ -6,12 +6,12 @@ linking the run.
 
 from __future__ import annotations
 
-import sys
 
-from . import actions_env, cli, gh, labels
+from . import cli, gh, labels
+from .ctx import ActionsCtx
 
 
-def flag_failure(repo: str, noun: str, issue: int | None, pr: int | None, fix_round: bool) -> None:
+def flag_failure(repo: str, noun: str, issue: int | None, pr: int | None, fix_round: bool, *, run_url: str = "") -> None:
     # A review-job crash leaves the PR stuck with no verdict; mark it for a
     # human. A fix-round crash escalates on the issue side, so the PR just
     # loses its label.
@@ -30,11 +30,11 @@ def flag_failure(repo: str, noun: str, issue: int | None, pr: int | None, fix_ro
             repo, issue,
             "Automated fix round failed — issue set to `status:needs-attention`. "
             f"Re-dispatch once the cause is addressed: `gh workflow run code-pipeline.yml "
-            f"-f phase=coder -f issue_number={issue} -f fix_round=true`. Run: {actions_env.run_url(repo)}",
+            f"-f phase=coder -f issue_number={issue} -f fix_round=true`. Run: {run_url}",
         )
         return
 
-    body = f"Automated {noun} failed. See the run: {actions_env.run_url(repo)}"
+    body = f"Automated {noun} failed. See the run: {run_url}"
     if pr is not None:
         gh.pr_comment(repo, pr, body)
     else:
@@ -43,10 +43,10 @@ def flag_failure(repo: str, noun: str, issue: int | None, pr: int | None, fix_ro
         gh.issue_comment(repo, issue, body)
 
 
-def _main(argv: list[str]) -> int:
+def _main(ctx: ActionsCtx, argv: list[str]) -> int:
     import argparse
 
-    parser = argparse.ArgumentParser(prog="python -m pipeline.flag_failure")
+    parser = argparse.ArgumentParser(prog="pipeline.entrypoint flag-failure")
     parser.add_argument("--noun", default="")
     parser.add_argument("--issue", default="")
     parser.add_argument("--pr", default="")
@@ -54,14 +54,11 @@ def _main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
 
     flag_failure(
-        cli.require_env("GITHUB_REPOSITORY"),
+        ctx.repo,
         args.noun,
         cli.optional_int(args.issue),
         cli.optional_int(args.pr),
         args.fix_round,
+        run_url=ctx.run_url(),
     )
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(cli.run(_main))

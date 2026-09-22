@@ -4,10 +4,12 @@ import unittest
 from unittest.mock import patch
 
 from pipeline import gh, run_summary
+from pipeline.ctx import ActionsCtx
 from pipeline.verdict import Review
 
 REPO = "owner/repo"
 SERVER = "https://github.com"
+RUN_URL = f"{SERVER}/{REPO}/actions/runs/42"
 
 
 def _patch(**overrides):
@@ -20,7 +22,6 @@ def _patch(**overrides):
         issue_labels=lambda repo, issue: [],
         all_reviews=lambda repo, pr: [],
         reviews_by=lambda repo, pr, login: [],
-        run_url=lambda repo: f"{SERVER}/{repo}/actions/runs/42",
     )
     defaults.update(overrides)
     return (
@@ -30,7 +31,6 @@ def _patch(**overrides):
         patch("pipeline.run_summary.labels.issue_labels", side_effect=defaults["issue_labels"]),
         patch("pipeline.run_summary.verdict.all_reviews", side_effect=defaults["all_reviews"]),
         patch("pipeline.run_summary.verdict.reviews_by", side_effect=defaults["reviews_by"]),
-        patch("pipeline.run_summary.actions_env.run_url", side_effect=defaults["run_url"]),
     )
 
 
@@ -40,7 +40,7 @@ class CoderSectionTests(unittest.TestCase):
             issue_view=lambda repo, issue, fields: {"title": "Add a widget"},
             pr_diff_names=lambda repo, pr: ["src/a.ts", "src/b.ts", "src/c.ts"],
         )
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
             summary = run_summary.build_summary(
                 REPO, SERVER, "Coder", None, issue="42", pr="99", round_="initial",
             )
@@ -55,7 +55,7 @@ class CoderSectionTests(unittest.TestCase):
         def boom(*a, **k):
             raise gh.GhCommandError("rate limited")
         patches = _patch(pr_diff_names=boom)
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], \
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], \
              patch("sys.stderr", io.StringIO()):
             summary = run_summary.build_summary(
                 REPO, SERVER, "Coder", None, issue="42", pr="99", round_="initial",
@@ -64,7 +64,7 @@ class CoderSectionTests(unittest.TestCase):
 
     def test_no_pr_opened_surfaces_a_blocked_outcome_without_the_log(self):
         patches = _patch()
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
             summary = run_summary.build_summary(
                 REPO, SERVER, "Coder", None, issue="42", pr="", round_="initial",
             )
@@ -79,7 +79,7 @@ class CoderSectionTests(unittest.TestCase):
             ],
             pr_view=lambda repo, pr, fields: {"headRefOid": "newsha"},
         )
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
             summary = run_summary.build_summary(
                 REPO, SERVER, "Coder", None, issue="42", pr="99", round_="fix",
             )
@@ -91,7 +91,7 @@ class CoderSectionTests(unittest.TestCase):
             all_reviews=lambda repo, pr: [Review("someone", "CHANGES_REQUESTED", "samesha")],
             pr_view=lambda repo, pr, fields: {"headRefOid": "samesha"},
         )
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
             summary = run_summary.build_summary(
                 REPO, SERVER, "Coder", None, issue="42", pr="99", round_="fix",
             )
@@ -99,7 +99,7 @@ class CoderSectionTests(unittest.TestCase):
 
     def test_fix_round_with_no_changes_requested_reviews_shows_fix_round_zero(self):
         patches = _patch()
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
             summary = run_summary.build_summary(
                 REPO, SERVER, "Coder", None, issue="42", pr="99", round_="fix",
             )
@@ -109,7 +109,7 @@ class CoderSectionTests(unittest.TestCase):
         def boom(*a, **k):
             raise gh.GhCommandError("rate limited")
         patches = _patch(all_reviews=boom)
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], \
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], \
              patch("sys.stderr", io.StringIO()):
             summary = run_summary.build_summary(
                 REPO, SERVER, "Coder", None, issue="42", pr="99", round_="fix",
@@ -123,7 +123,7 @@ class ReviewSectionTests(unittest.TestCase):
             raise gh.GhCommandError("rate limited")
         patches = _patch(reviews_by=boom)
         buf = io.StringIO()
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], \
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], \
              patch("sys.stderr", buf):
             summary = run_summary.build_summary(
                 REPO, SERVER, "Review", None, pr="99", reviewer_bot="reviewer-app[bot]",
@@ -136,7 +136,7 @@ class ReviewSectionTests(unittest.TestCase):
             pr_view=lambda repo, pr, fields: {"title": "feat: widget", "headRefOid": "headsha"},
             reviews_by=lambda repo, pr, login: [Review(login, "APPROVED", "headsha")],
         )
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
             summary = run_summary.build_summary(
                 REPO, SERVER, "Review", None, pr="99", issue="42", reviewer_bot="reviewer-app[bot]",
             )
@@ -149,7 +149,7 @@ class ReviewSectionTests(unittest.TestCase):
             pr_view=lambda repo, pr, fields: {"title": "", "headRefOid": "headsha"},
             reviews_by=lambda repo, pr, login: [Review(login, "CHANGES_REQUESTED", "oldsha")],
         )
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
             summary = run_summary.build_summary(
                 REPO, SERVER, "Review", None, pr="99", reviewer_bot="reviewer-app[bot]",
             )
@@ -161,7 +161,7 @@ class ReviewSectionTests(unittest.TestCase):
             pr_view=lambda repo, pr, fields: {"title": "", "headRefOid": "head1"},
             reviews_by=lambda repo, pr, login: [Review(login, "CHANGES_REQUESTED", "head1")],
         )
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
             summary = run_summary.build_summary(
                 REPO, SERVER, "Review", None, pr="99", reviewer_bot="reviewer-app[bot]",
             )
@@ -176,7 +176,7 @@ class ReviewSectionTests(unittest.TestCase):
                 Review(login, "CHANGES_REQUESTED", "head2"),
             ],
         )
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
             summary = run_summary.build_summary(
                 REPO, SERVER, "Review", None, pr="99", reviewer_bot="reviewer-app[bot]",
             )
@@ -188,7 +188,7 @@ class ReviewSectionTests(unittest.TestCase):
             pr_view=lambda repo, pr, fields: {"title": "", "headRefOid": "newsha"},
             reviews_by=lambda repo, pr, login: [Review(login, "CHANGES_REQUESTED", "oldsha")],
         )
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
             summary = run_summary.build_summary(
                 REPO, SERVER, "Review", None, pr="99", reviewer_bot="reviewer-app[bot]",
             )
@@ -201,7 +201,7 @@ class RefinementSectionTests(unittest.TestCase):
             raise gh.GhCommandError("rate limited")
         patches = _patch(issue_labels=boom)
         buf = io.StringIO()
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], \
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], \
              patch("sys.stderr", buf):
             summary = run_summary.build_summary(REPO, SERVER, "Refinement", None, issue="7")
         self.assertIn("Label lookup failed", summary)
@@ -212,14 +212,14 @@ class RefinementSectionTests(unittest.TestCase):
             issue_view=lambda repo, issue, fields: {"title": "Vague idea"},
             issue_labels=lambda repo, issue: ["type:coding-task", "status:refined"],
         )
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
             summary = run_summary.build_summary(REPO, SERVER, "Refinement", None, issue="7")
         self.assertIn("## Refinement run", summary)
         self.assertIn("**Outcome:** Body refined", summary)
 
     def test_stopped_for_clarification(self):
         patches = _patch(issue_labels=lambda repo, issue: ["status:needs-attention"])
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
             summary = run_summary.build_summary(REPO, SERVER, "Refinement", None, issue="7")
         self.assertIn("**Outcome:** ⚠️ Stopped for clarification — see the final message below.", summary)
 
@@ -229,14 +229,14 @@ class EstimationSectionTests(unittest.TestCase):
         def boom(*a, **k):
             raise gh.GhCommandError("rate limited")
         patches = _patch(issue_labels=boom)
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], \
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], \
              patch("sys.stderr", io.StringIO()):
             summary = run_summary.build_summary(REPO, SERVER, "Estimation", None, issue="7")
         self.assertIn("Label lookup failed", summary)
 
     def test_estimate_posted_with_size_label(self):
         patches = _patch(issue_labels=lambda repo, issue: ["type:coding-task", "status:estimated", "size:M"])
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
             summary = run_summary.build_summary(REPO, SERVER, "Estimation", None, issue="7")
         self.assertIn("**Outcome:** Estimate posted — `size:M`", summary)
 
@@ -244,28 +244,28 @@ class EstimationSectionTests(unittest.TestCase):
 class CostAndExecFileTests(unittest.TestCase):
     def test_missing_execution_file_yields_an_unknown_cost_and_a_placeholder_message(self):
         patches = _patch(issue_labels=lambda repo, issue: [])
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
             summary = run_summary.build_summary(REPO, SERVER, "Refinement", "/no/such/file", issue="7")
         self.assertIn("**Cost:** $unknown", summary)
         self.assertIn("> _No final message — the run produced no result output._", summary)
 
     def test_missing_execution_file_reports_a_timeout(self):
         patches = _patch()
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
             summary = run_summary.build_summary(REPO, SERVER, "Refinement", None, issue="7", cost_warn="0.30")
         self.assertIn("killed (timed out) before writing results", summary)
 
     def test_cost_over_the_warn_limit_adds_a_warning_line(self, ):
         patches = _patch(issue_labels=lambda repo, issue: ["status:refined"])
         exec_file = self._write_exec({"total_cost_usd": 2.5, "result": "done"})
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
             summary = run_summary.build_summary(REPO, SERVER, "Refinement", exec_file, issue="7", cost_warn="0.30")
         self.assertIn("⚠️ cost $2.5000 over the $0.30 warn limit", summary)
 
     def test_cost_under_the_warn_limit_adds_no_warning_line(self):
         patches = _patch(issue_labels=lambda repo, issue: ["status:refined"])
         exec_file = self._write_exec({"total_cost_usd": 0.10, "result": "done"})
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
             summary = run_summary.build_summary(REPO, SERVER, "Refinement", exec_file, issue="7", cost_warn="0.30")
         self.assertNotIn("warn limit", summary)
 
@@ -283,7 +283,7 @@ class CostAndExecFileTests(unittest.TestCase):
 class UnknownPhaseTests(unittest.TestCase):
     def test_errors_on_an_unknown_phase(self):
         patches = _patch()
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
             with self.assertRaises(ValueError):
                 run_summary.build_summary(REPO, SERVER, "Bogus", None, issue="7")
 
@@ -308,15 +308,12 @@ class CliTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             summary_path = os.path.join(tmp, "summary.md")
             open(summary_path, "w").close()
-            env = {
-                "GITHUB_REPOSITORY": REPO,
-                "GITHUB_SERVER_URL": SERVER,
-                "GITHUB_STEP_SUMMARY": summary_path,
-            }
+            ctx = ActionsCtx(repo=REPO, token="", server_url=SERVER, run_id="42",
+                             run_attempt=1, workspace=".", event_name="",
+                             reviewer_bot="", step_summary=summary_path)
             patches = _patch(issue_labels=lambda repo, issue: ["status:needs-attention"])
-            with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], \
-                 patch.dict(os.environ, env):
-                run_summary._main(["Refinement", "", "--issue", "7"])
+            with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
+                run_summary._main(ctx, ["--phase", "Refinement", "--issue", "7"])
             content = open(summary_path).read()
         self.assertIn("## Refinement run", content)
         self.assertIn("Stopped for clarification", content)

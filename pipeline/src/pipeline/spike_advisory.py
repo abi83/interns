@@ -9,9 +9,8 @@ No-op on any other issue type, or a spike not yet estimated.
 
 from __future__ import annotations
 
-import sys
-
-from . import cli, gh, labels
+from . import gh, labels
+from .ctx import ActionsCtx
 
 ADVISORY = (
     "This is a spike; no coder picks it up. The estimate above is for your "
@@ -31,18 +30,13 @@ def post_advisory(repo: str, issue: int) -> str | None:
     return ADVISORY
 
 
-def _main(argv: list[str]) -> int:
+def _main(ctx: ActionsCtx, argv: list[str]) -> int:
     import argparse
 
-    parser = argparse.ArgumentParser(prog="python -m pipeline.spike_advisory")
-    parser.add_argument("issue", type=int)
+    parser = argparse.ArgumentParser(prog="pipeline.entrypoint spike-advisory")
+    parser.add_argument("--issue", type=int, required=True)
     args = parser.parse_args(argv)
 
-    repo = cli.require_env("GITHUB_REPOSITORY")
-    if post_advisory(repo, args.issue) is None:
+    if post_advisory(ctx.repo, args.issue) is None:
         print(f"Issue #{args.issue} is not an estimated spike — no advisory.")
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(cli.run(_main))

@@ -20,10 +20,10 @@ class FormatCostTests(unittest.TestCase):
 class ReportTests(unittest.TestCase):
     def test_comments_on_the_issue_with_the_parsed_cost(self):
         with patch("pipeline.report_run.execution.result_field", return_value="0.42"), \
-             patch("pipeline.report_run.actions_env.run_url", return_value="https://x/runs/42"), \
              patch("pipeline.report_run.gh.issue_comment") as comment, \
              patch("pipeline.report_run.gh.pr_comment") as pr_comment:
-            report_run.report("acme/widgets", "Coder", "exec.json", 55, None, None)
+            report_run.report("acme/widgets", "Coder", "exec.json", 55, None, None,
+                               run_url="https://x/runs/42")
         comment.assert_called_once_with(
             "acme/widgets", 55,
             "Coder [pipeline run](https://x/runs/42) — cost: $0.4200",
@@ -32,18 +32,18 @@ class ReportTests(unittest.TestCase):
 
     def test_falls_back_to_the_pr_only_when_the_issue_number_is_empty(self):
         with patch("pipeline.report_run.execution.result_field", return_value="1"), \
-             patch("pipeline.report_run.actions_env.run_url", return_value="https://x/runs/1"), \
              patch("pipeline.report_run.gh.issue_comment") as comment, \
              patch("pipeline.report_run.gh.pr_comment") as pr_comment:
-            report_run.report("acme/widgets", "Review", "exec.json", None, 88, None)
+            report_run.report("acme/widgets", "Review", "exec.json", None, 88, None,
+                               run_url="https://x/runs/1")
         pr_comment.assert_called_once()
         comment.assert_not_called()
 
     def test_missing_execution_file_yields_an_unknown_cost(self):
         with patch("pipeline.report_run.execution.result_field", return_value=None), \
-             patch("pipeline.report_run.actions_env.run_url", return_value="https://x/runs/1"), \
              patch("pipeline.report_run.gh.issue_comment") as comment:
-            report_run.report("acme/widgets", "Coder", "/no/such/file", 55, None, None)
+            report_run.report("acme/widgets", "Coder", "/no/such/file", 55, None, None,
+                               run_url="https://x/runs/1")
         self.assertIn("cost: $unknown", comment.call_args[0][2])
 
     def test_a_malformed_execution_file_yields_an_unknown_cost_not_a_crash(self):
@@ -56,32 +56,31 @@ class ReportTests(unittest.TestCase):
             exec_file = os.path.join(tmp, "exec.json")
             with open(exec_file, "w") as f:
                 f.write("")
-            with patch("pipeline.report_run.actions_env.run_url", return_value="https://x/runs/1"), \
-                 patch("pipeline.report_run.gh.issue_comment") as comment:
-                report_run.report("acme/widgets", "Coder", exec_file, 55, None, None)
+            with patch("pipeline.report_run.gh.issue_comment") as comment:
+                report_run.report("acme/widgets", "Coder", exec_file, 55, None, None,
+                                   run_url="https://x/runs/1")
         self.assertIn("cost: $unknown", comment.call_args[0][2])
 
     def test_errors_when_given_neither_an_issue_nor_a_pr(self):
-        with patch("pipeline.report_run.execution.result_field", return_value=None), \
-             patch("pipeline.report_run.actions_env.run_url", return_value="https://x/runs/1"):
+        with patch("pipeline.report_run.execution.result_field", return_value=None):
             with self.assertRaises(ValueError):
-                report_run.report("acme/widgets", "Coder", "exec.json", None, None, None)
+                report_run.report("acme/widgets", "Coder", "exec.json", None, None, None,
+                                   run_url="https://x/runs/1")
 
     def test_warn_appends_a_warning_line_to_the_same_comment(self):
         with patch("pipeline.report_run.execution.result_field", return_value="0.42"), \
-             patch("pipeline.report_run.actions_env.run_url", return_value="https://x/runs/1"), \
              patch("pipeline.report_run.gh.issue_comment") as comment:
             report_run.report("acme/widgets", "Coder", "exec.json", 55, None,
-                               "tests aren't configured")
+                               "tests aren't configured", run_url="https://x/runs/1")
         body = comment.call_args[0][2]
         self.assertIn("cost: $0.4200", body)
         self.assertIn("⚠️ tests aren't configured", body)
 
     def test_no_warn_adds_no_warning_line(self):
         with patch("pipeline.report_run.execution.result_field", return_value="0.42"), \
-             patch("pipeline.report_run.actions_env.run_url", return_value="https://x/runs/1"), \
              patch("pipeline.report_run.gh.issue_comment") as comment:
-            report_run.report("acme/widgets", "Coder", "exec.json", 55, None, None)
+            report_run.report("acme/widgets", "Coder", "exec.json", 55, None, None,
+                               run_url="https://x/runs/1")
         self.assertNotIn("⚠️", comment.call_args[0][2])
 
 

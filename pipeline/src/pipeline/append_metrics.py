@@ -8,7 +8,6 @@ use.
 from __future__ import annotations
 
 import json
-import os
 import shutil
 import subprocess
 import sys
@@ -16,7 +15,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from . import cli
+from .ctx import ActionsCtx
 
 BRANCH = "metrics"
 FILE = "metrics.jsonl"
@@ -112,19 +111,18 @@ def append_records(files: list[str], *, remote: str, run_id: str,
     raise AppendMetricsError(f"push to {BRANCH} failed after {retries} attempts")
 
 
-def _main(argv: list[str]) -> int:
+def _main(ctx: ActionsCtx, argv: list[str]) -> int:
     import argparse
 
-    parser = argparse.ArgumentParser(prog="python -m pipeline.append_metrics")
+    parser = argparse.ArgumentParser(prog="pipeline.entrypoint append-metrics")
     parser.add_argument("files", nargs="+")
     args = parser.parse_args(argv)
 
+    server = ctx.server_url
+    run_id = ctx.run_id or "unknown"
+    remote = f"https://x-access-token:{ctx.token}@{server.removeprefix('https://')}/{ctx.repo}.git"
+
     try:
-        token = cli.require_env("GH_TOKEN")
-        repo = cli.require_env("GITHUB_REPOSITORY")
-        server = os.environ.get("GITHUB_SERVER_URL", "https://github.com")
-        run_id = os.environ.get("GITHUB_RUN_ID", "unknown")
-        remote = f"https://x-access-token:{token}@{server.removeprefix('https://')}/{repo}.git"
         count = append_records(args.files, remote=remote, run_id=run_id)
     except AppendMetricsError as exc:
         print(f"append-metrics: {exc}", file=sys.stderr)
@@ -132,7 +130,3 @@ def _main(argv: list[str]) -> int:
 
     print(f"append-metrics: appended {count} record(s) to {BRANCH}")
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(cli.run(_main))

@@ -6,7 +6,7 @@ stdout / $GITHUB_OUTPUT directly instead.
 
 import pytest
 
-from testkit.harness import REPO, Scenario
+from testkit.harness import Scenario
 
 PR = "12"
 ISSUE = "7"
@@ -20,7 +20,7 @@ def scenario(tmp_path) -> Scenario:
 def test_head_ref_prints_the_branch_name(scenario):
     scenario.gh("pr", "view", "headRefName", stdout={"headRefName": "issue-7-fix"})
 
-    result = scenario.run("pipeline.gh_query", REPO, "head-ref", PR)
+    result = scenario.run("pipeline.entrypoint", "gh-query", "--query", "head-ref", "--number", PR)
 
     assert result.returncode == 0
     assert result.stdout.strip() == "issue-7-fix"
@@ -29,7 +29,7 @@ def test_head_ref_prints_the_branch_name(scenario):
 def test_head_sha_prints_the_commit(scenario):
     scenario.gh("pr", "view", "headRefOid", stdout={"headRefOid": "deadbeef"})
 
-    result = scenario.run("pipeline.gh_query", REPO, "head-sha", PR)
+    result = scenario.run("pipeline.entrypoint", "gh-query", "--query", "head-sha", "--number", PR)
 
     assert result.returncode == 0
     assert result.stdout.strip() == "deadbeef"
@@ -39,7 +39,7 @@ def test_closing_issue_prints_the_first_linked_number(scenario):
     scenario.gh("pr", "view", "closingIssuesReferences",
                 stdout={"closingIssuesReferences": [{"number": 7}, {"number": 9}]})
 
-    result = scenario.run("pipeline.gh_query", REPO, "closing-issue", PR)
+    result = scenario.run("pipeline.entrypoint", "gh-query", "--query", "closing-issue", "--number", PR)
 
     assert result.returncode == 0
     assert result.stdout.strip() == "7"
@@ -48,7 +48,7 @@ def test_closing_issue_prints_the_first_linked_number(scenario):
 def test_closing_issue_is_empty_when_the_pr_closes_nothing(scenario):
     scenario.gh("pr", "view", "closingIssuesReferences", stdout={"closingIssuesReferences": []})
 
-    result = scenario.run("pipeline.gh_query", REPO, "closing-issue", PR)
+    result = scenario.run("pipeline.entrypoint", "gh-query", "--query", "closing-issue", "--number", PR)
 
     assert result.returncode == 0
     assert result.stdout.strip() == ""
@@ -60,7 +60,7 @@ def test_pr_for_issue_finds_the_open_pr_that_closes_it(scenario):
         {"number": int(PR), "headRefName": "issue-7-fix", "closingIssuesReferences": [{"number": int(ISSUE)}]},
     ])
 
-    result = scenario.run("pipeline.gh_query", REPO, "pr-for-issue", ISSUE)
+    result = scenario.run("pipeline.entrypoint", "gh-query", "--query", "pr-for-issue", "--number", ISSUE)
 
     assert result.returncode == 0
     assert result.stdout.splitlines() == [f"pr_number={PR}", "head_ref=issue-7-fix"]
@@ -71,7 +71,7 @@ def test_pr_for_issue_is_empty_when_no_open_pr_closes_it(scenario):
         {"number": 3, "headRefName": "issue-3", "closingIssuesReferences": [{"number": 99}]},
     ])
 
-    result = scenario.run("pipeline.gh_query", REPO, "pr-for-issue", ISSUE)
+    result = scenario.run("pipeline.entrypoint", "gh-query", "--query", "pr-for-issue", "--number", ISSUE)
 
     assert result.returncode == 0
     assert result.stdout.splitlines() == ["pr_number=", "head_ref="]
