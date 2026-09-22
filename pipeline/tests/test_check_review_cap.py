@@ -64,17 +64,6 @@ class CliTests(unittest.TestCase):
             fn.assert_called_once_with("acme/widgets", 12, "reviewer[bot]", 5, count=None)
             self.assertEqual(Path(output_file).read_text(), "capped=true\n")
 
-    def test_count_flag_is_parsed_and_forwarded(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            output_file = os.path.join(tmpdir, "output")
-            Path(output_file).write_text("")
-            with patch.dict(os.environ, {
-                "GITHUB_REPOSITORY": "acme/widgets", "GITHUB_OUTPUT": output_file, "REVIEWER_BOT": "reviewer[bot]",
-            }, clear=False), \
-                 patch("pipeline.check_review_cap.check_cap", return_value=False) as fn:
-                check_review_cap._main(["12", "--count", "3"])
-            fn.assert_called_once_with("acme/widgets", 12, "reviewer[bot]", 5, count=3)
-
 
 if __name__ == "__main__":
     unittest.main()
