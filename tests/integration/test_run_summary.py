@@ -222,8 +222,8 @@ def test_review_summary_falls_back_when_the_review_list_cannot_be_fetched(scenar
 
     body = run_summary(scenario, "Review", ef, "--pr", PR)
 
-    assert "**Round:** initial review" in body
-    assert "No verdict submitted — see the final message below." in body
+    assert "**Round:** unavailable" in body
+    assert "Review lookup failed — see the step log." in body
 
 
 def test_review_summary_falls_back_when_the_pr_title_lookup_fails(scenario):
@@ -268,7 +268,7 @@ def test_refinement_summary_falls_back_to_no_terminal_state_when_labels_lookup_f
 
     body = run_summary(scenario, "Refinement", ef, "--issue", ISSUE)
 
-    assert "Ended without a terminal state — see the final message below." in body
+    assert "Label lookup failed — see the step log." in body
 
 
 # --- Estimation phase -------------------------------------------------------
@@ -310,7 +310,7 @@ def test_estimation_summary_falls_back_when_labels_lookup_fails(scenario):
 
     body = run_summary(scenario, "Estimation", ef, "--issue", ISSUE)
 
-    assert "Ended without an estimate — see the final message below." in body
+    assert "Label lookup failed — see the step log." in body
 
 
 def test_unknown_phase_is_a_hard_error(scenario):

@@ -68,7 +68,7 @@ def test_warns_instead_of_failing_when_the_token_cannot_list_secrets(scenario):
     result = scenario.run("pipeline.safety_checks", env=ENV)
 
     assert result.returncode == 0
-    assert "WARNING: can't list repo secrets" in result.stdout
+    assert "list_secret_names unavailable" in result.stderr
     assert "all safety checks passed" in result.stdout
 
 
@@ -79,7 +79,7 @@ def test_warns_instead_of_failing_when_the_token_cannot_list_variables(scenario)
     result = scenario.run("pipeline.safety_checks", env=ENV)
 
     assert result.returncode == 0
-    assert "WARNING: can't list repo variables" in result.stdout
+    assert "list_variable_names unavailable" in result.stderr
     assert "all safety checks passed" in result.stdout
 
 
