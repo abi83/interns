@@ -2,9 +2,9 @@
 
 Label edits here are best-effort: a transient `gh` failure (rate limit, a
 concurrent edit) shouldn't abort the calling workflow step over a label that a
-later run will just re-set. Everything routes through `_best_effort`, which
-delegates to `best_effort.call` -- the repo-wide single mechanism that logs a
-warning and continues rather than raising.
+later run will just re-set. Each edit call routes through `best_effort.call`
+with `gh.GhCommandError` -- the repo-wide single mechanism that logs a warning
+and continues rather than raising.
 
 That's also what makes the "target label not already present" case cheap:
 every transition reads current labels first and only issues `--add-label` /
@@ -78,10 +78,6 @@ def estimation_needs_attention() -> Transition:
     return Transition(add=[STATUS_NEEDS_ATTENTION], remove=[STATUS_REFINED])
 
 
-def _best_effort(action: str, fn, *args, **kwargs) -> None:
-    best_effort.call(action, gh.GhCommandError, fn, *args, **kwargs)
-
-
 def issue_labels(repo: str, issue: int) -> list[str]:
     return [label["name"] for label in gh.issue_view(repo, issue, ["labels"])["labels"]]
 
@@ -106,14 +102,14 @@ def edit_issue_labels_strict(repo: str, issue: int, add: Sequence[str] = (), rem
 
 def edit_issue_labels(repo: str, issue: int, add: Sequence[str] = (), remove: Sequence[str] = ()) -> None:
     """Best-effort `edit_issue_labels_strict`."""
-    _best_effort("issue label edit", edit_issue_labels_strict, repo, issue, add, remove)
+    best_effort.call("issue label edit", gh.GhCommandError, edit_issue_labels_strict, repo, issue, add, remove)
 
 
 def edit_pr_labels(repo: str, pr: int, add: Sequence[str] = (), remove: Sequence[str] = ()) -> None:
     """PR counterpart of `edit_issue_labels` (always best-effort)."""
     add_labels, remove_labels = _changed_labels(pr_labels(repo, pr), add, remove)
     if add_labels or remove_labels:
-        _best_effort("PR label edit", gh.pr_edit, repo, pr, add_labels=add_labels, remove_labels=remove_labels)
+        best_effort.call("PR label edit", gh.GhCommandError, gh.pr_edit, repo, pr, add_labels=add_labels, remove_labels=remove_labels)
 
 
 def apply_transition(repo: str, issue: int, transition: Transition) -> None:
