@@ -238,8 +238,6 @@ Pro or Max subscription):
 claude setup-token
 ```
 
-See `anthropics/claude-code-action` for background.
-
 **Also install Anthropic's own Claude Code GitHub App:**
 [github.com/apps/claude](https://github.com/apps/claude). This is separate
 from the `interns-coder-*` / `interns-reviewer-*` Apps minted above —
