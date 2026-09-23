@@ -51,15 +51,6 @@ If you see natural seams where the work could be split, say so in the
 REVIEW OVERHEAD or TOUCH reasoning. The owner decides whether to split
 before approving.
 
-Output exactly this format:
-
-BLAST RADIUS: <Low|Mid|High> — <one sentence naming the code you read>
-TOUCH: <Low|Mid|High> — <one sentence naming the code you read>
-HUMAN INVOLVEMENT: <Low|Mid|High> — <one sentence naming the code you read>
-REVIEW OVERHEAD: <Low|Mid|High> — <one sentence naming the code you read>
-
-Output nothing else — no preamble, no closing remarks.
-
 ## Mechanics
 
 You also have this phase-specific tool:
@@ -70,8 +61,14 @@ You also have this phase-specific tool:
 
 On the normal path:
 
-1. Call `mcp__gh-issues__comment_issue` with `issue_number` and the four score
-   lines verbatim as the body.
+1. Call `mcp__gh-issues__comment_issue` with `issue_number` and these four lines
+   verbatim as the body — no preamble, no closing remarks:
+
+   BLAST RADIUS: <Low|Mid|High> — <one sentence naming the code you read>
+   TOUCH: <Low|Mid|High> — <one sentence naming the code you read>
+   HUMAN INVOLVEMENT: <Low|Mid|High> — <one sentence naming the code you read>
+   REVIEW OVERHEAD: <Low|Mid|High> — <one sentence naming the code you read>
+
 2. Call `mcp__gh-issues__apply_estimation_outcome` with `issue_number`,
    `outcome='estimated'`, and the four scores as `blast_radius`, `touch`,
    `human_involvement`, `review_overhead` (each `Low`, `Mid`, or `High`).
