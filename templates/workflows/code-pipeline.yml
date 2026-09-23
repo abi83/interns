@@ -43,7 +43,7 @@ permissions:
   actions: write
 
 jobs:
-  pipeline:
+  interns:
     uses: abi83/interns/.github/workflows/code-pipeline.yml@__INTERNS_REF__
     secrets: inherit
     with:
