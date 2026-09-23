@@ -1,4 +1,4 @@
-name: Issue pipeline (reusable)
+name: Refine & estimate (reusable)
 
 # Reusable core of the issue refine/estimate pipeline. Triggered only via
 # issue-pipeline.yml, which owns the `issues` / `workflow_dispatch` triggers and
