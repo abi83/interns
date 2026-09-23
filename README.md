@@ -302,15 +302,11 @@ file or the built-in — there is no second, overlapping source.
 The reviewer waits for **all** of a PR's checks to be green before it runs — a
 red or cancelled check on anything routes the PR to a human instead. Name any
 non-blocking advisory checks (preview deploys, coverage deltas) under
-`checks.ignore` in `.github/interns.yml` to keep them out of that gate. Three
-`checks` timing keys control how long the gate waits: `timeout_seconds`
-(default `1200`), `poll_seconds` (default `20`), and `settle_seconds`
-(default `30`).
-
-Two `review_loop` keys cap the coder–reviewer cycle: `max_fix_rounds`
-(default `1`) bounds automatic coder fix rounds per `CHANGES_REQUESTED`
-verdict; `max_automatic_reviews` (default `5`) is a hard ceiling on total
-reviewer runs per PR regardless of outcome — the two caps are independent.
+`checks.ignore` in `.github/interns.yml` to keep them out of that gate.
+Gate timing (`checks.timeout_seconds` / `poll_seconds` / `settle_seconds`)
+and the coder–reviewer loop caps (`review_loop.max_fix_rounds` /
+`max_automatic_reviews`) are documented with their defaults in the config
+file.
 
 ### Doing it by hand
 
