@@ -1,4 +1,4 @@
-name: Coding agents (reusable)
+name: Code & review (reusable)
 
 # Reusable core of the coder/reviewer pipeline. Triggered only via
 # code-pipeline.yml, which owns the `issues` / `pull_request` /

@@ -1,6 +1,6 @@
 # Thin caller for the interns issue refine/estimate pipeline.
 # Owns the triggers; delegates all logic to the reusable core, pinned to a tag.
-name: Issue pipeline
+name: Refine & estimate
 
 on:
   issues:
