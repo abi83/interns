@@ -345,6 +345,20 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 -m interns.entrypoint spike-advisory --issue "${{ steps.issue.outputs.number }}"
 
+      - name: Verify estimation outcome applied
+        if: steps.gate.outputs.skip != 'true' && steps.claude.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          applied=$(gh issue view "${{ steps.issue.outputs.number }}" \
+            --repo "${{ github.repository }}" \
+            --json labels \
+            --jq '.labels | map(.name) | any(. == "status:estimated" or . == "status:needs-attention")')
+          if [ "$applied" != "true" ]; then
+            echo "::error::Estimator did not call apply_estimation_outcome — neither status:estimated nor status:needs-attention was set on issue #${{ steps.issue.outputs.number }}"
+            exit 1
+          fi
+
       - name: Upload estimator execution log (debug)
         if: steps.gate.outputs.skip != 'true' && (inputs.debug == true || steps.cfg.outputs.debug == 'true') && always() && steps.claude.outputs.execution_file != ''
         uses: ./.interns/.github/actions/upload-execution-log
