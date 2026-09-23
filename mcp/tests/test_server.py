@@ -244,18 +244,24 @@ def test_apply_refinement_outcome_missing_type_label():
 
 def test_apply_estimation_outcome_dispatches_to_pipeline():
     with patch("server.labels.apply_estimation",
-               return_value="Estimation outcome 'estimated' applied to issue #7 (size:S)") as mock:
-        with patch.object(server, "_REPO", "owner/repo"):
-            result = apply_estimation_outcome(
-                issue_number=7, outcome="estimated",
-                blast_radius="Low", touch="Mid", human_involvement="Low", review_overhead="Low",
-            )
-    mock.assert_called_once_with("owner/repo", 7, "estimated", "Low", "Mid", "Low", "Low")
+               return_value="Estimation outcome 'estimated' applied to issue #7 (size:S)") as mock_labels:
+        with patch("server.gh.issue_comment") as mock_comment:
+            with patch.object(server, "_REPO", "owner/repo"):
+                result = apply_estimation_outcome(
+                    issue_number=7, outcome="estimated",
+                    blast_radius="Low", blast_radius_reason="isolated change in src/ghost.ts",
+                    touch="Mid", touch_reason="touches player.ts, ghost.ts, render.ts",
+                    human_involvement="Low", human_involvement_reason="no manual steps",
+                    review_overhead="Low", review_overhead_reason="single PR, existing patterns",
+                )
+    mock_labels.assert_called_once_with("owner/repo", 7, "estimated", "Low", "Mid", "Low", "Low")
+    mock_comment.assert_called_once()
+    body = mock_comment.call_args[0][2]
+    assert "BLAST RADIUS: Low" in body
+    assert "isolated change in src/ghost.ts" in body
     assert "estimated" in result
 
 
 def test_apply_estimation_outcome_missing_scores():
-    with patch("server.labels.apply_estimation",
-               side_effect=InvalidInputError("blast_radius, touch, human_involvement, and review_overhead are all required")):
-        with pytest.raises(InvalidInputError):
-            apply_estimation_outcome(issue_number=7, outcome="estimated")
+    with pytest.raises(InvalidInputError):
+        apply_estimation_outcome(issue_number=7, outcome="estimated")

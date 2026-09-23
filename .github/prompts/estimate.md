@@ -57,21 +57,21 @@ You also have this phase-specific tool:
 
 | Tool | What it does |
 |---|---|
-| `mcp__gh-issues__apply_estimation_outcome` | Apply the estimation result — sets the size label and transitions the issue status |
+| `mcp__gh-issues__apply_estimation_outcome` | Post the score comment, compute the size label, and transition the issue status — all in one call |
 
 On the normal path:
 
-1. Call `mcp__gh-issues__comment_issue` with `issue_number` and these four lines
-   verbatim as the body — no preamble, no closing remarks:
+Call `mcp__gh-issues__apply_estimation_outcome` with `issue_number`,
+`outcome='estimated'`, and for each of the four dimensions its score
+(`Low`, `Mid`, or `High`) and one sentence naming the specific file,
+pattern, or wiki page you read to reach it:
 
-   BLAST RADIUS: <Low|Mid|High> — <one sentence naming the code you read>
-   TOUCH: <Low|Mid|High> — <one sentence naming the code you read>
-   HUMAN INVOLVEMENT: <Low|Mid|High> — <one sentence naming the code you read>
-   REVIEW OVERHEAD: <Low|Mid|High> — <one sentence naming the code you read>
+- `blast_radius` / `blast_radius_reason`
+- `touch` / `touch_reason`
+- `human_involvement` / `human_involvement_reason`
+- `review_overhead` / `review_overhead_reason`
 
-2. Call `mcp__gh-issues__apply_estimation_outcome` with `issue_number`,
-   `outcome='estimated'`, and the four scores as `blast_radius`, `touch`,
-   `human_involvement`, `review_overhead` (each `Low`, `Mid`, or `High`).
+The tool posts the scores as a comment and applies the size label.
 
 On a stop path:
 
@@ -81,7 +81,7 @@ On a stop path:
    `outcome='needs-attention'`.
 
 No file writes. You never set a `status:*` or `size:*` label yourself — the
-tool applies the lifecycle label and computes the size from your scores.
+tool posts the comment and computes the size from your scores.
 
 ## When to stop instead of estimating
 

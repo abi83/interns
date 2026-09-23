@@ -218,26 +218,54 @@ def apply_estimation_outcome(
         Literal["Low", "Mid", "High"] | None,
         Field(description="Risk of breaking existing functionality. Required when outcome='estimated'."),
     ] = None,
+    blast_radius_reason: Annotated[
+        str | None,
+        Field(description="One sentence naming the file or pattern that grounds this score."),
+    ] = None,
     touch: Annotated[
         Literal["Low", "Mid", "High"] | None,
         Field(description="Number of files/components touched. Required when outcome='estimated'."),
+    ] = None,
+    touch_reason: Annotated[
+        str | None,
+        Field(description="One sentence naming the file or pattern that grounds this score."),
     ] = None,
     human_involvement: Annotated[
         Literal["Low", "Mid", "High"] | None,
         Field(description="Expected back-and-forth with the owner. Required when outcome='estimated'."),
     ] = None,
+    human_involvement_reason: Annotated[
+        str | None,
+        Field(description="One sentence naming the file or pattern that grounds this score."),
+    ] = None,
     review_overhead: Annotated[
         Literal["Low", "Mid", "High"] | None,
         Field(description="Reviewer effort. Required when outcome='estimated'."),
     ] = None,
+    review_overhead_reason: Annotated[
+        str | None,
+        Field(description="One sentence naming the file or pattern that grounds this score."),
+    ] = None,
 ) -> str:
     """Apply the lifecycle label transition after estimation.
 
-    estimated     → rolls the four Low|Mid|High scores into a size:* label,
-                    then removes status:refined and status:needs-attention,
+    estimated     → posts the four-line score comment, rolls the scores into
+                    a size:* label, removes status:refined / status:needs-attention,
                     adds status:estimated and the computed size:* label.
     needs-attention → removes status:refined, adds status:needs-attention.
     """
+    if outcome == "estimated":
+        if None in (blast_radius, touch, human_involvement, review_overhead):
+            raise gh.InvalidInputError(
+                "blast_radius, touch, human_involvement, and review_overhead are all required when outcome='estimated'"
+            )
+        lines = [
+            f"BLAST RADIUS: {blast_radius} — {blast_radius_reason or ''}",
+            f"TOUCH: {touch} — {touch_reason or ''}",
+            f"HUMAN INVOLVEMENT: {human_involvement} — {human_involvement_reason or ''}",
+            f"REVIEW OVERHEAD: {review_overhead} — {review_overhead_reason or ''}",
+        ]
+        gh.issue_comment(_REPO, issue_number, "\n".join(lines))
     return labels.apply_estimation(
         _REPO, issue_number, outcome, blast_radius, touch, human_involvement, review_overhead
     )
