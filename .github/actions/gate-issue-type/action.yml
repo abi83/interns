@@ -39,4 +39,9 @@ runs:
         ACCEPTED_TYPES: ${{ inputs.accepted_types }}
         REMOVE_STATUS: ${{ inputs.remove_status }}
         REJECT_COMMENT: ${{ inputs.reject_comment }}
-      run: python3 -m interns.gate_issue_type "$ISSUE_NUMBER" "$ACCEPTED_TYPES" "$REMOVE_STATUS" "$REJECT_COMMENT"
+      run: >
+        python3 -m interns.entrypoint gate-issue-type
+        --issue "$ISSUE_NUMBER"
+        --accepted "$ACCEPTED_TYPES"
+        --remove-status "$REMOVE_STATUS"
+        --reject-comment "$REJECT_COMMENT"
