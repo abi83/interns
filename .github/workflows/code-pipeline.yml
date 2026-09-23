@@ -293,7 +293,7 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ steps.coder_token.outputs.token }}
-          show_full_output: ${{ inputs.debug }}
+          show_full_output: ${{ inputs.debug == true || steps.cfg.outputs.debug == 'true' }}
           allowed_bots: "claude[bot]"
           prompt: |
             REPO: ${{ github.repository }}
@@ -319,7 +319,7 @@ jobs:
             --disallowedTools "${{ steps.cfg.outputs.disallowed_tools }}"
 
       - name: Upload coder-initial execution log (debug)
-        if: steps.guard.outputs.skip != 'true' && inputs.debug == 'true' && always() && steps.claude_initial.outputs.execution_file != ''
+        if: steps.guard.outputs.skip != 'true' && (inputs.debug == true || steps.cfg.outputs.debug == 'true') && always() && steps.claude_initial.outputs.execution_file != ''
         uses: ./.interns/.github/actions/upload-execution-log
         with:
           name: execution-log-coder-initial-issue-${{ steps.issue.outputs.number }}
@@ -341,7 +341,7 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ steps.coder_token.outputs.token }}
-          show_full_output: ${{ inputs.debug }}
+          show_full_output: ${{ inputs.debug == true || steps.cfg.outputs.debug == 'true' }}
           # The fix round is dispatched by the reviewer job via `gh workflow run`
           # with the default token, so the triggering actor is github-actions[bot],
           # not a human label event — claude-code-action refuses it unless the bot
@@ -370,7 +370,7 @@ jobs:
             --disallowedTools "${{ steps.cfg.outputs.disallowed_tools }}"
 
       - name: Upload coder-fix execution log (debug)
-        if: steps.guard.outputs.skip != 'true' && inputs.debug == 'true' && always() && steps.claude_fix.outputs.execution_file != ''
+        if: steps.guard.outputs.skip != 'true' && (inputs.debug == true || steps.cfg.outputs.debug == 'true') && always() && steps.claude_fix.outputs.execution_file != ''
         uses: ./.interns/.github/actions/upload-execution-log
         with:
           name: execution-log-coder-fix-issue-${{ steps.issue.outputs.number }}
@@ -691,7 +691,7 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ steps.reviewer_token.outputs.token }}
-          show_full_output: ${{ inputs.debug }}
+          show_full_output: ${{ inputs.debug == true || steps.cfg.outputs.debug == 'true' }}
           allowed_bots: "${{ steps.coder_ident.outputs.bot }}"
           prompt: |
             REPO: ${{ github.repository }}
@@ -710,7 +710,7 @@ jobs:
             --disallowedTools "${{ steps.cfg.outputs.disallowed_tools }}"
 
       - name: Upload reviewer execution log (debug)
-        if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.cap.outputs.capped != 'true' && inputs.debug == 'true' && always() && steps.claude.outputs.execution_file != ''
+        if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.cap.outputs.capped != 'true' && (inputs.debug == true || steps.cfg.outputs.debug == 'true') && always() && steps.claude.outputs.execution_file != ''
         uses: ./.interns/.github/actions/upload-execution-log
         with:
           name: execution-log-reviewer-pr-${{ github.event.pull_request.number || inputs.pr_number }}
