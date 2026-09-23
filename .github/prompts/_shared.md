@@ -16,6 +16,8 @@ as tool parameters — no file-writing step required.
 | `mcp__gh-issues__comment_issue` | Post a comment on an issue |
 | `mcp__gh-issues__edit_issue` | Set the body (and optionally title) of an issue |
 | `mcp__gh-issues__edit_issue_labels` | Add or remove labels on an issue |
+| `mcp__gh-issues__apply_refinement_outcome` | Set the refinement outcome and type label on an issue |
+| `mcp__gh-issues__apply_estimation_outcome` | Set the estimation outcome and size label on an issue |
 | `mcp__gh-issues__comment_pr` | Post a comment on a PR |
 | `mcp__gh-issues__open_pr` | Open a PR from the current branch |
 | `mcp__gh-issues__submit_pr_review` | Submit a formal PR review (APPROVE / REQUEST_CHANGES) |
