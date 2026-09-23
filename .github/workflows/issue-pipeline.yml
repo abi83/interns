@@ -191,6 +191,7 @@ jobs:
           python3 -m interns.entrypoint extract-metrics
           --exec-file "${{ steps.claude.outputs.execution_file }}"
           --job refiner
+          --ref "${{ steps.pipeline_ref.outputs.ref }}"
           --issue "${{ steps.issue.outputs.number }}"
           > "${{ runner.temp }}/metrics-refiner.json"
 
@@ -386,6 +387,7 @@ jobs:
           python3 -m interns.entrypoint extract-metrics
           --exec-file "${{ steps.claude.outputs.execution_file }}"
           --job estimator
+          --ref "${{ steps.pipeline_ref.outputs.ref }}"
           --issue "${{ steps.issue.outputs.number }}"
           > "${{ runner.temp }}/metrics-estimator.json"
 

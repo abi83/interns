@@ -12,10 +12,10 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .. import cli
+from .. import cli, execution
 from ..ctx import ActionsCtx
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 JOBS = ("refiner", "estimator", "coder", "reviewer")
 
 
@@ -26,16 +26,49 @@ class NoResultEventError(RuntimeError):
 
 def _tool_calls(events: list[dict]) -> dict[str, int]:
     """Main-agent tool_use blocks only, grouped by name -- a sub-agent
-    (isSidechain) invocation isn't a top-level pipeline action."""
+    (isSidechain) invocation isn't a top-level pipeline action.
+
+    Bash calls are sub-labelled: script basename for .sh invocations
+    (e.g. Bash:comment-issue.sh), Bash:other for everything else."""
     counts: dict[str, int] = {}
     for event in events:
         if event.get("type") != "assistant" or event.get("isSidechain"):
             continue
         for block in event.get("message", {}).get("content") or []:
-            if block.get("type") == "tool_use":
-                name = block["name"]
-                counts[name] = counts.get(name, 0) + 1
+            if block.get("type") != "tool_use":
+                continue
+            name = block["name"]
+            if name == "Bash":
+                cmd = block.get("input", {}).get("command", "")
+                sh = next((p for p in cmd.split() if p.endswith(".sh")), None)
+                name = f"Bash:{Path(sh).name}" if sh else "Bash:other"
+            counts[name] = counts.get(name, 0) + 1
     return counts
+
+
+def _denied_tools(events: list[dict]) -> list[str]:
+    """Distinct tool names denied by the permission system (main agent only).
+
+    Denials appear as user-side tool_results with is_error=True whose content
+    contains "denied"; we correlate back to the tool name via tool_use_id."""
+    tool_use_names: dict[str, str] = {}
+    denied: set[str] = set()
+    for event in events:
+        if event.get("type") == "assistant" and not event.get("isSidechain"):
+            for block in event.get("message", {}).get("content") or []:
+                if block.get("type") == "tool_use":
+                    tool_use_names[block.get("id", "")] = block["name"]
+        elif event.get("type") == "user":
+            for block in event.get("message", {}).get("content") or []:
+                if block.get("type") != "tool_result" or not block.get("is_error"):
+                    continue
+                content = block.get("content", "")
+                text = content if isinstance(content, str) else ""
+                if "denied" in text.lower():
+                    tool_id = block.get("tool_use_id", "")
+                    if tool_id in tool_use_names:
+                        denied.add(tool_use_names[tool_id])
+    return sorted(denied)
 
 
 def _models(model_usage: dict) -> dict[str, dict]:
@@ -52,15 +85,15 @@ def _models(model_usage: dict) -> dict[str, dict]:
 
 
 def build_record(exec_file: str, *, job: str, issue: int | None, pr: int | None,
-                  repo: str, run_id: int, run_attempt: int) -> dict:
+                  repo: str, run_id: int, run_attempt: int, interns_ref: str) -> dict:
     try:
-        events = json.loads(Path(exec_file).read_text())
+        evts = execution.events(exec_file)
     except json.JSONDecodeError as exc:
         # A killed run can leave a truncated (invalid-JSON) file -- treat it
         # the same as a well-formed file with no result event, matching the
         # bash version's `jq -e` failing the same way on either.
         raise NoResultEventError(f"no result event in {exec_file}") from exc
-    results = [e for e in events if e.get("type") == "result"]
+    results = [e for e in evts if e.get("type") == "result"]
     if not results:
         raise NoResultEventError(f"no result event in {exec_file}")
     result = results[-1]
@@ -74,13 +107,16 @@ def build_record(exec_file: str, *, job: str, issue: int | None, pr: int | None,
         "job": job,
         "issue": issue,
         "pr": pr,
+        "interns_ref": interns_ref,
         "session_id": result.get("session_id"),
         "agent_result": result.get("subtype"),
         "num_turns": result.get("num_turns"),
         "duration_ms": result.get("duration_ms"),
         "duration_api_ms": result.get("duration_api_ms"),
         "models": _models(result.get("modelUsage") or {}),
-        "tool_calls": _tool_calls(events),
+        "tool_calls": _tool_calls(evts),
+        "permission_denials": result.get("permission_denials_count") or 0,
+        "denied_tools": _denied_tools(evts),
     }
 
 
@@ -94,6 +130,7 @@ def _main(ctx: ActionsCtx, argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="interns.entrypoint extract-metrics")
     parser.add_argument("--exec-file", required=True)
     parser.add_argument("--job", required=True, choices=JOBS)
+    parser.add_argument("--ref", required=True)
     parser.add_argument("--issue", default="")
     parser.add_argument("--pr", default="")
     args = parser.parse_args(argv)
@@ -114,6 +151,7 @@ def _main(ctx: ActionsCtx, argv: list[str]) -> int:
             repo=ctx.repo,
             run_id=int(ctx.run_id),
             run_attempt=ctx.run_attempt,
+            interns_ref=args.ref,
         )
     except NoResultEventError as exc:
         print(f"extract-metrics: {exc}", file=sys.stderr)

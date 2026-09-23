@@ -19,6 +19,9 @@ def scenario(tmp_path) -> Scenario:
 
 # --- extract_metrics --------------------------------------------------------
 
+REF = "refs/tags/v0.1.8"
+
+
 def test_extract_metrics_builds_a_record_from_the_result_event(scenario):
     exec_file = scenario.dir / "execution.json"
     exec_file.write_text(json.dumps([
@@ -32,15 +35,80 @@ def test_extract_metrics_builds_a_record_from_the_result_event(scenario):
     ]))
 
     result = scenario.run("interns.entrypoint", "extract-metrics",
-                          "--exec-file", str(exec_file), "--job", "coder", "--issue", "7", "--pr", "12")
+                          "--exec-file", str(exec_file), "--job", "coder",
+                          "--ref", REF, "--issue", "7", "--pr", "12")
 
     assert result.returncode == 0
     record = json.loads(result.stdout)
+    assert record["schema_version"] == 2
     assert record["job"] == "coder"
     assert record["issue"] == 7 and record["pr"] == 12
+    assert record["interns_ref"] == REF
     assert record["session_id"] == "sess-1"
     assert record["tool_calls"] == {"push_branch": 1}  # the sub-agent call is excluded
     assert record["models"]["claude"]["input_tokens"] == 10
+    assert record["permission_denials"] == 0
+    assert record["denied_tools"] == []
+
+
+def test_extract_metrics_records_interns_ref(scenario):
+    exec_file = scenario.dir / "execution.json"
+    exec_file.write_text(json.dumps([{"type": "result"}]))
+
+    result = scenario.run("interns.entrypoint", "extract-metrics",
+                          "--exec-file", str(exec_file), "--job", "refiner",
+                          "--ref", "refs/tags/v1.2.3")
+
+    assert result.returncode == 0
+    assert json.loads(result.stdout)["interns_ref"] == "refs/tags/v1.2.3"
+
+
+def test_extract_metrics_sub_labels_bash_tool_calls(scenario):
+    exec_file = scenario.dir / "execution.json"
+    exec_file.write_text(json.dumps([
+        {"type": "assistant", "message": {"content": [
+            {"type": "tool_use", "name": "Bash",
+             "input": {"command": "/path/to/comment-issue.sh 7 'hello'"}},
+            {"type": "tool_use", "name": "Bash",
+             "input": {"command": "/path/to/comment-issue.sh 8 'world'"}},
+            {"type": "tool_use", "name": "Bash",
+             "input": {"command": "git add ."}},
+            {"type": "tool_use", "name": "Read", "input": {"file_path": "foo.py"}},
+        ]}},
+        {"type": "result"},
+    ]))
+
+    result = scenario.run("interns.entrypoint", "extract-metrics",
+                          "--exec-file", str(exec_file), "--job", "coder", "--ref", REF)
+
+    assert result.returncode == 0
+    tool_calls = json.loads(result.stdout)["tool_calls"]
+    assert tool_calls == {"Bash:comment-issue.sh": 2, "Bash:other": 1, "Read": 1}
+
+
+def test_extract_metrics_captures_permission_denials(scenario):
+    exec_file = scenario.dir / "execution.json"
+    exec_file.write_text(json.dumps([
+        {"type": "assistant", "message": {"content": [
+            {"type": "tool_use", "id": "tu-1", "name": "Bash", "input": {"command": "rm -rf /"}},
+            {"type": "tool_use", "id": "tu-2", "name": "Edit", "input": {}},
+        ]}},
+        {"type": "user", "message": {"content": [
+            {"type": "tool_result", "tool_use_id": "tu-1", "is_error": True,
+             "content": "Permission denied: Bash is not in the allowed tools list."},
+            {"type": "tool_result", "tool_use_id": "tu-2", "is_error": True,
+             "content": "Permission denied: Edit is not allowed here."},
+        ]}},
+        {"type": "result", "permission_denials_count": 2},
+    ]))
+
+    result = scenario.run("interns.entrypoint", "extract-metrics",
+                          "--exec-file", str(exec_file), "--job", "coder", "--ref", REF)
+
+    assert result.returncode == 0
+    record = json.loads(result.stdout)
+    assert record["permission_denials"] == 2
+    assert record["denied_tools"] == ["Bash", "Edit"]
 
 
 def test_extract_metrics_treats_missing_issue_and_pr_as_null(scenario):
@@ -48,7 +116,7 @@ def test_extract_metrics_treats_missing_issue_and_pr_as_null(scenario):
     exec_file.write_text(json.dumps([{"type": "result", "session_id": "sess-1"}]))
 
     result = scenario.run("interns.entrypoint", "extract-metrics",
-                          "--exec-file", str(exec_file), "--job", "estimator")
+                          "--exec-file", str(exec_file), "--job", "estimator", "--ref", REF)
 
     assert result.returncode == 0
     record = json.loads(result.stdout)
@@ -57,7 +125,8 @@ def test_extract_metrics_treats_missing_issue_and_pr_as_null(scenario):
 
 def test_extract_metrics_fails_when_the_execution_file_is_missing(scenario):
     result = scenario.run("interns.entrypoint", "extract-metrics",
-                          "--exec-file", str(scenario.dir / "absent.json"), "--job", "coder")
+                          "--exec-file", str(scenario.dir / "absent.json"),
+                          "--job", "coder", "--ref", REF)
 
     assert result.returncode == 1
     assert "execution file not found" in result.stderr
@@ -68,7 +137,7 @@ def test_extract_metrics_fails_when_there_is_no_result_event(scenario):
     exec_file.write_text(json.dumps([{"type": "system"}]))
 
     result = scenario.run("interns.entrypoint", "extract-metrics",
-                          "--exec-file", str(exec_file), "--job", "coder")
+                          "--exec-file", str(exec_file), "--job", "coder", "--ref", REF)
 
     assert result.returncode == 1
     assert "no result event" in result.stderr
@@ -79,7 +148,7 @@ def test_extract_metrics_treats_a_truncated_file_the_same_as_no_result_event(sce
     exec_file.write_text('[{"type": "result", "session_id": "sess-1"')  # killed mid-write
 
     result = scenario.run("interns.entrypoint", "extract-metrics",
-                          "--exec-file", str(exec_file), "--job", "coder")
+                          "--exec-file", str(exec_file), "--job", "coder", "--ref", REF)
 
     assert result.returncode == 1
     assert "no result event" in result.stderr

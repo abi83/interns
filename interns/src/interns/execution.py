@@ -13,13 +13,16 @@ from pathlib import Path
 from . import best_effort, cli
 
 
-def result_field(exec_file: str | None, field: str) -> str | None:
-    """Value of `field` on the log's `result`-type entry -- the one written
-    when the agent run finished normally. None when there is no execution
-    file (a timed-out run is SIGKILLed before writing one), the file isn't
-    valid JSON (a partial write under disk pressure), or there's no result
-    entry -- every caller treats "we have no reliable data" the same way,
-    regardless of which of these produced it."""
+def events(exec_file: str) -> list[dict]:
+    """Parse an execution log file into the event list. Raises
+    json.JSONDecodeError on an invalid or truncated file; callers that treat
+    this as a soft failure should catch it themselves."""
+    return json.loads(Path(exec_file).read_text())
+
+
+def result_entry(exec_file: str | None) -> dict | None:
+    """The log's result-type entry, or None when the file is missing, not
+    valid JSON, or has no result entry."""
     if not exec_file:
         return None
     path = Path(exec_file)
@@ -30,9 +33,22 @@ def result_field(exec_file: str | None, field: str) -> str | None:
         return None
     for entry in entries:
         if entry.get("type") == "result":
-            value = entry.get(field)
-            return str(value) if value not in (None, "") else None
+            return entry
     return None
+
+
+def result_field(exec_file: str | None, field: str) -> str | None:
+    """Value of `field` on the log's `result`-type entry -- the one written
+    when the agent run finished normally. None when there is no execution
+    file (a timed-out run is SIGKILLed before writing one), the file isn't
+    valid JSON (a partial write under disk pressure), or there's no result
+    entry -- every caller treats "we have no reliable data" the same way,
+    regardless of which of these produced it."""
+    entry = result_entry(exec_file)
+    if entry is None:
+        return None
+    value = entry.get(field)
+    return str(value) if value not in (None, "") else None
 
 
 def _main(argv: list[str]) -> int:

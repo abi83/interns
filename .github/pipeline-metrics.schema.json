@@ -6,12 +6,13 @@
   "additionalProperties": false,
   "required": [
     "schema_version", "timestamp", "repo", "run_id", "run_attempt", "job",
-    "issue", "pr", "session_id", "agent_result", "num_turns", "duration_ms",
-    "duration_api_ms", "models", "tool_calls"
+    "issue", "pr", "interns_ref", "session_id", "agent_result", "num_turns",
+    "duration_ms", "duration_api_ms", "models", "tool_calls",
+    "permission_denials", "denied_tools"
   ],
   "properties": {
     "schema_version": {
-      "const": 1,
+      "const": 2,
       "description": "Bump on any breaking shape change."
     },
     "timestamp": {
@@ -28,6 +29,7 @@
     },
     "issue": { "type": ["integer", "null"], "description": "Issue number, or null (a refiner run before any PR/issue link resolves)." },
     "pr": { "type": ["integer", "null"], "description": "PR number, or null when no PR exists yet." },
+    "interns_ref": { "type": "string", "description": "inputs.pipeline_ref passed to the workflow — the interns release (e.g. refs/tags/v0.1.8) that produced this record." },
     "session_id": { "type": ["string", "null"], "description": "result.session_id — traces back to the raw execution file." },
     "agent_result": {
       "type": ["string", "null"],
@@ -54,8 +56,18 @@
     },
     "tool_calls": {
       "type": "object",
-      "description": "tool_use blocks in the stream, grouped by name, main agent only (sub-agent inner calls live in a separate sidechain). Task count = sub-agents spawned.",
+      "description": "tool_use blocks in the stream, grouped by label, main agent only (sub-agent inner calls live in a separate sidechain). Bash calls are sub-labelled: Bash:<script>.sh for .sh invocations, Bash:other for everything else. Task count = sub-agents spawned.",
       "additionalProperties": { "type": "integer", "minimum": 1 }
+    },
+    "permission_denials": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "result.permission_denials_count — total denied tool calls for the run."
+    },
+    "denied_tools": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Sorted, deduplicated list of tool names that were denied at least once."
     }
   }
 }
