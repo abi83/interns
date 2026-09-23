@@ -251,9 +251,8 @@ you at the same step it asks for `CLAUDE_CODE_OAUTH_TOKEN`.
 | Variable | `INTERNS_REVIEWER_CLIENT_ID` | reviewer App Client ID |
 | Variable | `INTERNS_TRIAGE_CLIENT_ID` | triage App Client ID |
 
-The `install.yml` safety check fails the install if a required secret or
-variable is missing; if its token can't list them it warns and leaves
-verification to you.
+If a secret or variable is missing the pipeline will fail with a clear error
+when it first tries to use it.
 
 #### Caller-stub PR
 
@@ -347,7 +346,6 @@ same skip applies to bot PRs other than the coder's `claude[bot]`
 
 | Failure | Fix |
 |---|---|
-| `missing repo secret(s)` / `variable(s)` | add them (see Setup) — `install.yml` can't set their values |
 | `can't read branch protection … needs admin access` | re-run `gh auth login` (or refresh your PAT) with admin access on the repo, then re-run `interns-install` |
 | `branch '…' push allowlist grants '…[bot]'` | remove that bot from the default branch's push restrictions |
 | `can't read GitHub Pages state … needs admin access` | same as above — `interns-install` needs an admin-scoped `gh` session |

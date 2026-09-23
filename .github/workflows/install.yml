@@ -1,9 +1,7 @@
 name: Install interns
 
 # Provisions a consumer repo for the interns pipeline:
-#   1. syncs the versioned label manifest (unconditional)
-#   2. checks that the App/OAuth secrets and variables interns-install wrote
-#      are present (best-effort -- github.token can't list them either)
+#   - syncs the versioned label manifest (unconditional)
 #
 # The caller stubs (issue-pipeline.yml, code-pipeline.yml, interns.yml) and the
 # issue templates are staged by interns-install itself: github.token cannot
@@ -91,10 +89,3 @@ jobs:
 
       - name: Sync the label manifest
         run: python3 -m interns.entrypoint sync-labels .interns/.github/labels.json
-
-      # Branch protection and Pages are checked by interns-install itself,
-      # locally, before this workflow ever runs -- both need admin access,
-      # which github.token can't be granted. This is just a best-effort
-      # presence check for the secrets/variables interns-install writes.
-      - name: Verify required secrets and variables
-        run: python3 -m interns.entrypoint safety-checks
