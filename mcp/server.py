@@ -215,44 +215,43 @@ def apply_estimation_outcome(
     issue_number: Annotated[int, Field(description="Issue number.")],
     outcome: Annotated[Literal["estimated", "needs-attention"], Field(description="Estimation outcome.")],
     blast_radius: Annotated[
-        Literal["Low", "Mid", "High"] | None,
+        Literal["Low", "Mid", "High"],
         Field(description="Risk of breaking existing functionality. Required when outcome='estimated'."),
-    ] = None,
+    ] = None,  # type: ignore[assignment]
     blast_radius_reason: Annotated[
-        str | None,
-        Field(description="One sentence naming the file or pattern that grounds this score."),
-    ] = None,
+        str,
+        Field(description="One sentence reasoning for this score."),
+    ] = None,  # type: ignore[assignment]
     touch: Annotated[
-        Literal["Low", "Mid", "High"] | None,
+        Literal["Low", "Mid", "High"],
         Field(description="Number of files/components touched. Required when outcome='estimated'."),
-    ] = None,
+    ] = None,  # type: ignore[assignment]
     touch_reason: Annotated[
-        str | None,
-        Field(description="One sentence naming the file or pattern that grounds this score."),
-    ] = None,
+        str,
+        Field(description="One sentence reasoning for this score."),
+    ] = None,  # type: ignore[assignment]
     human_involvement: Annotated[
-        Literal["Low", "Mid", "High"] | None,
+        Literal["Low", "Mid", "High"],
         Field(description="Expected back-and-forth with the owner. Required when outcome='estimated'."),
-    ] = None,
+    ] = None,  # type: ignore[assignment]
     human_involvement_reason: Annotated[
-        str | None,
-        Field(description="One sentence naming the file or pattern that grounds this score."),
-    ] = None,
+        str,
+        Field(description="One sentence reasoning for this score."),
+    ] = None,  # type: ignore[assignment]
     review_overhead: Annotated[
-        Literal["Low", "Mid", "High"] | None,
+        Literal["Low", "Mid", "High"],
         Field(description="Reviewer effort. Required when outcome='estimated'."),
-    ] = None,
+    ] = None,  # type: ignore[assignment]
     review_overhead_reason: Annotated[
-        str | None,
-        Field(description="One sentence naming the file or pattern that grounds this score."),
-    ] = None,
+        str,
+        Field(description="One sentence reasoning for this score."),
+    ] = None,  # type: ignore[assignment]
 ) -> str:
-    """Apply the lifecycle label transition after estimation.
+    """Submit the final estimation result.
 
-    estimated     → posts the four-line score comment, rolls the scores into
-                    a size:* label, removes status:refined / status:needs-attention,
-                    adds status:estimated and the computed size:* label.
-    needs-attention → removes status:refined, adds status:needs-attention.
+    Call on the normal path after scoring: posts the four-line score comment
+    and advances the issue to status:estimated with a computed size label.
+    Call with outcome='needs-attention' when the issue cannot be sized.
     """
     if outcome == "estimated":
         if None in (blast_radius, touch, human_involvement, review_overhead):
