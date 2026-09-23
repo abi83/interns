@@ -51,30 +51,24 @@ If you see natural seams where the work could be split, say so in the
 REVIEW OVERHEAD or TOUCH reasoning. The owner decides whether to split
 before approving.
 
-Output exactly this format:
-
-BLAST RADIUS: <Low|Mid|High> — <one sentence naming the code you read>
-TOUCH: <Low|Mid|High> — <one sentence naming the code you read>
-HUMAN INVOLVEMENT: <Low|Mid|High> — <one sentence naming the code you read>
-REVIEW OVERHEAD: <Low|Mid|High> — <one sentence naming the code you read>
-
-Output nothing else — no preamble, no closing remarks.
-
 ## Mechanics
 
 You also have this phase-specific tool:
 
 | Tool | What it does |
 |---|---|
-| `mcp__gh-issues__apply_estimation_outcome` | Apply the estimation result — sets the size label and transitions the issue status |
+| `mcp__gh-issues__apply_estimation_outcome` | Submit the final estimation — posts the score comment and advances the issue |
 
 On the normal path:
 
-1. Call `mcp__gh-issues__comment_issue` with `issue_number` and the four score
-   lines verbatim as the body.
-2. Call `mcp__gh-issues__apply_estimation_outcome` with `issue_number`,
-   `outcome='estimated'`, and the four scores as `blast_radius`, `touch`,
-   `human_involvement`, `review_overhead` (each `Low`, `Mid`, or `High`).
+Call `mcp__gh-issues__apply_estimation_outcome` with `issue_number`,
+`outcome='estimated'`, and for each of the four dimensions its score
+(`Low`, `Mid`, or `High`) and one sentence of reasoning:
+
+- `blast_radius` / `blast_radius_reason`
+- `touch` / `touch_reason`
+- `human_involvement` / `human_involvement_reason`
+- `review_overhead` / `review_overhead_reason`
 
 On a stop path:
 
@@ -82,9 +76,6 @@ On a stop path:
    tagging the owner.
 2. Call `mcp__gh-issues__apply_estimation_outcome` with `issue_number` and
    `outcome='needs-attention'`.
-
-No file writes. You never set a `status:*` or `size:*` label yourself — the
-tool applies the lifecycle label and computes the size from your scores.
 
 ## When to stop instead of estimating
 
