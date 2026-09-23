@@ -51,6 +51,7 @@ class CheckCapTests(unittest.TestCase):
 
 class CliTests(unittest.TestCase):
     def test_writes_capped_output_using_ctx(self):
+        from interns.config import ReviewLoopConfig
         with tempfile.TemporaryDirectory() as tmpdir:
             output_file = os.path.join(tmpdir, "output")
             Path(output_file).write_text("")
@@ -58,6 +59,9 @@ class CliTests(unittest.TestCase):
                              run_attempt=1, workspace=".", event_name="",
                              reviewer_bot="reviewer[bot]", step_summary="")
             with patch.dict(os.environ, {"GITHUB_OUTPUT": output_file}), \
+                 patch("interns.steps.check_review_cap.config.load_raw", return_value={}), \
+                 patch("interns.steps.check_review_cap.config.review_loop_config",
+                       return_value=ReviewLoopConfig(max_fix_rounds=1, max_automatic_reviews=5)), \
                  patch("interns.steps.check_review_cap.check_cap", return_value=True) as fn:
                 check_review_cap._main(ctx, ["--pr", "12"])
             fn.assert_called_once_with("acme/widgets", 12, "reviewer[bot]", 5, count=None,

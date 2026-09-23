@@ -80,13 +80,13 @@ def _main(ctx: ActionsCtx, argv: list[str]) -> int:
         return 0
 
     config_path = os.environ.get("INTERNS_CONFIG", ".github/interns.yml")
-    ignore = config.checks_ignore(config.load_raw(config_path), config_path)
+    cfg = config.checks_config(config.load_raw(config_path), config_path)
 
     ok, reason = wait_for_checks(
-        ctx.repo, args.pr, ctx.run_id, ignore,
-        timeout=float(os.environ.get("CHECK_TIMEOUT_SECONDS", "1200")),
-        poll=float(os.environ.get("CHECK_POLL_SECONDS", "20")),
-        settle=float(os.environ.get("CHECK_SETTLE_SECONDS", "30")),
+        ctx.repo, args.pr, ctx.run_id, cfg.ignore,
+        timeout=cfg.timeout_seconds,
+        poll=cfg.poll_seconds,
+        settle=cfg.settle_seconds,
     )
     cli.write_output("ok", ok)
     if not ok:

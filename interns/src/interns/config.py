@@ -19,10 +19,12 @@ from pathlib import Path
 
 from . import cli
 
-KNOWN_TOP_KEYS = ("debug", "defaults", "agents", "wiki", "checks")
+KNOWN_TOP_KEYS = ("debug", "defaults", "agents", "wiki", "checks", "review_loop")
 KNOWN_AGENTS = ("refiner", "estimator", "coder", "reviewer")
 KNOWN_LIMIT_KEYS = ("model", "max_turns", "timeout_minutes", "max_output_tokens", "cost_warn_usd", "disallowed_tools")
 KNOWN_WIKI_KEYS = ("enabled", "url")
+KNOWN_CHECKS_KEYS = ("ignore", "timeout_seconds", "poll_seconds", "settle_seconds")
+KNOWN_REVIEW_LOOP_KEYS = ("max_fix_rounds", "max_automatic_reviews")
 
 # The pipeline's own built-in fallback layer: the same file
 # installer/src/interns_install/install_files.py seeds a fresh consumer's
@@ -47,6 +49,20 @@ class AgentConfig:
     wiki_enabled: bool
     wiki_repo: str
     debug: bool
+
+
+@dataclass
+class ChecksConfig:
+    ignore: list[str]
+    timeout_seconds: float
+    poll_seconds: float
+    settle_seconds: float
+
+
+@dataclass
+class ReviewLoopConfig:
+    max_fix_rounds: int
+    max_automatic_reviews: int
 
 
 def _yaml_to_json(path: str) -> object:
@@ -89,6 +105,14 @@ def _validate_schema(data: dict, path: str) -> None:
     for key in data.get("wiki") or {}:
         if key not in KNOWN_WIKI_KEYS:
             raise ConfigError(f"unknown key 'wiki.{key}' in {path}")
+
+    for key in data.get("checks") or {}:
+        if key not in KNOWN_CHECKS_KEYS:
+            raise ConfigError(f"unknown key 'checks.{key}' in {path}")
+
+    for key in data.get("review_loop") or {}:
+        if key not in KNOWN_REVIEW_LOOP_KEYS:
+            raise ConfigError(f"unknown key 'review_loop.{key}' in {path}")
 
 
 def _is_int_ge(value: object, floor: int) -> bool:
@@ -175,14 +199,47 @@ def resolve_agent_config(data: dict, agent: str, path: str) -> AgentConfig:
     )
 
 
-def checks_ignore(data: dict, path: str) -> list[str]:
-    """The reviewer gate's non-blocking advisory check names
-    (`checks.ignore`). A malformed value fails loudly, same as every other
-    key in this file -- no silent fallback to an empty list."""
-    ignore = (data.get("checks") or {}).get("ignore", [])
+def checks_config(data: dict, path: str) -> ChecksConfig:
+    checks = data.get("checks") or {}
+    ignore = checks.get("ignore", [])
     if not isinstance(ignore, list):
         raise ConfigError(f"checks.ignore must be a YAML list of check names in {path}")
-    return [str(name) for name in ignore]
+
+    builtin_checks = _builtin_data().get("checks") or {}
+    timeout = checks.get("timeout_seconds", builtin_checks.get("timeout_seconds", 1200))
+    poll = checks.get("poll_seconds", builtin_checks.get("poll_seconds", 20))
+    settle = checks.get("settle_seconds", builtin_checks.get("settle_seconds", 30))
+
+    if not _is_num_gt0(timeout):
+        raise ConfigError(f"checks.timeout_seconds must be a positive number (got '{timeout}') in {path}")
+    if not _is_num_gt0(poll):
+        raise ConfigError(f"checks.poll_seconds must be a positive number (got '{poll}') in {path}")
+    if not _is_num_gt0(settle):
+        raise ConfigError(f"checks.settle_seconds must be a positive number (got '{settle}') in {path}")
+
+    return ChecksConfig(
+        ignore=[str(name) for name in ignore],
+        timeout_seconds=float(timeout),
+        poll_seconds=float(poll),
+        settle_seconds=float(settle),
+    )
+
+
+def review_loop_config(data: dict, path: str) -> ReviewLoopConfig:
+    rl = data.get("review_loop") or {}
+    builtin_rl = _builtin_data().get("review_loop") or {}
+    max_fix_rounds = rl.get("max_fix_rounds", builtin_rl.get("max_fix_rounds", 1))
+    max_automatic_reviews = rl.get("max_automatic_reviews", builtin_rl.get("max_automatic_reviews", 5))
+
+    if not _is_int_ge(max_fix_rounds, 1):
+        raise ConfigError(f"review_loop.max_fix_rounds must be a positive integer (got '{max_fix_rounds}') in {path}")
+    if not _is_int_ge(max_automatic_reviews, 1):
+        raise ConfigError(f"review_loop.max_automatic_reviews must be a positive integer (got '{max_automatic_reviews}') in {path}")
+
+    return ReviewLoopConfig(
+        max_fix_rounds=int(max_fix_rounds),
+        max_automatic_reviews=int(max_automatic_reviews),
+    )
 
 
 def _main(argv: list[str]) -> int:
@@ -224,7 +281,7 @@ def _main(argv: list[str]) -> int:
                 file=sys.stderr,
             )
         elif args.command == "checks-ignore":
-            print(json.dumps(checks_ignore(data, args.config)))
+            print(json.dumps(checks_config(data, args.config).ignore))
     except ConfigError as exc:
         print(f"config: {exc}", file=sys.stderr)
         return 1

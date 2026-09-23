@@ -67,6 +67,14 @@ class LoadRawTests(unittest.TestCase):
         with self.assertRaisesRegex(config.ConfigError, "unknown key 'wiki.comment'"):
             _load({"wiki": {"enabled": False, "comment": "nope"}})
 
+    def test_unknown_checks_key(self):
+        with self.assertRaisesRegex(config.ConfigError, "unknown key 'checks.junk'"):
+            _load({"checks": {"junk": 1}})
+
+    def test_unknown_review_loop_key(self):
+        with self.assertRaisesRegex(config.ConfigError, "unknown key 'review_loop.bogus'"):
+            _load({"review_loop": {"bogus": 1}})
+
 
 # Mirrors templates/config/interns.yml's shape and values -- the file the
 # installer seeds a fresh consumer's .github/interns.yml from, and that
@@ -76,7 +84,8 @@ class LoadRawTests(unittest.TestCase):
 _BUILTIN_FIXTURE = {
     "debug": False,
     "wiki": {"enabled": False},
-    "checks": {"ignore": []},
+    "checks": {"ignore": [], "timeout_seconds": 1200, "poll_seconds": 20, "settle_seconds": 30},
+    "review_loop": {"max_fix_rounds": 1, "max_automatic_reviews": 5},
     "defaults": {
         "model": "claude-sonnet-5",
         "max_turns": 60,
@@ -214,18 +223,68 @@ class BuiltinTemplateIntegrationTests(unittest.TestCase):
         self.assertNotIn("Bash", cfg.disallowed_tools)
 
 
-class ChecksIgnoreTests(unittest.TestCase):
-    def test_defaults_to_empty(self):
-        self.assertEqual(config.checks_ignore({}, "interns.yml"), [])
+class ChecksConfigTests(unittest.TestCase):
+    def setUp(self):
+        patcher = patch("interns.config._builtin_data", return_value=_BUILTIN_FIXTURE)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
-    def test_reads_the_list(self):
+    def test_defaults_to_empty_ignore_and_builtin_timing(self):
+        cfg = config.checks_config({}, "interns.yml")
+        self.assertEqual(cfg.ignore, [])
+        self.assertEqual(cfg.timeout_seconds, 1200)
+        self.assertEqual(cfg.poll_seconds, 20)
+        self.assertEqual(cfg.settle_seconds, 30)
+
+    def test_reads_the_ignore_list(self):
         data = {"checks": {"ignore": ["preview-deploy"]}}
-        self.assertEqual(config.checks_ignore(data, "interns.yml"), ["preview-deploy"])
+        cfg = config.checks_config(data, "interns.yml")
+        self.assertEqual(cfg.ignore, ["preview-deploy"])
 
-    def test_non_list_value_is_rejected_not_silently_ignored(self):
+    def test_consumer_timing_overrides_builtin(self):
+        data = {"checks": {"timeout_seconds": 600, "poll_seconds": 10, "settle_seconds": 15}}
+        cfg = config.checks_config(data, "interns.yml")
+        self.assertEqual(cfg.timeout_seconds, 600)
+        self.assertEqual(cfg.poll_seconds, 10)
+        self.assertEqual(cfg.settle_seconds, 15)
+
+    def test_non_list_ignore_is_rejected(self):
         data = {"checks": {"ignore": "preview-deploy"}}
         with self.assertRaisesRegex(config.ConfigError, "checks.ignore must be a YAML list"):
-            config.checks_ignore(data, "interns.yml")
+            config.checks_config(data, "interns.yml")
+
+    def test_zero_timeout_is_rejected(self):
+        data = {"checks": {"timeout_seconds": 0}}
+        with self.assertRaisesRegex(config.ConfigError, "checks.timeout_seconds"):
+            config.checks_config(data, "interns.yml")
+
+
+class ReviewLoopConfigTests(unittest.TestCase):
+    def setUp(self):
+        patcher = patch("interns.config._builtin_data", return_value=_BUILTIN_FIXTURE)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_defaults_to_builtin_values(self):
+        rl = config.review_loop_config({}, "interns.yml")
+        self.assertEqual(rl.max_fix_rounds, 1)
+        self.assertEqual(rl.max_automatic_reviews, 5)
+
+    def test_consumer_values_override_builtin(self):
+        data = {"review_loop": {"max_fix_rounds": 3, "max_automatic_reviews": 10}}
+        rl = config.review_loop_config(data, "interns.yml")
+        self.assertEqual(rl.max_fix_rounds, 3)
+        self.assertEqual(rl.max_automatic_reviews, 10)
+
+    def test_zero_max_fix_rounds_is_rejected(self):
+        data = {"review_loop": {"max_fix_rounds": 0}}
+        with self.assertRaisesRegex(config.ConfigError, "review_loop.max_fix_rounds"):
+            config.review_loop_config(data, "interns.yml")
+
+    def test_zero_max_automatic_reviews_is_rejected(self):
+        data = {"review_loop": {"max_automatic_reviews": 0}}
+        with self.assertRaisesRegex(config.ConfigError, "review_loop.max_automatic_reviews"):
+            config.review_loop_config(data, "interns.yml")
 
 
 class CliTests(unittest.TestCase):
@@ -238,8 +297,10 @@ class CliTests(unittest.TestCase):
         self.assertIn("model=claude-sonnet-5", printed)
 
     def test_checks_ignore_prints_json_array(self):
-        data = {"checks": {"ignore": ["preview-deploy"]}}
-        with patch("interns.config.load_raw", return_value=data), patch("builtins.print") as mock_print:
+        data = {"checks": {"ignore": ["preview-deploy"], "timeout_seconds": 1200, "poll_seconds": 20, "settle_seconds": 30}}
+        with patch("interns.config.load_raw", return_value=data), \
+             patch("interns.config._builtin_data", return_value=_BUILTIN_FIXTURE), \
+             patch("builtins.print") as mock_print:
             config._main(["checks-ignore"])
         mock_print.assert_any_call('["preview-deploy"]')
 

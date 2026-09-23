@@ -6,24 +6,16 @@ status:needs-attention when a human is needed, closed on merge. There is no
 state, and the pr:* label only marks which agent is currently working (none,
 once the reviewer is done) or pr:needs-attention when the loop has given up.
 The fix-round decision is read from the verdict, not a label.
-
-MAX_FIX_ROUNDS: how many automatic coder fix rounds a PR gets before the loop
-escalates to a human. Counts CHANGES_REQUESTED reviews (this run's verdict
-included). Distinct from interns.yml's max_turns (turns inside one agent
-run) -- this counts whole agent invocations across a PR, so it stays a
-workflow-behaviour constant here, not an execution limit in the config file.
 """
 
 from __future__ import annotations
 
-from .. import cli, gh, verdict
+from .. import cli, config, gh, verdict
 from . import labels
 from ..ctx import ActionsCtx
 
-MAX_FIX_ROUNDS = 1
 
-
-def apply_verdict(repo: str, pr: int, issue: int | None, reviewer_bot: str, *, server_url: str = "", run_url: str = "") -> None:
+def apply_verdict(repo: str, pr: int, issue: int | None, reviewer_bot: str, *, max_fix_rounds: int, server_url: str = "", run_url: str = "") -> None:
     head_sha = gh.pr_view(repo, pr, ["headRefOid"])["headRefOid"]
     reviews = verdict.reviews_by(repo, pr, reviewer_bot)
     last_state = verdict.verdict_for_head(reviews, head_sha)
@@ -40,7 +32,7 @@ def apply_verdict(repo: str, pr: int, issue: int | None, reviewer_bot: str, *, s
 
     if last_state == "CHANGES_REQUESTED":
         rounds = verdict.rounds_requested(reviews)
-        if rounds > MAX_FIX_ROUNDS:
+        if rounds > max_fix_rounds:
             labels.escalate_pr(repo, pr)
             if issue is not None:
                 labels.set_issue_status(repo, issue, labels.STATUS_NEEDS_ATTENTION)
@@ -78,17 +70,22 @@ def apply_verdict(repo: str, pr: int, issue: int | None, reviewer_bot: str, *, s
 
 def _main(ctx: ActionsCtx, argv: list[str]) -> int:
     import argparse
+    import os
 
     parser = argparse.ArgumentParser(prog="interns.entrypoint apply-verdict")
     parser.add_argument("--pr", type=int, required=True)
     parser.add_argument("--issue", default="")
     args = parser.parse_args(argv)
 
+    config_path = os.environ.get("INTERNS_CONFIG", ".github/interns.yml")
+    rl = config.review_loop_config(config.load_raw(config_path), config_path)
+
     apply_verdict(
         ctx.repo,
         args.pr,
         cli.optional_int(args.issue),
         ctx.reviewer_bot,
+        max_fix_rounds=rl.max_fix_rounds,
         server_url=ctx.server_url,
         run_url=ctx.run_url(),
     )

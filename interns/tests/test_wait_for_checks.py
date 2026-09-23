@@ -85,12 +85,14 @@ class CliTests(unittest.TestCase):
             self.assertEqual(Path(output_file).read_text(), "ok=true\n")
 
     def test_writes_ok_false_and_reason(self):
+        from interns.config import ChecksConfig
         with tempfile.TemporaryDirectory() as tmpdir:
             output_file = os.path.join(tmpdir, "output")
             Path(output_file).write_text("")
             with patch.dict(os.environ, {"GITHUB_OUTPUT": output_file}), \
-                 patch("interns.steps.wait_for_checks.config.checks_ignore", return_value=[]), \
                  patch("interns.steps.wait_for_checks.config.load_raw", return_value={}), \
+                 patch("interns.steps.wait_for_checks.config.checks_config",
+                       return_value=ChecksConfig(ignore=[], timeout_seconds=1200, poll_seconds=20, settle_seconds=30)), \
                  patch("interns.steps.wait_for_checks.wait_for_checks", return_value=(False, "red checks: lint=fail")):
                 wait_for_checks._main(self._ctx(), ["--pr", "5"])
             self.assertEqual(Path(output_file).read_text(), "ok=false\nreason=red checks: lint=fail\n")
