@@ -198,9 +198,15 @@ def build_summary(repo: str, server_url: str, phase: str, exec_file: str | None,
     if phase not in _PHASES:
         raise ValueError(f"run-summary: unknown phase {phase}")
 
-    raw_cost = execution.result_field(exec_file, "total_cost_usd")
-    num_turns = execution.result_field(exec_file, "num_turns")
-    final_msg = execution.result_field(exec_file, "result")
+    _result = execution.result_entry(exec_file)
+
+    def _field(key: str) -> str | None:
+        v = _result.get(key) if _result else None
+        return str(v) if v not in (None, "") else None
+
+    raw_cost  = _field("total_cost_usd")
+    num_turns = _field("num_turns")
+    final_msg = _field("result")
 
     lines = [f"## {phase} run", ""]
 

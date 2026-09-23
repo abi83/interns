@@ -7,15 +7,17 @@ from interns import cli
 from interns.steps import extract_metrics
 from interns.ctx import ActionsCtx
 
+REF = "refs/tags/v0.1.8"
+
 EXEC_EVENTS = [
     {"type": "system", "subtype": "init", "session_id": "sess-1"},
     {"type": "assistant", "isSidechain": False, "message": {"role": "assistant", "content": [
         {"type": "text", "text": "hi"},
         {"type": "tool_use", "name": "Read", "input": {}},
-        {"type": "tool_use", "name": "Bash", "input": {}},
+        {"type": "tool_use", "name": "Bash", "input": {"command": "git status"}},
     ]}},
     {"type": "assistant", "message": {"role": "assistant", "content": [
-        {"type": "tool_use", "name": "Bash", "input": {}},
+        {"type": "tool_use", "name": "Bash", "input": {"command": "git diff"}},
         {"type": "tool_use", "name": "Task", "input": {}},
     ]}},
     {"type": "assistant", "isSidechain": True, "message": {"role": "assistant", "content": [
@@ -43,13 +45,13 @@ class BuildRecordTests(unittest.TestCase):
 
     def _build(self, **overrides):
         kwargs = dict(job="coder", issue=117, pr=128, repo="owner/repo",
-                      run_id=42, run_attempt=2)
+                      run_id=42, run_attempt=2, interns_ref=REF)
         kwargs.update(overrides)
         return extract_metrics.build_record(str(self.exec_file), **kwargs)
 
     def test_core_run_fields(self):
         record = self._build()
-        self.assertEqual(record["schema_version"], 1)
+        self.assertEqual(record["schema_version"], 2)
         self.assertEqual(record["repo"], "owner/repo")
         self.assertEqual(record["run_id"], 42)
         self.assertEqual(record["run_attempt"], 2)
@@ -71,7 +73,7 @@ class BuildRecordTests(unittest.TestCase):
 
     def test_counts_main_agent_tool_use_blocks_only_grouped_by_name(self):
         record = self._build()
-        self.assertEqual(record["tool_calls"], {"Read": 1, "Bash": 2, "Task": 1})
+        self.assertEqual(record["tool_calls"], {"Read": 1, "Bash:other": 2, "Task": 1})
 
     def test_empty_issue_and_pr_become_null(self):
         record = self._build(job="refiner", issue=None, pr=None)
@@ -84,14 +86,16 @@ class BuildRecordTests(unittest.TestCase):
         no_result.write_text(json.dumps([{"type": "system"}]))
         with self.assertRaises(extract_metrics.NoResultEventError):
             extract_metrics.build_record(str(no_result), job="coder", issue=None, pr=None,
-                                          repo="owner/repo", run_id=42, run_attempt=1)
+                                          repo="owner/repo", run_id=42, run_attempt=1,
+                                          interns_ref=REF)
 
     def test_malformed_json_raises_no_result_event_not_json_decode_error(self):
         truncated = Path(self._tmpdir.name) / "truncated.json"
         truncated.write_text('[{"type":"system"')
         with self.assertRaises(extract_metrics.NoResultEventError):
             extract_metrics.build_record(str(truncated), job="coder", issue=None, pr=None,
-                                          repo="owner/repo", run_id=42, run_attempt=1)
+                                          repo="owner/repo", run_id=42, run_attempt=1,
+                                          interns_ref=REF)
 
 
 class NumOrNullTests(unittest.TestCase):
@@ -126,7 +130,7 @@ class CliTests(unittest.TestCase):
 
     def test_emits_one_line_with_core_run_fields(self):
         status, out = self._run_capture(["--exec-file", str(self.exec_file), "--job", "coder",
-                                          "--issue", "117", "--pr", "128"])
+                                          "--ref", REF, "--issue", "117", "--pr", "128"])
         self.assertEqual(status, 0)
         lines = out.splitlines()
         self.assertEqual(len(lines), 1)
@@ -136,17 +140,17 @@ class CliTests(unittest.TestCase):
 
     def test_rejects_an_unknown_job(self):
         with self.assertRaises(SystemExit):
-            self._run_capture(["--exec-file", str(self.exec_file), "--job", "nope"])
+            self._run_capture(["--exec-file", str(self.exec_file), "--job", "nope", "--ref", REF])
 
     def test_fails_when_the_execution_file_has_no_result_event(self):
         no_result = Path(self._tmpdir.name) / "noresult.json"
         no_result.write_text(json.dumps([{"type": "system"}]))
-        status, out = self._run_capture(["--exec-file", str(no_result), "--job", "coder"])
+        status, out = self._run_capture(["--exec-file", str(no_result), "--job", "coder", "--ref", REF])
         self.assertNotEqual(status, 0)
         self.assertEqual(out, "")
 
     def test_fails_when_the_execution_file_is_missing(self):
-        status, out = self._run_capture(["--exec-file", "/no/such/file", "--job", "coder"])
+        status, out = self._run_capture(["--exec-file", "/no/such/file", "--job", "coder", "--ref", REF])
         self.assertNotEqual(status, 0)
         self.assertEqual(out, "")
 
@@ -157,7 +161,8 @@ class CliTests(unittest.TestCase):
         with self.assertRaisesRegex(cli.MissingEnvError, "unset"):
             import io, contextlib
             with contextlib.redirect_stdout(io.StringIO()):
-                extract_metrics._main(ctx_no_run, ["--exec-file", str(self.exec_file), "--job", "coder"])
+                extract_metrics._main(ctx_no_run, ["--exec-file", str(self.exec_file),
+                                                    "--job", "coder", "--ref", REF])
 
 
 if __name__ == "__main__":

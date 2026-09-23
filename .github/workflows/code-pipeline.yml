@@ -432,6 +432,7 @@ jobs:
           python3 -m interns.entrypoint extract-metrics
           --exec-file "${{ steps.claude_initial.outputs.execution_file }}${{ steps.claude_fix.outputs.execution_file }}"
           --job coder
+          --ref "${{ steps.pipeline_ref.outputs.ref }}"
           --issue "${{ steps.issue.outputs.number }}"
           --pr "${{ steps.verify_pr.outputs.pr_number || steps.pr.outputs.pr_number }}"
           > "${{ runner.temp }}/metrics-coder.json"
@@ -737,6 +738,7 @@ jobs:
           python3 -m interns.entrypoint extract-metrics
           --exec-file "${{ steps.claude.outputs.execution_file }}"
           --job reviewer
+          --ref "${{ steps.pipeline_ref.outputs.ref }}"
           --issue "${{ steps.linked.outputs.issue_number }}"
           --pr "${{ github.event.pull_request.number || inputs.pr_number }}"
           > "${{ runner.temp }}/metrics-reviewer.json"
