@@ -41,7 +41,18 @@
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "description": "Check names the reviewer gate ignores — for non-blocking advisory checks (preview deploys, coverage deltas). Everything else must be green before the reviewer runs."
-        }
+        },
+        "timeout_seconds": { "type": "number", "exclusiveMinimum": 0 },
+        "poll_seconds": { "type": "number", "exclusiveMinimum": 0 },
+        "settle_seconds": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "review_loop": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_fix_rounds": { "type": "integer", "minimum": 1 },
+        "max_automatic_reviews": { "type": "integer", "minimum": 1 }
       }
     }
   },

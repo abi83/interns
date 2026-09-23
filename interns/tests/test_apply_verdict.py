@@ -12,7 +12,7 @@ class ApplyVerdictTests(unittest.TestCase):
              ]), \
              patch("interns.steps.apply_verdict.labels.set_pr_pipeline_label") as set_pr, \
              patch("interns.steps.apply_verdict.gh.issue_comment") as comment:
-            apply_verdict.apply_verdict("acme/widgets", 12, 34, "reviewer[bot]")
+            apply_verdict.apply_verdict("acme/widgets", 12, 34, "reviewer[bot]", max_fix_rounds=1)
         set_pr.assert_called_once_with("acme/widgets", 12)
         comment.assert_called_once()
         self.assertIn("Reviewer approved", comment.call_args[0][2])
@@ -24,7 +24,7 @@ class ApplyVerdictTests(unittest.TestCase):
              ]), \
              patch("interns.steps.apply_verdict.labels.set_pr_pipeline_label") as set_pr, \
              patch("interns.steps.apply_verdict.gh.dispatch_workflow") as dispatch:
-            apply_verdict.apply_verdict("acme/widgets", 12, 34, "reviewer[bot]")
+            apply_verdict.apply_verdict("acme/widgets", 12, 34, "reviewer[bot]", max_fix_rounds=1)
         set_pr.assert_called_once_with("acme/widgets", 12, "pr:coding")
         dispatch.assert_called_once_with(
             "acme/widgets", "code-pipeline.yml", None,
@@ -41,7 +41,7 @@ class ApplyVerdictTests(unittest.TestCase):
              patch("interns.steps.apply_verdict.labels.set_issue_status") as set_issue, \
              patch("interns.steps.apply_verdict.gh.pr_comment") as comment, \
              patch("interns.steps.apply_verdict.gh.dispatch_workflow") as dispatch:
-            apply_verdict.apply_verdict("acme/widgets", 12, 34, "reviewer[bot]")
+            apply_verdict.apply_verdict("acme/widgets", 12, 34, "reviewer[bot]", max_fix_rounds=1)
         escalate.assert_called_once_with("acme/widgets", 12)
         set_issue.assert_called_once_with("acme/widgets", 34, "status:needs-attention")
         dispatch.assert_not_called()
@@ -55,7 +55,7 @@ class ApplyVerdictTests(unittest.TestCase):
              patch("interns.steps.apply_verdict.labels.set_pr_pipeline_label") as set_pr, \
              patch("interns.steps.apply_verdict.gh.pr_comment") as comment, \
              patch("interns.steps.apply_verdict.gh.dispatch_workflow") as dispatch:
-            apply_verdict.apply_verdict("acme/widgets", 12, None, "reviewer[bot]")
+            apply_verdict.apply_verdict("acme/widgets", 12, None, "reviewer[bot]", max_fix_rounds=1)
         set_pr.assert_called_once_with("acme/widgets", 12)
         dispatch.assert_not_called()
         self.assertIn("no linked issue", comment.call_args[0][2])
@@ -68,7 +68,7 @@ class ApplyVerdictTests(unittest.TestCase):
              patch("interns.steps.apply_verdict.labels.escalate_pr") as escalate, \
              patch("interns.steps.apply_verdict.labels.set_issue_status") as set_issue, \
              patch("interns.steps.apply_verdict.gh.pr_comment") as comment:
-            apply_verdict.apply_verdict("acme/widgets", 12, 34, "reviewer[bot]")
+            apply_verdict.apply_verdict("acme/widgets", 12, 34, "reviewer[bot]", max_fix_rounds=1)
         escalate.assert_called_once_with("acme/widgets", 12)
         set_issue.assert_called_once_with("acme/widgets", 34, "status:needs-attention")
         self.assertIn("without submitting a recognized verdict", comment.call_args[0][2])
@@ -81,7 +81,7 @@ class ApplyVerdictTests(unittest.TestCase):
              patch("interns.steps.apply_verdict.labels.escalate_pr"), \
              patch("interns.steps.apply_verdict.labels.set_issue_status"), \
              patch("interns.steps.apply_verdict.gh.pr_comment") as comment:
-            apply_verdict.apply_verdict("acme/widgets", 12, 34, "reviewer[bot]")
+            apply_verdict.apply_verdict("acme/widgets", 12, 34, "reviewer[bot]", max_fix_rounds=1)
         self.assertIn("without submitting a recognized verdict", comment.call_args[0][2])
 
 

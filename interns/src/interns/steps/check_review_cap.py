@@ -12,7 +12,7 @@ workflow_dispatch is an explicit human override and never calls this module.
 
 from __future__ import annotations
 
-from .. import cli, gh, verdict
+from .. import cli, config, gh, verdict
 from . import labels
 from ..ctx import ActionsCtx
 
@@ -41,12 +41,16 @@ def check_cap(repo: str, pr: int, reviewer_bot: str, max_reviews: int, *, count:
 
 def _main(ctx: ActionsCtx, argv: list[str]) -> int:
     import argparse
+    import os
+
+    config_path = os.environ.get("INTERNS_CONFIG", ".github/interns.yml")
+    rl = config.review_loop_config(config.load_raw(config_path), config_path)
 
     parser = argparse.ArgumentParser(prog="interns.entrypoint check-review-cap")
     parser.add_argument("--pr", type=int, required=True)
     parser.add_argument("--count", type=int, default=None,
                         help="skip the review-count fetch and use this instead")
-    parser.add_argument("--max-reviews", type=int, default=5)
+    parser.add_argument("--max-reviews", type=int, default=rl.max_automatic_reviews)
     args = parser.parse_args(argv)
 
     capped = check_cap(ctx.repo, args.pr, ctx.reviewer_bot, args.max_reviews,

@@ -25,6 +25,14 @@ def test_wiki_keys():
     assert set(PROPERTIES["wiki"]["properties"]) == set(config.KNOWN_WIKI_KEYS)
 
 
+def test_checks_keys():
+    assert set(PROPERTIES["checks"]["properties"]) == set(config.KNOWN_CHECKS_KEYS)
+
+
+def test_review_loop_keys():
+    assert set(PROPERTIES["review_loop"]["properties"]) == set(config.KNOWN_REVIEW_LOOP_KEYS)
+
+
 def test_agent_and_defaults_blocks_use_the_limits_definition():
     blocks = [PROPERTIES["defaults"], *PROPERTIES["agents"]["properties"].values()]
     assert all(block == {"$ref": "#/definitions/limits"} for block in blocks)

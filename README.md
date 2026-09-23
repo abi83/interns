@@ -303,6 +303,10 @@ The reviewer waits for **all** of a PR's checks to be green before it runs — a
 red or cancelled check on anything routes the PR to a human instead. Name any
 non-blocking advisory checks (preview deploys, coverage deltas) under
 `checks.ignore` in `.github/interns.yml` to keep them out of that gate.
+Gate timing (`checks.timeout_seconds` / `poll_seconds` / `settle_seconds`)
+and the coder–reviewer loop caps (`review_loop.max_fix_rounds` /
+`max_automatic_reviews`) are documented with their defaults in the config
+file.
 
 ### Doing it by hand
 

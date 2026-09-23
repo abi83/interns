@@ -18,6 +18,17 @@ wiki:
 checks:
   ignore: []
   #  - preview-deploy
+  # How long (in seconds) the reviewer waits for all PR checks to finish.
+  timeout_seconds: 1200
+  poll_seconds: 20
+  settle_seconds: 30
+
+# Coder–reviewer loop limits. Two independent caps on the same loop:
+# max_fix_rounds bounds automatic fix rounds per CHANGES_REQUESTED verdict;
+# max_automatic_reviews bounds total reviewer runs per PR regardless of outcome.
+review_loop:
+  max_fix_rounds: 1
+  max_automatic_reviews: 5
 
 defaults:
   model: claude-sonnet-5
