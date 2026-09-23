@@ -49,6 +49,16 @@ class FetchIssueTests(unittest.TestCase):
         self.assertEqual(len(issue.sub_issues), 1)
         self.assertEqual(issue.blocked_by, [])
 
+    def test_null_comment_author(self):
+        response = copy.deepcopy(GRAPHQL_RESPONSE)
+        response["data"]["repository"]["issue"]["comments"]["nodes"].append(
+            {"author": None, "createdAt": "2024-01-03T00:00:00Z", "body": "From deleted account"}
+        )
+        with patch("interns.steps.fetch_issue.gh.graphql", return_value=response):
+            issue = fetch_issue.fetch_issue("owner/repo", 42)
+        self.assertEqual(issue.comments[-1].author, "ghost")
+        self.assertEqual(issue.comments[-1].body, "From deleted account")
+
     def test_null_body_and_no_parent(self):
         response = copy.deepcopy(GRAPHQL_RESPONSE)
         response["data"]["repository"]["issue"].update(body=None, parent=None)

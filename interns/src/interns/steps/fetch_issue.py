@@ -72,7 +72,7 @@ def fetch_issue(repo: str, number: int) -> Issue:
         state=raw["state"],
         labels=[n["name"] for n in raw["labels"]["nodes"]],
         comments=[
-            Comment(author=c["author"]["login"], created_at=c["createdAt"], body=c["body"])
+            Comment(author=(c["author"] or {}).get("login", "ghost"), created_at=c["createdAt"], body=c["body"])
             for c in raw["comments"]["nodes"]
         ],
         parent=RelatedIssue(**raw["parent"]) if raw.get("parent") else None,
