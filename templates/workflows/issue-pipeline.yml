@@ -35,6 +35,6 @@ jobs:
     secrets: inherit
     with:
       pipeline_ref: __INTERNS_REF__
-      issue_number: ${{ inputs.issue_number }}
+      issue_number: ${{ inputs.issue_number || github.event.issue.number }}
       phase: ${{ inputs.phase }}
       debug: ${{ inputs.debug || false }}
