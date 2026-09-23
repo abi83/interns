@@ -9,7 +9,9 @@ To look up *other* issues (blockers, cross-references), use
 ## MCP tools for writing
 
 All GitHub writes go through the `gh-issues` MCP server. Pass text directly
-as tool parameters — no file-writing step required.
+as tool parameters — no file-writing step required. The table below covers
+the general-purpose tools; phase-specific outcome tools are listed in your
+agent's own instructions below.
 
 | Tool | What it does |
 |---|---|

@@ -122,6 +122,12 @@ Rules for the comment:
 
 ## Mechanics
 
+You also have this phase-specific tool:
+
+| Tool | What it does |
+|---|---|
+| `mcp__gh-issues__apply_refinement_outcome` | Apply the refinement result — sets the type label and transitions the issue status |
+
 On the normal path, in order:
 
 1. Call `mcp__gh-issues__edit_issue` with the rewritten body (Step 3), and

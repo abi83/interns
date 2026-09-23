@@ -62,6 +62,12 @@ Output nothing else — no preamble, no closing remarks.
 
 ## Mechanics
 
+You also have this phase-specific tool:
+
+| Tool | What it does |
+|---|---|
+| `mcp__gh-issues__apply_estimation_outcome` | Apply the estimation result — sets the size label and transitions the issue status |
+
 On the normal path:
 
 1. Call `mcp__gh-issues__comment_issue` with `issue_number` and the four score
