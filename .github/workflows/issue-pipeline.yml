@@ -185,6 +185,8 @@ jobs:
         id: metrics
         continue-on-error: true
         if: always() && steps.claude.outputs.execution_file != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: >
           python3 -m interns.entrypoint extract-metrics
           --exec-file "${{ steps.claude.outputs.execution_file }}"
@@ -364,6 +366,8 @@ jobs:
         id: metrics
         continue-on-error: true
         if: always() && steps.claude.outputs.execution_file != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: >
           python3 -m interns.entrypoint extract-metrics
           --exec-file "${{ steps.claude.outputs.execution_file }}"
