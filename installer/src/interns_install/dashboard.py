@@ -1,0 +1,259 @@
+"""Renders the interns metrics dashboard HTML, embedding the target repo slug."""
+
+_TEMPLATE = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>interns metrics</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font:14px/1.5 system-ui,sans-serif;background:#f6f8fa;color:#1f2328;padding:24px}
+h1{font-size:18px;font-weight:600;margin-bottom:20px}
+h2{font-size:13px;font-weight:600;color:#57606a;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px}
+.grid{display:grid;gap:16px;margin-bottom:16px}
+.cols-3{grid-template-columns:repeat(3,1fr)}
+.cols-2{grid-template-columns:repeat(2,1fr)}
+.card{background:#fff;border:1px solid #d0d7de;border-radius:6px;padding:16px}
+.stat-value{font-size:28px;font-weight:600;line-height:1.2}
+.stat-sub{font-size:12px;color:#57606a;margin-top:4px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;color:#57606a;font-weight:500;border-bottom:1px solid #d0d7de;padding:4px 8px 6px 0}
+td{padding:5px 8px 5px 0;border-bottom:1px solid #f0f2f4}
+tr:last-child td{border-bottom:none}
+td.num,th.num{text-align:right}
+.trend-wrap{overflow-x:auto}
+svg.sparkline{display:block;width:100%;height:80px}
+.error{color:#cf222e;font-size:13px;padding:12px}
+.loading{color:#57606a;font-size:13px;padding:12px}
+@media(max-width:700px){.cols-3,.cols-2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<h1>interns metrics — {{REPO}}</h1>
+<div id="root"><p class="loading">Loading metrics…</p></div>
+<script>
+const REPO = "{{REPO}}";
+const MAX_LINES = 10000;
+const METRICS_URL =
+  "https://raw.githubusercontent.com/" + REPO + "/interns-metrics/metrics.jsonl";
+
+async function load() {
+  const res = await fetch(METRICS_URL);
+  if (!res.ok) throw new Error("HTTP " + res.status + " fetching metrics.jsonl");
+  const text = await res.text();
+  const lines = text.trim().split("\\n").filter(Boolean).slice(-MAX_LINES);
+  return lines.map(l => JSON.parse(l));
+}
+
+function sum(records, fn) {
+  return records.reduce((a, r) => a + (fn(r) || 0), 0);
+}
+
+function runCost(r) {
+  const models = r.models || {};
+  return Object.values(models).reduce((a, m) => a + (m.cost_usd || 0), 0);
+}
+
+function groupBy(records, key) {
+  const out = {};
+  for (const r of records) {
+    const k = r[key] ?? "(none)";
+    out[k] = (out[k] || []).concat(r);
+  }
+  return out;
+}
+
+function fmt$(n) { return "$" + n.toFixed(4); }
+function fmtK(n) {
+  if (n >= 1e6) return (n/1e6).toFixed(1) + "M";
+  if (n >= 1e3) return (n/1e3).toFixed(1) + "K";
+  return String(n);
+}
+
+function el(tag, attrs, ...children) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, v);
+  for (const c of children) {
+    if (c == null) continue;
+    e.append(typeof c === "string" ? c : c);
+  }
+  return e;
+}
+
+function table(cols, rows) {
+  const thead = el("thead", {}, el("tr", {}, ...cols.map(c =>
+    el("th", c.cls ? {class: c.cls} : {}, c.label))));
+  const tbody = el("tbody", {}, ...rows.map(row =>
+    el("tr", {}, ...cols.map(c =>
+      el("td", c.cls ? {class: c.cls} : {}, row[c.key] ?? "—")))));
+  return el("table", {}, thead, tbody);
+}
+
+function card(title, ...children) {
+  return el("div", {class: "card"}, el("h2", {}, title), ...children);
+}
+
+function sparkline(values) {
+  if (!values.length) return el("p", {class: "stat-sub"}, "no data");
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const W = 600, H = 70, pad = 4;
+  const pts = values.map((v, i) => {
+    const x = pad + (i / Math.max(values.length - 1, 1)) * (W - pad * 2);
+    const y = pad + (1 - (v - min) / range) * (H - pad * 2);
+    return x.toFixed(1) + "," + y.toFixed(1);
+  }).join(" ");
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", "sparkline");
+  svg.setAttribute("viewBox", "0 0 " + W + " " + (H + pad));
+  const pl = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+  pl.setAttribute("points", pts);
+  pl.setAttribute("fill", "none");
+  pl.setAttribute("stroke", "#0969da");
+  pl.setAttribute("stroke-width", "2");
+  svg.appendChild(pl);
+  return svg;
+}
+
+function render(records) {
+  const JOBS = ["refiner", "estimator", "coder", "reviewer"];
+  const byJob = groupBy(records, "job");
+
+  // total spend
+  const total = sum(records, runCost);
+  const totalCard = card("Total spend",
+    el("div", {class: "stat-value"}, fmt$(total)),
+    el("div", {class: "stat-sub"}, records.length + " records"));
+
+  // spend by job
+  const jobRows = JOBS.map(j => {
+    const rs = byJob[j] || [];
+    return {job: j, runs: String(rs.length), cost: fmt$(sum(rs, runCost))};
+  });
+  const jobCard = card("Spend by job",
+    table([
+      {key: "job", label: "Job"},
+      {key: "runs", label: "Runs", cls: "num"},
+      {key: "cost", label: "Cost", cls: "num"},
+    ], jobRows));
+
+  // agent results
+  const resultGroups = groupBy(records, "agent_result");
+  const resultRows = Object.entries(resultGroups)
+    .sort((a, b) => b[1].length - a[1].length)
+    .map(([k, v]) => ({result: k, count: String(v.length)}));
+  const resultCard = card("Agent results",
+    table([{key: "result", label: "Result"}, {key: "count", label: "Count", cls: "num"}],
+          resultRows));
+
+  // cost trend (last 60 runs)
+  const trendData = records.slice(-60).map(runCost);
+  const trendCard = card("Cost per run (last " + trendData.length + ")",
+    el("div", {class: "trend-wrap"}, sparkline(trendData)));
+
+  // per-model breakdown
+  const modelTotals = {};
+  for (const r of records) {
+    for (const [m, u] of Object.entries(r.models || {})) {
+      if (!modelTotals[m]) modelTotals[m] = {cost: 0, input: 0, output: 0, cache_r: 0};
+      modelTotals[m].cost += u.cost_usd || 0;
+      modelTotals[m].input += u.input_tokens || 0;
+      modelTotals[m].output += u.output_tokens || 0;
+      modelTotals[m].cache_r += u.cache_read_tokens || 0;
+    }
+  }
+  const modelRows = Object.entries(modelTotals)
+    .sort((a, b) => b[1].cost - a[1].cost)
+    .map(([m, t]) => ({
+      model: m.split(".").pop(),
+      cost: fmt$(t.cost),
+      input: fmtK(t.input),
+      output: fmtK(t.output),
+    }));
+  const modelCard = card("Per-model cost",
+    table([
+      {key: "model", label: "Model"},
+      {key: "cost", label: "Cost", cls: "num"},
+      {key: "input", label: "In tok", cls: "num"},
+      {key: "output", label: "Out tok", cls: "num"},
+    ], modelRows));
+
+  // avg turns by job
+  const turnRows = JOBS.map(j => {
+    const rs = (byJob[j] || []).filter(r => r.num_turns != null);
+    const avg = rs.length ? (sum(rs, r => r.num_turns) / rs.length).toFixed(1) : "—";
+    return {job: j, avg};
+  });
+  const turnCard = card("Avg turns by job",
+    table([{key: "job", label: "Job"}, {key: "avg", label: "Avg turns", cls: "num"}],
+          turnRows));
+
+  // top tools
+  const toolTotals = {};
+  for (const r of records) {
+    for (const [t, n] of Object.entries(r.tool_calls || {})) {
+      toolTotals[t] = (toolTotals[t] || 0) + n;
+    }
+  }
+  const toolRows = Object.entries(toolTotals)
+    .sort((a, b) => b[1] - a[1]).slice(0, 12)
+    .map(([t, n]) => ({tool: t, count: String(n)}));
+  const toolCard = card("Top tools",
+    table([{key: "tool", label: "Tool"}, {key: "count", label: "Calls", cls: "num"}],
+          toolRows));
+
+  // permission denials
+  const deniedRuns = records.filter(r => r.permission_denials > 0);
+  const deniedToolCounts = {};
+  for (const r of deniedRuns) {
+    for (const t of r.denied_tools || []) {
+      deniedToolCounts[t] = (deniedToolCounts[t] || 0) + 1;
+    }
+  }
+  const deniedRows = Object.entries(deniedToolCounts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([t, n]) => ({tool: t, runs: String(n)}));
+  const denialCard = card("Permission denials",
+    el("div", {class: "stat-sub", style: "margin-bottom:8px"},
+       deniedRuns.length + " runs with denials"),
+    deniedRows.length
+      ? table([{key: "tool", label: "Tool"}, {key: "runs", label: "Runs", cls: "num"}],
+              deniedRows)
+      : el("p", {class: "stat-sub"}, "none"));
+
+  // interns_ref distribution
+  const refGroups = groupBy(records, "interns_ref");
+  const refRows = Object.entries(refGroups)
+    .sort((a, b) => b[1].length - a[1].length)
+    .map(([ref, rs]) => ({ref: ref === "undefined" ? "(none)" : ref, runs: String(rs.length)}));
+  const refCard = card("interns_ref distribution",
+    table([{key: "ref", label: "Ref"}, {key: "runs", label: "Runs", cls: "num"}], refRows));
+
+  const root = document.getElementById("root");
+  root.innerHTML = "";
+  root.append(
+    el("div", {class: "grid cols-3"}, totalCard, jobCard, resultCard),
+    el("div", {class: "grid"}, trendCard),
+    el("div", {class: "grid cols-3"}, modelCard, turnCard, toolCard),
+    el("div", {class: "grid cols-2"}, denialCard, refCard),
+  );
+}
+
+load().then(render).catch(err => {
+  document.getElementById("root").innerHTML =
+    '<p class="error">Failed to load metrics: ' + err.message + '</p>';
+});
+</script>
+</body>
+</html>
+"""
+
+_PLACEHOLDER = "{{REPO}}"
+
+
+def render(repo: str) -> str:
+    """Return dashboard HTML with `repo` (owner/name) embedded."""
+    return _TEMPLATE.replace(_PLACEHOLDER, repo)

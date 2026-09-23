@@ -27,21 +27,22 @@ def _seed_metrics_branch(bare: Path, tmp: Path, lines: list[str]) -> None:
     _git(["clone", "-q", str(bare), work], tmp)
     _git(["config", "user.email", "seed@example.com"], work)
     _git(["config", "user.name", "seed"], work)
-    fetched = subprocess.run(["git", "fetch", "-q", "origin", "metrics"],
+    branch = append_metrics.BRANCH
+    fetched = subprocess.run(["git", "fetch", "-q", "origin", branch],
                               cwd=work, capture_output=True, text=True)
     if fetched.returncode == 0:
-        _git(["checkout", "-q", "-b", "metrics", "FETCH_HEAD"], work)
+        _git(["checkout", "-q", "-b", branch, "FETCH_HEAD"], work)
     else:
-        _git(["checkout", "-q", "--orphan", "metrics"], work)
+        _git(["checkout", "-q", "--orphan", branch], work)
     (Path(work) / "metrics.jsonl").write_text("".join(l + "\n" for l in lines))
     _git(["add", "metrics.jsonl"], work)
     _git(["commit", "-q", "-m", "seed"], work)
-    _git(["push", "-q", "origin", "HEAD:metrics"], work)
+    _git(["push", "-q", "origin", f"HEAD:{branch}"], work)
 
 
 def _branch_content(bare: Path, tmp: Path) -> str:
     work = tempfile.mkdtemp(dir=tmp)
-    _git(["clone", "-q", "--branch", "metrics", str(bare), work], tmp)
+    _git(["clone", "-q", "--branch", append_metrics.BRANCH, str(bare), work], tmp)
     return (Path(work) / "metrics.jsonl").read_text()
 
 

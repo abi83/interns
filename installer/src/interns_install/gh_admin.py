@@ -188,6 +188,14 @@ def pages_state(repo: str) -> tuple[str, object]:
     return gh_transport.api_status(f"repos/{repo}/pages")
 
 
-def enable_pages(repo: str) -> None:
-    """Enable Pages with the GitHub Actions build type."""
-    gh_transport.api(f"repos/{repo}/pages", method="POST", fields={"build_type": "workflow"})
+def pages_source_branch(body: object) -> str | None:
+    """Source branch from a Pages API response body, or None if absent."""
+    if not isinstance(body, dict):
+        return None
+    return (body.get("source") or {}).get("branch")
+
+
+def enable_pages(repo: str, source_branch: str) -> None:
+    """Enable Pages served from the root of `source_branch`."""
+    gh_transport.api(f"repos/{repo}/pages", method="POST",
+        input_json=json.dumps({"source": {"branch": source_branch, "path": "/"}}))
