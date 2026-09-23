@@ -8,6 +8,7 @@ from interns import gh
 from interns_install.safety import (
     _protection_violation,
     check_branch_protection,
+    check_dashboard,
     check_metrics_branch,
     check_pages,
 )
@@ -63,9 +64,9 @@ class CheckMetricsBranchTests(unittest.TestCase):
         ])
         create_commit.assert_called_once_with(
             "acme/widgets", mock.ANY, "tree-sha", parents=[])
-        create_branch.assert_called_once_with("acme/widgets", "metrics", "commit-sha")
+        create_branch.assert_called_once_with("acme/widgets", safety.METRICS_BRANCH, "commit-sha")
         api.assert_called_once_with(
-            "repos/acme/widgets/branches/metrics/protection",
+            f"repos/acme/widgets/branches/{safety.METRICS_BRANCH}/protection",
             method="PUT", input_json=json.dumps(safety.METRICS_PROTECTION))
 
     def test_skips_creation_when_branch_already_exists(self):
@@ -144,22 +145,30 @@ class CheckBranchProtectionTests(unittest.TestCase):
 
 
 class CheckPagesTests(unittest.TestCase):
-    def _run(self, state, *, dry_run=False, enable_error=None):
+    def _run(self, state, *, pages_branch="main", body=None, dry_run=False, enable_error=None):
         con = Console(assume_yes=True, dry_run=dry_run)
-        with mock.patch.object(gh_admin, "pages_state", return_value=(state, None)), \
+        with mock.patch.object(gh_admin, "pages_state", return_value=(state, body)), \
              mock.patch.object(gh_admin, "enable_pages", side_effect=enable_error) as enable:
-            check_pages(con, _repo())
+            check_pages(con, _repo(), pages_branch)
         return enable
 
     def test_blocked_raises(self):
         with self.assertRaises(safety.SafetyCheckError):
             self._run("blocked")
 
-    def test_already_enabled(self):
-        self._run("ok").assert_not_called()
+    def test_already_enabled_matching_source(self):
+        self._run("ok", body={"source": {"branch": "main"}}).assert_not_called()
 
-    def test_missing_enables(self):
-        self._run("missing").assert_called_once_with("acme/widgets")
+    def test_already_enabled_no_source_field(self):
+        self._run("ok", body={}).assert_not_called()
+
+    def test_already_enabled_source_mismatch_raises(self):
+        with self.assertRaisesRegex(safety.SafetyCheckError, "gh-pages.*main"):
+            self._run("ok", pages_branch="main", body={"source": {"branch": "gh-pages"}})
+
+    def test_missing_enables_with_source_branch(self):
+        enable = self._run("missing", pages_branch="main")
+        enable.assert_called_once_with("acme/widgets", "main")
 
     def test_dry_run_does_not_enable(self):
         self._run("missing", dry_run=True).assert_not_called()
@@ -167,6 +176,36 @@ class CheckPagesTests(unittest.TestCase):
     def test_enable_failure_is_wrapped(self):
         with self.assertRaisesRegex(safety.SafetyCheckError, "could not be enabled: boom"):
             self._run("missing", enable_error=gh.GhError("boom"))
+
+
+class CheckDashboardTests(unittest.TestCase):
+    def _run(self, *, existing=None, put_error=None, dry_run=False):
+        con = Console(assume_yes=True, dry_run=dry_run)
+        with mock.patch.object(gh_admin, "get_existing_file", return_value=existing), \
+             mock.patch("interns_install.safety.dashboard") as dash_mod, \
+             mock.patch.object(gh_admin, "put_file", side_effect=put_error) as put:
+            dash_mod.render.return_value = "<html/>"
+            check_dashboard(con, _repo(), "main")
+        return put
+
+    def test_creates_dashboard_when_absent(self):
+        put = self._run(existing=None)
+        put.assert_called_once_with(
+            "acme/widgets", safety.DASHBOARD_PATH, "<html/>",
+            mock.ANY, "main", sha=None)
+
+    def test_updates_dashboard_when_present(self):
+        put = self._run(existing=("old", "abc123"))
+        put.assert_called_once_with(
+            "acme/widgets", safety.DASHBOARD_PATH, "<html/>",
+            mock.ANY, "main", sha="abc123")
+
+    def test_dry_run_does_not_put(self):
+        self._run(dry_run=True).assert_not_called()
+
+    def test_put_failure_is_wrapped(self):
+        with self.assertRaisesRegex(safety.SafetyCheckError, f"could not write {safety.DASHBOARD_PATH}"):
+            self._run(put_error=gh.GhError("boom"))
 
 
 class CreateMetricsBranchFailureTests(unittest.TestCase):

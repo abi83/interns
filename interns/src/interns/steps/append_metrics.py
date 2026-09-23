@@ -17,7 +17,7 @@ from pathlib import Path
 
 from ..ctx import ActionsCtx
 
-BRANCH = "metrics"
+BRANCH = "interns-metrics"
 FILE = "metrics.jsonl"
 RETRIES = 3
 BOT_NAME = "github-actions[bot]"

@@ -57,6 +57,9 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
                    help="skip applying baseline branch protection when unprotected -- "
                         "only if it's already enforced some other way (e.g. an org ruleset) "
                         "that this check can't see")
+    p.add_argument("--pages-branch", metavar="BRANCH",
+                   help="branch GitHub Pages is served from (default: the repo's default branch). "
+                        "Set this when your Pages source is not the default branch.")
     return p.parse_args(argv)
 
 
@@ -197,10 +200,12 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         default_branch = gh.default_branch(repo.slug)
+        pages_branch = args.pages_branch or default_branch
         safety.check_branch_protection(con, repo, default_branch,
                                         handled_externally=args.branch_protection_handled_externally)
-        safety.check_pages(con, repo)
+        safety.check_pages(con, repo, pages_branch)
         safety.check_metrics_branch(con, repo)
+        safety.check_dashboard(con, repo, pages_branch)
     except (gh.GhError, safety.SafetyCheckError) as exc:
         return _fatal(con, exc, with_summary=True)
 

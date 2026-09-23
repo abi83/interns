@@ -3,6 +3,10 @@
 # Delete a key (or leave it at the value shown) to fall back to the next one.
 # Schema: abi83/interns/.github/interns.schema.json
 
+# Branch GitHub Pages is served from. Defaults to the repo's default branch.
+# Set this only when your Pages source is a different branch (e.g. gh-pages).
+# pages_branch: gh-pages
+
 # Set to true to show full Claude conversation in logs and attach execution
 # logs as artifacts on every automatically triggered run.
 debug: false

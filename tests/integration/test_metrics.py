@@ -1,14 +1,15 @@
 """Parsing one execution-log file into a pipeline-metrics record
-(extract_metrics), and appending validated records to the orphan `metrics`
-branch with retry-on-race (append_metrics). `git` is fully faked here, so
-the append tests assert on the plumbing commands issued and the retry
-count, not on real branch content.
+(extract_metrics), and appending validated records to the orphan
+`interns-metrics` branch with retry-on-race (append_metrics). `git` is
+fully faked here, so the append tests assert on the plumbing commands
+issued and the retry count, not on real branch content.
 """
 
 import json
 
 import pytest
 
+from interns.steps.append_metrics import BRANCH as METRICS_BRANCH
 from testkit.harness import REPO, Scenario
 
 
@@ -203,7 +204,7 @@ def test_append_metrics_pushes_once_on_the_first_try(scenario):
     assert result.returncode == 0
     assert "appended 1 record(s)" in result.stdout
     assert len(scenario.calls("git", "push")) == 1
-    assert scenario.calls("git", "fetch") == [["fetch", "-q", "--depth=1", "origin", "metrics"]]
+    assert scenario.calls("git", "fetch") == [["fetch", "-q", "--depth=1", "origin", METRICS_BRANCH]]
 
 
 def test_append_metrics_requires_a_token(scenario):
@@ -261,7 +262,7 @@ def test_append_metrics_main_reports_the_exhausted_retry_error(scenario, monkeyp
     assert exit_code == 1
     err = capsys.readouterr().err
     assert "attempt 1/3 failed" in err and "attempt 2/3 failed" in err
-    assert "push to metrics failed after 3 attempts" in err
+    assert f"push to {METRICS_BRANCH} failed after 3 attempts" in err
 
 
 def test_append_records_retries_on_a_failure_in_an_earlier_plumbing_step(scenario, monkeypatch):
