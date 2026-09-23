@@ -74,6 +74,7 @@ class LoadRawTests(unittest.TestCase):
 # set a key. BuiltinTemplateIntegrationTests below loads the real file
 # directly, to catch this fixture drifting from it.
 _BUILTIN_FIXTURE = {
+    "debug": False,
     "wiki": {"enabled": False},
     "checks": {"ignore": []},
     "defaults": {

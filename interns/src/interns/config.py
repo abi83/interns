@@ -19,7 +19,7 @@ from pathlib import Path
 
 from . import cli
 
-KNOWN_TOP_KEYS = ("defaults", "agents", "wiki", "checks")
+KNOWN_TOP_KEYS = ("debug", "defaults", "agents", "wiki", "checks")
 KNOWN_AGENTS = ("refiner", "estimator", "coder", "reviewer")
 KNOWN_LIMIT_KEYS = ("model", "max_turns", "timeout_minutes", "max_output_tokens", "cost_warn_usd", "disallowed_tools")
 KNOWN_WIKI_KEYS = ("enabled", "url")
@@ -46,6 +46,7 @@ class AgentConfig:
     disallowed_tools: list[str]
     wiki_enabled: bool
     wiki_repo: str
+    debug: bool
 
 
 def _yaml_to_json(path: str) -> object:
@@ -159,6 +160,8 @@ def resolve_agent_config(data: dict, agent: str, path: str) -> AgentConfig:
     if wiki_enabled and not wiki_repo:
         raise ConfigError(f"wiki.enabled is true but wiki.url is unset in {path}")
 
+    debug = bool(data.get("debug", False))
+
     return AgentConfig(
         model=str(model),
         max_turns=int(max_turns),
@@ -168,6 +171,7 @@ def resolve_agent_config(data: dict, agent: str, path: str) -> AgentConfig:
         disallowed_tools=[str(tool) for tool in disallowed_tools],
         wiki_enabled=wiki_enabled,
         wiki_repo=wiki_repo,
+        debug=debug,
     )
 
 
@@ -208,13 +212,15 @@ def _main(argv: list[str]) -> int:
                 f"disallowed_tools={','.join(cfg.disallowed_tools)}",
                 f"wiki_enabled={'true' if cfg.wiki_enabled else 'false'}",
                 f"wiki_repo={cfg.wiki_repo}",
+                f"debug={'true' if cfg.debug else 'false'}",
             ):
                 print(line)
             print(
                 f"agent-config[{args.agent}]: model={cfg.model} max_turns={cfg.max_turns} "
                 f"timeout_minutes={cfg.timeout_minutes} max_output_tokens={cfg.max_output_tokens} "
                 f"cost_warn_usd={cfg.cost_warn_usd} disallowed_tools={','.join(cfg.disallowed_tools)} "
-                f"wiki_enabled={'true' if cfg.wiki_enabled else 'false'}",
+                f"wiki_enabled={'true' if cfg.wiki_enabled else 'false'} "
+                f"debug={'true' if cfg.debug else 'false'}",
                 file=sys.stderr,
             )
         elif args.command == "checks-ignore":

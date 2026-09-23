@@ -5,6 +5,11 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "debug": {
+      "type": "boolean",
+      "default": false,
+      "description": "Show full Claude conversation in logs and attach execution logs as artifacts on every automatically triggered run."
+    },
     "defaults": { "$ref": "#/definitions/limits" },
     "agents": {
       "type": "object",

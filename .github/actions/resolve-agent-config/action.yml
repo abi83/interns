@@ -26,6 +26,8 @@ outputs:
     value: ${{ steps.resolve.outputs.wiki_enabled }}
   wiki_repo:
     value: ${{ steps.resolve.outputs.wiki_repo }}
+  debug:
+    value: ${{ steps.resolve.outputs.debug }}
 
 runs:
   using: composite
