@@ -230,9 +230,15 @@ rather than minting a duplicate:
 
 #### Secrets and variables
 
-App keys and IDs come from the mint above; for `CLAUDE_CODE_OAUTH_TOKEN` the
-installer prompts you to paste a token you obtain separately (see
-`anthropics/claude-code-action`).
+App keys and IDs come from the mint above; for `CLAUDE_CODE_OAUTH_TOKEN` run
+the following command locally with the Claude Code CLI (requires a Claude
+Pro or Max subscription):
+
+```
+claude setup-token
+```
+
+See `anthropics/claude-code-action` for background.
 
 **Also install Anthropic's own Claude Code GitHub App:**
 [github.com/apps/claude](https://github.com/apps/claude). This is separate
@@ -243,7 +249,7 @@ you at the same step it asks for `CLAUDE_CODE_OAUTH_TOKEN`.
 
 | Kind | Name | Value |
 |---|---|---|
-| Secret | `CLAUDE_CODE_OAUTH_TOKEN` | OAuth token for `anthropics/claude-code-action` |
+| Secret | `CLAUDE_CODE_OAUTH_TOKEN` | OAuth token — run `claude setup-token` (Claude Pro/Max required) |
 | Secret | `INTERNS_CODER_APP_PRIVATE_KEY` | coder App private key (PEM) |
 | Secret | `INTERNS_REVIEWER_APP_PRIVATE_KEY` | reviewer App private key (PEM) |
 | Secret | `INTERNS_TRIAGE_APP_PRIVATE_KEY` | triage App private key (PEM) |
