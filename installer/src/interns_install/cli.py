@@ -99,6 +99,7 @@ def _write_oauth_token(con: Console, repo: gh_admin.Repo, existing_secrets: list
         secret_mutation(con, "CLAUDE_CODE_OAUTH_TOKEN", existing_secrets)
         return
 
+    con.say("Run `claude setup-token` (Claude Pro/Max required) to get this token.")
     token = con.prompt_secret("Paste the CLAUDE_CODE_OAUTH_TOKEN (leave blank to skip):")
     if not token:
         con.note_manual("set the CLAUDE_CODE_OAUTH_TOKEN secret")
