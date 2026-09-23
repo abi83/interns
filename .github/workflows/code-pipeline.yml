@@ -426,6 +426,8 @@ jobs:
         id: metrics
         continue-on-error: true
         if: steps.guard.outputs.skip != 'true' && always() && (steps.claude_initial.outputs.execution_file != '' || steps.claude_fix.outputs.execution_file != '')
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: >
           python3 -m interns.entrypoint extract-metrics
           --exec-file "${{ steps.claude_initial.outputs.execution_file }}${{ steps.claude_fix.outputs.execution_file }}"
@@ -729,6 +731,8 @@ jobs:
         id: metrics
         continue-on-error: true
         if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.cap.outputs.capped != 'true' && always() && steps.claude.outputs.execution_file != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: >
           python3 -m interns.entrypoint extract-metrics
           --exec-file "${{ steps.claude.outputs.execution_file }}"
