@@ -138,9 +138,9 @@ function render(records) {
   const resultGroups = groupBy(records, "agent_result");
   const resultRows = Object.entries(resultGroups)
     .sort((a, b) => b[1].length - a[1].length)
-    .map(([k, v]) => ({result: k, count: String(v.length)}));
+    .map(([k, v]) => ({result: k, count: String(v.length), cost: fmt$(v.reduce((s, r) => s + runCost(r), 0))}));
   const resultCard = card("Agent results",
-    table([{key: "result", label: "Result"}, {key: "count", label: "Count", cls: "num"}],
+    table([{key: "result", label: "Result"}, {key: "count", label: "Runs", cls: "num"}, {key: "cost", label: "Cost", cls: "num"}],
           resultRows));
 
   const trendData = records.slice(-60).map(runCost);
