@@ -53,6 +53,14 @@ jobs:
       - name: Unused imports and dead code
         run: uv run --frozen ruff check .
 
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+      - name: Audit dependencies for known vulnerabilities
+        run: uv run --frozen pip-audit
+
   test-unit:
     runs-on: ubuntu-latest
     steps:
