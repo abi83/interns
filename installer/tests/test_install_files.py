@@ -83,6 +83,42 @@ class CollectMissingFilesTests(unittest.TestCase):
         self.assertIn(".github/ISSUE_TEMPLATE/bug.md", wanted)
         self.assertIn(".github/ISSUE_TEMPLATE/config.yml", wanted)
 
+    def test_dynamic_file_added_when_absent(self):
+        with mock.patch.object(install_files.gh_admin, "path_exists", return_value=True), \
+             mock.patch.object(install_files.gh_admin, "get_existing_file", return_value=None), \
+             mock.patch.object(install_files.gh_admin, "get_file",
+                               side_effect=lambda r, p, ref: f"body:{p}"):
+            wanted = collect_missing_files(_repo(), "main", issue_templates=False,
+                                           dynamic_files={"interns-metrics/index.html": "<html/>"})
+
+        content, sha = wanted["interns-metrics/index.html"]
+        self.assertEqual(content, "<html/>")
+        self.assertIsNone(sha)
+
+    def test_dynamic_file_updated_when_content_differs(self):
+        with mock.patch.object(install_files.gh_admin, "path_exists", return_value=True), \
+             mock.patch.object(install_files.gh_admin, "get_existing_file",
+                               return_value=("<old/>", "sha-old")), \
+             mock.patch.object(install_files.gh_admin, "get_file",
+                               side_effect=lambda r, p, ref: f"body:{p}"):
+            wanted = collect_missing_files(_repo(), "main", issue_templates=False,
+                                           dynamic_files={"interns-metrics/index.html": "<html/>"})
+
+        content, sha = wanted["interns-metrics/index.html"]
+        self.assertEqual(content, "<html/>")
+        self.assertEqual(sha, "sha-old")
+
+    def test_dynamic_file_skipped_when_unchanged(self):
+        with mock.patch.object(install_files.gh_admin, "path_exists", return_value=True), \
+             mock.patch.object(install_files.gh_admin, "get_existing_file",
+                               return_value=("<html/>", "sha-cur")), \
+             mock.patch.object(install_files.gh_admin, "get_file",
+                               side_effect=lambda r, p, ref: f"body:{p}"):
+            wanted = collect_missing_files(_repo(), "main", issue_templates=False,
+                                           dynamic_files={"interns-metrics/index.html": "<html/>"})
+
+        self.assertNotIn("interns-metrics/index.html", wanted)
+
 
 if __name__ == "__main__":
     unittest.main()

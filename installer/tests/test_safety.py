@@ -8,7 +8,6 @@ from interns import gh
 from interns_install.safety import (
     _protection_violation,
     check_branch_protection,
-    check_dashboard,
     check_metrics_branch,
     check_pages,
 )
@@ -177,35 +176,6 @@ class CheckPagesTests(unittest.TestCase):
         with self.assertRaisesRegex(safety.SafetyCheckError, "could not be enabled: boom"):
             self._run("missing", enable_error=gh.GhError("boom"))
 
-
-class CheckDashboardTests(unittest.TestCase):
-    def _run(self, *, existing=None, put_error=None, dry_run=False):
-        con = Console(assume_yes=True, dry_run=dry_run)
-        with mock.patch.object(gh_admin, "get_existing_file", return_value=existing), \
-             mock.patch("interns_install.safety.dashboard") as dash_mod, \
-             mock.patch.object(gh_admin, "put_file", side_effect=put_error) as put:
-            dash_mod.render.return_value = "<html/>"
-            check_dashboard(con, _repo(), "main")
-        return put
-
-    def test_creates_dashboard_when_absent(self):
-        put = self._run(existing=None)
-        put.assert_called_once_with(
-            "acme/widgets", safety.DASHBOARD_PATH, "<html/>",
-            mock.ANY, "main", sha=None)
-
-    def test_updates_dashboard_when_present(self):
-        put = self._run(existing=("old", "abc123"))
-        put.assert_called_once_with(
-            "acme/widgets", safety.DASHBOARD_PATH, "<html/>",
-            mock.ANY, "main", sha="abc123")
-
-    def test_dry_run_does_not_put(self):
-        self._run(dry_run=True).assert_not_called()
-
-    def test_put_failure_is_wrapped(self):
-        with self.assertRaisesRegex(safety.SafetyCheckError, f"could not write {safety.DASHBOARD_PATH}"):
-            self._run(put_error=gh.GhError("boom"))
 
 
 class CreateMetricsBranchFailureTests(unittest.TestCase):
