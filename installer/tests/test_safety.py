@@ -176,6 +176,33 @@ class CheckPagesTests(unittest.TestCase):
         with self.assertRaisesRegex(safety.SafetyCheckError, "could not be enabled: boom"):
             self._run("missing", enable_error=gh.GhError("boom"))
 
+    def test_actions_based_pages_emits_warning(self):
+        con = Console(assume_yes=True)
+        with mock.patch.object(gh_admin, "pages_state",
+                               return_value=("ok", {"source": {"branch": "main"},
+                                                    "build_type": "workflow"})), \
+             mock.patch.object(Console, "warn") as warn:
+            check_pages(con, _repo(), "main")
+        warn.assert_called_once()
+        self.assertIn("interns-metrics/index.html", warn.call_args[0][0])
+
+    def test_legacy_pages_no_warning(self):
+        con = Console(assume_yes=True)
+        with mock.patch.object(gh_admin, "pages_state",
+                               return_value=("ok", {"source": {"branch": "main"},
+                                                    "build_type": "legacy"})), \
+             mock.patch.object(Console, "warn") as warn:
+            check_pages(con, _repo(), "main")
+        warn.assert_not_called()
+
+    def test_missing_build_type_no_warning(self):
+        con = Console(assume_yes=True)
+        with mock.patch.object(gh_admin, "pages_state",
+                               return_value=("ok", {"source": {"branch": "main"}})), \
+             mock.patch.object(Console, "warn") as warn:
+            check_pages(con, _repo(), "main")
+        warn.assert_not_called()
+
 
 
 class CreateMetricsBranchFailureTests(unittest.TestCase):
