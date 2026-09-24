@@ -170,6 +170,14 @@ def check_pages(con: Console, repo: gh_admin.Repo, pages_branch: str) -> None:
                 f"Pages source branch is '{actual}', expected '{pages_branch}'. "
                 f"Re-run with --pages-branch {actual}"
             )
+        build_type = (body or {}).get("build_type") if isinstance(body, dict) else None
+        if build_type and build_type != "legacy":
+            con.warn(
+                "GitHub Pages is using Actions-based deployment "
+                f"(build_type: '{build_type}'). The metrics dashboard "
+                "(interns-metrics/index.html) won't be served automatically — "
+                "include it in your Pages deployment workflow artifact."
+            )
         con.say("GitHub Pages: enabled")
         return
 
