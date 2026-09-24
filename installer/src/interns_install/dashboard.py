@@ -2,6 +2,7 @@
 
 from importlib.resources import files
 
+PATH = "interns-metrics/index.html"
 _PLACEHOLDER = "{{REPO}}"
 
 

@@ -16,7 +16,7 @@ from interns import gh
 from interns.steps.append_metrics import BRANCH as METRICS_BRANCH
 from interns.steps.append_metrics import FILE as METRICS_FILE
 
-from . import dashboard, gh_admin
+from . import gh_admin
 from .console import Console
 
 DEFAULT_BOT_LOGINS = ["github-actions[bot]", "claude[bot]"]
@@ -159,9 +159,6 @@ def check_metrics_branch(con: Console, repo: gh_admin.Repo) -> None:
     )
 
 
-DASHBOARD_PATH = "interns-metrics/index.html"
-
-
 def check_pages(con: Console, repo: gh_admin.Repo, pages_branch: str) -> None:
     con.step("GitHub Pages")
 
@@ -185,19 +182,3 @@ def check_pages(con: Console, repo: gh_admin.Repo, pages_branch: str) -> None:
         failure="GitHub Pages could not be enabled",
         created="GitHub Pages: enabled",
     )
-
-
-def check_dashboard(con: Console, repo: gh_admin.Repo, pages_branch: str) -> None:
-    con.step(f"Dashboard: {DASHBOARD_PATH} on {pages_branch}")
-    existing = gh_admin.get_existing_file(repo.slug, DASHBOARD_PATH, pages_branch)
-    sha = existing[1] if existing is not None else None
-    content = dashboard.render(repo.slug)
-    if not con.mutation(f"write {DASHBOARD_PATH} to '{pages_branch}'"):
-        return
-    try:
-        gh_admin.put_file(repo.slug, DASHBOARD_PATH, content,
-                          "chore(metrics): deploy interns metrics dashboard",
-                          pages_branch, sha=sha)
-    except gh.GhError as exc:
-        raise SafetyCheckError(f"could not write {DASHBOARD_PATH}: {exc}") from exc
-    con.say(f"{DASHBOARD_PATH}: deployed")

@@ -3,22 +3,17 @@ revision = 2
 requires-python = ">=3.12"
 
 [[package]]
+name = "interns"
+version = "0.1.0"
+source = { directory = "../interns" }
+
+[[package]]
 name = "interns-install"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "interns-pipeline" },
+    { name = "interns" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "interns-pipeline", directory = "../pipeline" }]
-
-[[package]]
-name = "interns-pipeline"
-version = "0.1.0"
-source = { directory = "../pipeline" }
-
-[package.metadata]
-
-[package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = "==8.3.5" }]
+requires-dist = [{ name = "interns", directory = "../interns" }]

@@ -22,7 +22,7 @@ import time
 
 from interns import gh
 
-from . import credentials, gh_admin, install_files, safety
+from . import credentials, dashboard, gh_admin, install_files, safety
 from .apps import APPS, provision_app, request_install, secret_mutation, write_secret
 from .console import Console
 
@@ -119,7 +119,10 @@ def _stage_install_files(con: Console, repo: gh_admin.Repo, base: str,
         con.note_manual("merge the interns install PR, then re-run interns-install")
         return "(dry-run)"
 
-    wanted = install_files.collect_missing_files(repo, base, issue_templates)
+    wanted = install_files.collect_missing_files(
+        repo, base, issue_templates,
+        dynamic_files={dashboard.PATH: dashboard.render(repo.slug)},
+    )
     if not wanted:
         con.say("all interns install files already present and up to date")
         return None
@@ -205,7 +208,6 @@ def main(argv: list[str] | None = None) -> int:
                                         handled_externally=args.branch_protection_handled_externally)
         safety.check_pages(con, repo, pages_branch)
         safety.check_metrics_branch(con, repo)
-        safety.check_dashboard(con, repo, pages_branch)
     except (gh.GhError, safety.SafetyCheckError) as exc:
         return _fatal(con, exc, with_summary=True)
 

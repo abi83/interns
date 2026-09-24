@@ -70,7 +70,8 @@ to sync the label manifest.
 
 
 def collect_missing_files(repo: gh_admin.Repo, base: str,
-                          issue_templates: bool) -> dict[str, tuple[str, str | None]]:
+                          issue_templates: bool,
+                          dynamic_files: dict[str, str] | None = None) -> dict[str, tuple[str, str | None]]:
     """Destination path -> (new content, current sha or None) for every file
     that needs adding or re-syncing. The sha, when present, tells `put_file`
     to update rather than create."""
@@ -93,4 +94,10 @@ def collect_missing_files(repo: gh_admin.Repo, base: str,
         for name in gh_admin.list_dir(INTERNS_REPO, "templates/issue", INTERNS_REF):
             content = gh_admin.get_file(INTERNS_REPO, f"templates/issue/{name}", INTERNS_REF)
             wanted[f".github/ISSUE_TEMPLATE/{name}"] = (content, None)
+
+    for dest, content in (dynamic_files or {}).items():
+        existing = gh_admin.get_existing_file(repo.slug, dest, base)
+        if existing is None or existing[0] != content:
+            wanted[dest] = (content, existing[1] if existing is not None else None)
+
     return wanted

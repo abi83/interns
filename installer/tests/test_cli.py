@@ -251,7 +251,6 @@ class MainTests(unittest.TestCase):
              mock.patch.object(cli.safety, "check_branch_protection"), \
              mock.patch.object(cli.safety, "check_pages"), \
              mock.patch.object(cli.safety, "check_metrics_branch"), \
-             mock.patch.object(cli.safety, "check_dashboard"), \
              mock.patch.object(cli, "provision_app"), \
              mock.patch.object(cli, "_write_oauth_token"), \
              mock.patch.object(cli, "_handoff"):
@@ -339,7 +338,6 @@ class MainTests(unittest.TestCase):
              mock.patch.object(cli.safety, "check_branch_protection"), \
              mock.patch.object(cli.safety, "check_pages"), \
              mock.patch.object(cli.safety, "check_metrics_branch"), \
-             mock.patch.object(cli.safety, "check_dashboard"), \
              mock.patch.object(cli, "provision_app"), \
              mock.patch.object(cli, "_write_oauth_token"), \
              mock.patch.object(cli, "_handoff") as handoff:

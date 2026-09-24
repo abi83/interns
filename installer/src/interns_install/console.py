@@ -20,7 +20,7 @@ class Console:
         print(f"interns-install: WARNING: {msg}", file=sys.stderr)
 
     def error(self, msg: str) -> None:
-        print(f"interns-install: ERROR: {msg}", file=sys.stderr)
+        print(f"interns-install: ERROR: {msg}")
 
     def step(self, msg: str) -> None:
         print(f"\n→ {msg}")
