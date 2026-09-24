@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 from interns import gh
 
-from . import gh_admin
+from . import credentials, gh_admin
 from .console import Console
 from .manifest_server import ManifestServer
 
@@ -180,7 +180,7 @@ def use_existing_app(con: Console, repo: gh_admin.Repo, spec: AppSpec,
         con.note_manual(f"set the {spec.key_secret} secret (a PEM private key for "
                         f"'{slug}')")
     else:
-        pem = con.prompt_multiline_secret(
+        pem = credentials.prompt_multiline_secret(
             f"Paste a private key (PEM) for the '{slug}' App. This repo needs its "
             f"own copy in {spec.key_secret}; GitHub Actions secrets aren't shared "
             f"between repos. Reuse a .pem you saved for another repo, or generate "

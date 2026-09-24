@@ -165,8 +165,8 @@ class MintFlowTests(unittest.TestCase):
 class ReuseAppPromptTests(unittest.TestCase):
     def test_pasted_pem_is_written(self):
         con = Console(assume_yes=False)
-        con.prompt_multiline_secret = lambda q: "PEM"
-        with mock.patch.object(apps.webbrowser, "open"), \
+        with mock.patch("interns_install.credentials.prompt_multiline_secret", return_value="PEM"), \
+             mock.patch.object(apps.webbrowser, "open"), \
              mock.patch.multiple(apps.gh_admin, set_variable=mock.DEFAULT,
                                  set_secret=mock.DEFAULT) as m:
             use_existing_app(con, _repo(), CODER, "Iv1.aaa", "interns-coder", existing_secrets=[])
@@ -174,8 +174,8 @@ class ReuseAppPromptTests(unittest.TestCase):
 
     def test_blank_pem_records_manual_step(self):
         con = Console(assume_yes=False)
-        con.prompt_multiline_secret = lambda q: ""
-        with mock.patch.object(apps.webbrowser, "open"), \
+        with mock.patch("interns_install.credentials.prompt_multiline_secret", return_value=""), \
+             mock.patch.object(apps.webbrowser, "open"), \
              mock.patch.multiple(apps.gh_admin, set_variable=mock.DEFAULT,
                                  set_secret=mock.DEFAULT) as m:
             use_existing_app(con, _repo(), CODER, "Iv1.aaa", "interns-coder", existing_secrets=[])

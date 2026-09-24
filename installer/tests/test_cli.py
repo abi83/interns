@@ -83,16 +83,16 @@ def _repo():
 class WriteOAuthTokenTests(unittest.TestCase):
     def test_opens_claude_app_install_page_and_notes_manual_reminder(self):
         con = Console(assume_yes=False)
-        con.prompt_secret = lambda q: ""
-        with mock.patch.object(apps.webbrowser, "open") as opener:
+        with mock.patch("interns_install.credentials.prompt_secret", return_value=""), \
+             mock.patch.object(apps.webbrowser, "open") as opener:
             _write_oauth_token(con, _repo(), existing_secrets=[])
         opener.assert_called_once_with("https://github.com/apps/claude/installations/new")
         self.assertTrue(any("Claude Code GitHub App" in n for n in con.manual))
 
     def test_skips_browser_under_yes(self):
         con = Console(assume_yes=True)
-        con.prompt_secret = lambda q: ""
-        with mock.patch.object(apps.webbrowser, "open") as opener:
+        with mock.patch("interns_install.credentials.prompt_secret", return_value=""), \
+             mock.patch.object(apps.webbrowser, "open") as opener:
             _write_oauth_token(con, _repo(), existing_secrets=[])
         opener.assert_not_called()
         self.assertTrue(any("Claude Code GitHub App" in n for n in con.manual))
