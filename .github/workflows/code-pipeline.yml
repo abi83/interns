@@ -438,7 +438,7 @@ jobs:
           > "${{ runner.temp }}/metrics-coder.json"
 
       - name: Upload run metrics
-        if: steps.guard.outputs.skip != 'true' && steps.metrics.outcome == 'success'
+        if: always() && steps.guard.outputs.skip != 'true' && steps.metrics.outcome == 'success'
         uses: actions/upload-artifact@v7
         with:
           name: pipeline-metrics-coder
@@ -744,7 +744,7 @@ jobs:
           > "${{ runner.temp }}/metrics-reviewer.json"
 
       - name: Upload run metrics
-        if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.cap.outputs.capped != 'true' && steps.metrics.outcome == 'success'
+        if: always() && steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.cap.outputs.capped != 'true' && steps.metrics.outcome == 'success'
         uses: actions/upload-artifact@v7
         with:
           name: pipeline-metrics-reviewer
