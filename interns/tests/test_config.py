@@ -87,7 +87,7 @@ _BUILTIN_FIXTURE = {
     "checks": {"ignore": [], "timeout_seconds": 1200, "poll_seconds": 20, "settle_seconds": 30},
     "review_loop": {"max_fix_rounds": 1, "max_automatic_reviews": 5},
     "defaults": {
-        "model": "claude-sonnet-5",
+        "model": "claude-sonnet-5-5",
         "max_turns": 60,
         "timeout_minutes": 20,
         "max_output_tokens": 32000,
@@ -131,21 +131,21 @@ class ResolveAgentConfigTests(unittest.TestCase):
         self.assertEqual(cfg.timeout_minutes, 45)
 
     def test_unset_agent_key_falls_back_to_defaults(self):
-        data = {"defaults": {"model": "claude-sonnet-5", "max_output_tokens": 32000}, "agents": {"coder": {}}}
+        data = {"defaults": {"model": "claude-sonnet-5-5", "max_output_tokens": 32000}, "agents": {"coder": {}}}
         cfg = config.resolve_agent_config(data, "coder", "interns.yml")
-        self.assertEqual(cfg.model, "claude-sonnet-5")
+        self.assertEqual(cfg.model, "claude-sonnet-5-5")
         self.assertEqual(cfg.max_output_tokens, 32000)
 
     def test_missing_config_falls_back_to_builtin_defaults(self):
         cfg = config.resolve_agent_config({}, "reviewer", "interns.yml")
-        self.assertEqual(cfg.model, "claude-sonnet-5")
+        self.assertEqual(cfg.model, "claude-sonnet-5-5")
         # reviewer's own built-in override (45), not the flat built-in
         # defaults.max_turns (60).
         self.assertEqual(cfg.max_turns, 45)
 
     def test_refiner_defaults_to_claude_sonnet_5(self):
         cfg = config.resolve_agent_config({}, "refiner", "interns.yml")
-        self.assertEqual(cfg.model, "claude-sonnet-5")
+        self.assertEqual(cfg.model, "claude-sonnet-5-5")
 
     def test_wiki_disabled_by_default(self):
         cfg = config.resolve_agent_config({}, "coder", "interns.yml")
@@ -294,7 +294,7 @@ class CliTests(unittest.TestCase):
         with patch("builtins.print") as mock_print:
             config._main(["--config", "/nonexistent/interns.yml", "agent-config", "coder"])
         printed = [call.args[0] for call in mock_print.call_args_list]
-        self.assertIn("model=claude-sonnet-5", printed)
+        self.assertIn("model=claude-sonnet-5-5", printed)
 
     def test_checks_ignore_prints_json_array(self):
         data = {"checks": {"ignore": ["preview-deploy"], "timeout_seconds": 1200, "poll_seconds": 20, "settle_seconds": 30}}
