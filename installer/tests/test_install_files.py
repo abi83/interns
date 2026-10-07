@@ -17,7 +17,8 @@ class CollectMissingFilesTests(unittest.TestCase):
         def existing(repo, path, ref):
             if path not in present:
                 return None
-            return (f"body:{src_for_dest[path]}\nsetup:\n", "sha-1")
+            suffix = "\nsetup:\n" if path == "Makefile" else ""
+            return (f"body:{src_for_dest[path]}{suffix}", "sha-1")
 
         with mock.patch.object(install_files.gh_admin, "path_exists",
                                side_effect=lambda r, p, ref: p in present), \
@@ -39,7 +40,8 @@ class CollectMissingFilesTests(unittest.TestCase):
         def existing(repo, path, ref):
             if path == ".github/workflows/install.yml":
                 return ("stale content", "sha-old")
-            return (f"body:{src_for_dest[path]}", "sha-1")
+            suffix = "\nsetup:\n" if path == "Makefile" else ""
+            return (f"body:{src_for_dest[path]}{suffix}", "sha-1")
 
         with mock.patch.object(install_files.gh_admin, "path_exists", return_value=True), \
              mock.patch.object(install_files.gh_admin, "get_existing_file", side_effect=existing), \
@@ -100,8 +102,11 @@ class CollectMissingFilesTests(unittest.TestCase):
         self.assertIn(".github/ISSUE_TEMPLATE/config.yml", wanted)
 
     def test_dynamic_file_added_when_absent(self):
+        def existing(repo, path, ref):
+            return ("setup:\n", "sha-1") if path == "Makefile" else None
+
         with mock.patch.object(install_files.gh_admin, "path_exists", return_value=True), \
-             mock.patch.object(install_files.gh_admin, "get_existing_file", return_value=None), \
+             mock.patch.object(install_files.gh_admin, "get_existing_file", side_effect=existing), \
              mock.patch.object(install_files.gh_admin, "get_file",
                                side_effect=lambda r, p, ref: f"body:{p}"):
             wanted = collect_missing_files(_repo(), "main", issue_templates=False,
