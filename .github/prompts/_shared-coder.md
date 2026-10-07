@@ -11,3 +11,11 @@ Don't try to configure it yourself unless explicitly asked to; just note it
 didn't run and move on. A red check sends the issue straight to a human
 instead of back to you, so don't push a failing build or failing tests that
 aren't the `INTERNS: not configured` stub.
+
+## Tool use
+
+Issue all independent `Read`/`Grep`/`Edit` calls (different files) in a single
+turn instead of one per turn.
+
+A denied tool call is final: choose another approach. Never retry it with
+variants or with `dangerouslyDisableSandbox`.
