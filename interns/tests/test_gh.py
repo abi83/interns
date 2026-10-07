@@ -334,7 +334,7 @@ class SharedClientAdditionsTests(unittest.TestCase):
 
     def test_issue_list_paginates_filters_label_and_drops_prs(self):
         pages = json.dumps([
-            [{"number": 1, "title": "a", "labels": [], "state": "open"},
+            [{"number": 1, "title": "a", "labels": [{"id": 9, "name": "type:bug", "color": "fff"}], "state": "open"},
              {"number": 2, "title": "pr", "labels": [], "state": "open", "pull_request": {}}],
             [{"number": 3, "title": "c", "labels": [], "state": "open"}],
         ])
@@ -342,6 +342,7 @@ class SharedClientAdditionsTests(unittest.TestCase):
             result = gh.issue_list("o/r", label="type:bug")
         self.assertEqual([i["number"] for i in result], [1, 3])
         self.assertEqual(result[0]["state"], "OPEN")
+        self.assertEqual(result[0]["labels"], ["type:bug"])
         cmd = run.call_args[0][0]
         self.assertIn("--paginate", cmd)
         self.assertIn("repos/o/r/issues?state=open&per_page=100&labels=type%3Abug", cmd)

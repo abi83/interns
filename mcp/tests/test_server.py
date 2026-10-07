@@ -5,6 +5,7 @@ edit_issue_labels_validated, apply_refinement, and apply_estimation live in
 pipeline/tests/ and tests/contract/test_mcp_contract.py.
 """
 
+import asyncio
 import json
 from unittest.mock import patch
 
@@ -17,7 +18,9 @@ from server import (
     InlineComment,
     InvalidInputError,
     PushRefusedError,
+    _TOOLS,
     _load_label_names,
+    build_server,
     apply_estimation_outcome,
     apply_refinement_outcome,
     edit_issue,
@@ -265,3 +268,30 @@ def test_apply_estimation_outcome_dispatches_to_pipeline():
 def test_apply_estimation_outcome_missing_scores():
     with pytest.raises(InvalidInputError):
         apply_estimation_outcome(issue_number=7, outcome="estimated")
+
+
+# ---------------------------------------------------------------------------
+# build_server — per-phase tool exposure
+# ---------------------------------------------------------------------------
+
+
+def _exposed(tool_names):
+    return {t.name for t in asyncio.run(build_server(tool_names).list_tools())}
+
+
+def test_build_server_exposes_only_named_tools():
+    assert _exposed(["view_issue", "comment_issue"]) == {"view_issue", "comment_issue"}
+
+
+def test_build_server_can_expose_every_tool():
+    assert _exposed(list(_TOOLS)) == set(_TOOLS)
+
+
+def test_build_server_rejects_unknown_tool():
+    with pytest.raises(ValueError, match="nope"):
+        build_server(["view_issue", "nope"])
+
+
+def test_build_server_rejects_empty_list():
+    with pytest.raises(ValueError, match="INTERNS_MCP_TOOLS"):
+        build_server([])
