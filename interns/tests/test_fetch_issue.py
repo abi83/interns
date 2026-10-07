@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from interns import gh
 from interns.steps import fetch_issue
 from interns.steps.fetch_issue import Comment, Issue
 
@@ -66,6 +67,12 @@ class FetchIssueTests(unittest.TestCase):
             issue = fetch_issue.fetch_issue("owner/repo", 42)
         self.assertEqual(issue.body, "")
         self.assertIsNone(issue.parent)
+
+    def test_non_issue_number_raises_clear_error(self):
+        response = {"data": {"repository": {"issue": None}}}
+        with patch("interns.steps.fetch_issue.gh.graphql", return_value=response):
+            with self.assertRaisesRegex(gh.InvalidInputError, "#250 is not an issue.*pull request"):
+                fetch_issue.fetch_issue("owner/repo", 250)
 
 
 class WriteGithubOutputTests(unittest.TestCase):
