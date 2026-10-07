@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import functools
 import json
 import os
 import pathlib
@@ -10,6 +11,7 @@ from collections.abc import Callable
 from typing import Annotated, Literal
 
 from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
 from interns import gh
 from interns.steps import fetch_issue, labels, push
 from interns.gh import GhCommandError, InvalidInputError, PushRefusedError  # noqa: F401 — re-exported for callers
@@ -25,6 +27,22 @@ def _tool(fn: Callable[..., str]) -> Callable[..., str]:
     return fn
 
 
+_ANTICIPATED_ERRORS = (InvalidInputError, GhCommandError, PushRefusedError)
+
+
+def _surface_anticipated_errors(fn: Callable[..., str]) -> Callable[..., str]:
+    """The SDK shows the model only `ToolError` messages; any other exception reaches it as a bare crash."""
+
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs) -> str:
+        try:
+            return fn(*args, **kwargs)
+        except _ANTICIPATED_ERRORS as exc:
+            raise ToolError(str(exc)) from exc
+
+    return wrapper
+
+
 def build_server(tool_names: list[str]) -> MCPServer:
     """An MCP server exposing exactly `tool_names`; unknown or empty fails fast."""
     if not tool_names:
@@ -34,7 +52,7 @@ def build_server(tool_names: list[str]) -> MCPServer:
         raise ValueError(f"Unknown tool(s) in {TOOLS_ENV}: {', '.join(unknown)}. Known: {', '.join(sorted(_TOOLS))}")
     server = MCPServer("gh-issues")
     for name in tool_names:
-        server.add_tool(_TOOLS[name])
+        server.add_tool(_surface_anticipated_errors(_TOOLS[name]))
     return server
 
 _REPO = os.environ.get("GITHUB_REPOSITORY", "")

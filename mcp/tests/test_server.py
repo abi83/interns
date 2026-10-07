@@ -10,6 +10,7 @@ import json
 from unittest.mock import patch
 
 import pytest
+from mcp.server.mcpserver.exceptions import ToolError
 
 import server
 from interns.steps import fetch_issue
@@ -295,3 +296,26 @@ def test_build_server_rejects_unknown_tool():
 def test_build_server_rejects_empty_list():
     with pytest.raises(ValueError, match="INTERNS_MCP_TOOLS"):
         build_server([])
+
+
+# ---------------------------------------------------------------------------
+# build_server — anticipated errors reach the agent
+# ---------------------------------------------------------------------------
+
+
+def _call(tool_name, arguments=None):
+    return asyncio.run(build_server([tool_name]).call_tool(tool_name, arguments or {}))
+
+
+@pytest.mark.parametrize("error_cls", [InvalidInputError, GhCommandError, PushRefusedError])
+def test_anticipated_errors_surface_their_message(error_cls):
+    with patch.object(server.push, "push_branch", side_effect=error_cls("actionable detail")):
+        with pytest.raises(ToolError, match="actionable detail"):
+            _call("push_branch")
+
+
+def test_unexpected_errors_stay_opaque():
+    with patch.object(server.push, "push_branch", side_effect=RuntimeError("internal secret")):
+        with pytest.raises(ToolError) as exc_info:
+            _call("push_branch")
+    assert "internal secret" not in str(exc_info.value)
