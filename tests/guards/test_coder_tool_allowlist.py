@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 
 WORKFLOW = Path(__file__).resolve().parents[2] / ".github/workflows/code-pipeline.yml"
-READ_ONLY_COMMANDS = {"ls", "cat", "find", "head", "wc"}
+READ_ONLY_COMMANDS = {"ls", "cat", "head", "wc"}
 WRITE_CAPABLE = {"sed", "awk", "tee", "rm", "mv", "cp", "chmod", "dd", "xargs", "perl", "python", "python3"}
 
 

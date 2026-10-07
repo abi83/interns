@@ -64,7 +64,7 @@ env:
   ALLOWED_GIT_READ: "Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git status:*)"
   # Read-only filesystem inspection for the coder; Write/Edit stay the only
   # write path. No sed: no uniqueness check like Edit, easy to over-match.
-  ALLOWED_FS_READ: "Bash(ls:*),Bash(cat:*),Bash(find:*),Bash(head:*),Bash(wc:*)"
+  ALLOWED_FS_READ: "Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(wc:*)"
   # `make` targets, not a package-manager-specific command, so this stays the
   # same regardless of the consumer repo's language. See templates/config/Makefile.
   ALLOWED_BUILD_TEST: "Bash(make test:*),Bash(make build:*)"
