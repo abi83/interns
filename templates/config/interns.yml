@@ -35,7 +35,7 @@ review_loop:
   max_automatic_reviews: 5
 
 defaults:
-  model: claude-sonnet-5
+  model: claude-sonnet-5-5
   max_turns: 60
   timeout_minutes: 20
   max_output_tokens: 32000
