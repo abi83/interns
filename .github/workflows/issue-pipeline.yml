@@ -127,6 +127,7 @@ jobs:
         uses: ./.interns/.github/actions/setup-gh-issues-mcp
         with:
           gh_token: ${{ steps.triage_token.outputs.token }}
+          tools: list_issues,view_issue,edit_issue_labels,edit_issue,comment_issue,apply_refinement_outcome
 
       - name: Run Claude refinement
         id: claude
@@ -307,6 +308,7 @@ jobs:
         uses: ./.interns/.github/actions/setup-gh-issues-mcp
         with:
           gh_token: ${{ secrets.GITHUB_TOKEN }}
+          tools: comment_issue,apply_estimation_outcome
 
       - name: Run Claude estimation
         id: claude

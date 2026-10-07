@@ -93,7 +93,7 @@ def issue_list(repo: str, *, label: str | None = None) -> list[dict]:
     if label:
         path += f"&labels={quote(label, safe='')}"
     return [
-        {"number": i["number"], "title": i["title"], "labels": i["labels"], "state": i["state"].upper()}
+        {"number": i["number"], "title": i["title"], "labels": [label["name"] for label in i["labels"]], "state": i["state"].upper()}
         for i in api_all_pages(path)
         if "pull_request" not in i
     ]

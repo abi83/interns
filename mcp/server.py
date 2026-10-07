@@ -6,6 +6,7 @@ import dataclasses
 import json
 import os
 import pathlib
+from collections.abc import Callable
 from typing import Annotated, Literal
 
 from mcp.server.mcpserver import MCPServer
@@ -14,7 +15,27 @@ from interns.steps import fetch_issue, labels, push
 from interns.gh import GhCommandError, InvalidInputError, PushRefusedError  # noqa: F401 — re-exported for callers
 from pydantic import BaseModel, Field
 
-mcp = MCPServer("gh-issues")
+TOOLS_ENV = "INTERNS_MCP_TOOLS"
+
+_TOOLS: dict[str, Callable[..., str]] = {}
+
+
+def _tool(fn: Callable[..., str]) -> Callable[..., str]:
+    _TOOLS[fn.__name__] = fn
+    return fn
+
+
+def build_server(tool_names: list[str]) -> MCPServer:
+    """An MCP server exposing exactly `tool_names`; unknown or empty fails fast."""
+    if not tool_names:
+        raise ValueError(f"{TOOLS_ENV} must name at least one tool")
+    unknown = sorted(set(tool_names) - _TOOLS.keys())
+    if unknown:
+        raise ValueError(f"Unknown tool(s) in {TOOLS_ENV}: {', '.join(unknown)}. Known: {', '.join(sorted(_TOOLS))}")
+    server = MCPServer("gh-issues")
+    for name in tool_names:
+        server.add_tool(_TOOLS[name])
+    return server
 
 _REPO = os.environ.get("GITHUB_REPOSITORY", "")
 _WORKSPACE = os.environ.get("GITHUB_WORKSPACE", "")
@@ -56,7 +77,7 @@ _LABEL_DESCRIPTION = (
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
+@_tool
 def list_issues(
     label: Annotated[str, Field(description=_LABEL_DESCRIPTION)] = "",
 ) -> str:
@@ -67,7 +88,7 @@ def list_issues(
     return json.dumps(gh.issue_list(_REPO, label=label))
 
 
-@mcp.tool()
+@_tool
 def view_issue(
     issue_number: Annotated[int, Field(description="Issue number to fetch.")],
 ) -> str:
@@ -85,7 +106,7 @@ def view_issue(
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
+@_tool
 def comment_issue(
     issue_number: Annotated[int, Field(description="Issue number to comment on.")],
     body: Annotated[str, Field(description="Comment body (markdown).", min_length=1, max_length=10000)],
@@ -94,7 +115,7 @@ def comment_issue(
     return gh.issue_comment(_REPO, issue_number, body) or f"Comment posted on issue #{issue_number}"
 
 
-@mcp.tool()
+@_tool
 def edit_issue(
     issue_number: Annotated[int, Field(description="Issue number.")],
     body: Annotated[str, Field(description="New issue body (markdown).", min_length=10, max_length=10000)],
@@ -111,7 +132,7 @@ def edit_issue(
     return gh.issue_edit_validated(_REPO, issue_number, body=body, title=title)
 
 
-@mcp.tool()
+@_tool
 def edit_issue_labels(
     issue_number: Annotated[int, Field(description="Issue number.")],
     add_labels: Annotated[list[str] | None, Field(description="Labels to add.")] = None,
@@ -130,7 +151,7 @@ def edit_issue_labels(
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
+@_tool
 def comment_pr(
     pr_number: Annotated[int, Field(description="PR number to comment on.")],
     body: Annotated[str, Field(description="Comment body (markdown).", min_length=1, max_length=10000)],
@@ -139,7 +160,7 @@ def comment_pr(
     return gh.pr_comment(_REPO, pr_number, body) or f"Comment posted on PR #{pr_number}"
 
 
-@mcp.tool()
+@_tool
 def open_pr(
     issue_number: Annotated[int, Field(description="Issue number this PR closes.")],
     title: Annotated[str, Field(description="PR title (single line, Conventional Commit format).", min_length=5, max_length=300)],
@@ -153,7 +174,7 @@ def open_pr(
     return push.pr_open_for_issue(_REPO, _WORKSPACE, issue_number, title, body)
 
 
-@mcp.tool()
+@_tool
 def submit_pr_review(
     pr_number: Annotated[int, Field(description="PR number.")],
     event: Annotated[Literal["APPROVE", "REQUEST_CHANGES"], Field(description="Review verdict.")],
@@ -173,7 +194,7 @@ def submit_pr_review(
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
+@_tool
 def push_branch() -> str:
     """Squash the current branch to one commit and push it to origin.
 
@@ -191,7 +212,7 @@ def push_branch() -> str:
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
+@_tool
 def apply_refinement_outcome(
     issue_number: Annotated[int, Field(description="Issue number.")],
     outcome: Annotated[Literal["refined", "needs-attention"], Field(description="Refinement outcome.")],
@@ -210,7 +231,7 @@ def apply_refinement_outcome(
     return labels.apply_refinement(_REPO, issue_number, outcome, type_label)
 
 
-@mcp.tool()
+@_tool
 def apply_estimation_outcome(
     issue_number: Annotated[int, Field(description="Issue number.")],
     outcome: Annotated[Literal["estimated", "needs-attention"], Field(description="Estimation outcome.")],
@@ -271,4 +292,4 @@ def apply_estimation_outcome(
 
 
 if __name__ == "__main__":
-    mcp.run()
+    build_server([n.strip() for n in os.environ[TOOLS_ENV].split(",") if n.strip()]).run()

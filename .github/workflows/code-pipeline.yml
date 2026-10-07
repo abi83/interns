@@ -285,6 +285,7 @@ jobs:
         uses: ./.interns/.github/actions/setup-gh-issues-mcp
         with:
           gh_token: ${{ steps.coder_token.outputs.token }}
+          tools: push_branch,open_pr,comment_issue,comment_pr
 
       # Consumer-owned `make setup`, like test/build: the coder runs in a fresh
       # runner and its allowlist can't install anything. A failure here fails
@@ -690,6 +691,7 @@ jobs:
         uses: ./.interns/.github/actions/setup-gh-issues-mcp
         with:
           gh_token: ${{ steps.reviewer_token.outputs.token }}
+          tools: view_issue,submit_pr_review,comment_pr
 
       - name: Run Claude reviewer
         id: claude
