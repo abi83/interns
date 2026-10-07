@@ -12,8 +12,10 @@ def route_red_checks(repo: str, pr: int, issue: int | None, reason: str, *, run_
     labels.escalate_pr(repo, pr)
     gh.pr_comment(
         repo, pr,
-        f"PR checks are not green ({reason}) — the reviewer won't run. The coder writes and runs "
-        "tests before pushing, so this is being sent straight to a human rather than retried. "
+        f"PR checks are not green ({reason}) — the reviewer won't run, so this is sent straight to a "
+        "human rather than retried. The coder can only verify its work through your Makefile: make sure "
+        "it has real `setup`, `test` and `build` targets (stubs are skipped), otherwise the coder "
+        "cannot catch failures before pushing. "
         f"Run: {run_url}",
     )
     if issue is not None:
