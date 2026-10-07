@@ -4,6 +4,7 @@ drifted from the `abi83/interns` template, and the PR body describing it."""
 from __future__ import annotations
 
 import os
+import re
 
 from . import gh_admin
 
@@ -38,6 +39,15 @@ CONFIG_FILES = {
 
 INSTALL_FILES = {**WRAPPER_FILES, **CONFIG_FILES}
 
+MAKEFILE = "Makefile"
+_SETUP_TARGET = re.compile(r"^setup\s*:", re.MULTILINE)
+SETUP_STUB = '''
+.PHONY: setup
+
+setup:
+\t@echo "INTERNS: not configured -- no dependency setup configured for this repo, expected, not a failure, continue"
+'''
+
 INSTALL_PR_BODY = """\
 ## Install the interns pipeline
 
@@ -52,21 +62,31 @@ workflow can't add them itself.
   release tag.
 - **`.github/interns.yml`** — per-agent limits; every key is optional and falls
   back to the interns default.
-- **`Makefile`** — `test`/`build` targets the coder and reviewer run before a PR
-  is opened or updated. Fill them in with this repo's real commands; left
-  empty, the pipeline treats testing as not yet configured rather than
-  failing every PR.
+- **`Makefile`** — `setup`/`test`/`build` targets. `setup` installs dependencies
+  before the coder starts; `test`/`build` run before a PR is opened or
+  updated. Fill them in with this repo's real commands; left empty, the
+  pipeline treats them as not yet configured rather than failing every PR.
 
 Missing files are added; a wrapper file (`install.yml`, `issue-pipeline.yml`,
 `code-pipeline.yml`) that's already present but out of date with the current
 template is re-synced too. `.github/interns.yml` and `Makefile` are only
 added when absent — an existing one is left untouched, since it's expected to
-carry consumer-local edits.
+carry consumer-local edits, except that an existing `Makefile` without a
+`setup` target gets the unconfigured `setup` stub appended.
 
 After merging,
 re-run `interns-install` (or dispatch **Install interns** from the Actions tab)
 to sync the label manifest.
 """
+
+
+def _with_setup_stub(content: str, sha: str) -> tuple[str, str] | None:
+    """The Makefile with the `setup` stub appended, or None when it already
+    defines `setup`."""
+    if _SETUP_TARGET.search(content):
+        return None
+    separator = "" if content.endswith("\n") else "\n"
+    return content + separator + SETUP_STUB, sha
 
 
 def collect_missing_files(repo: gh_admin.Repo, base: str,
@@ -89,6 +109,13 @@ def collect_missing_files(repo: gh_admin.Repo, base: str,
         if not gh_admin.path_exists(repo.slug, dest, base):
             content = gh_admin.get_file(INTERNS_REPO, src, INTERNS_REF).replace(REF_PLACEHOLDER, INTERNS_REF)
             wanted[dest] = (content, None)
+            continue
+        if dest != MAKEFILE:
+            continue
+        content, sha = gh_admin.get_existing_file(repo.slug, dest, base)
+        with_setup = _with_setup_stub(content, sha)
+        if with_setup is not None:
+            wanted[dest] = with_setup
 
     if issue_templates and not gh_admin.path_exists(repo.slug, ".github/ISSUE_TEMPLATE", base):
         for name in gh_admin.list_dir(INTERNS_REPO, "templates/issue", INTERNS_REF):

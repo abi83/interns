@@ -62,6 +62,9 @@ env:
   # aren't in this list.
   ALLOWED_GIT_WRITE: "Bash(git add:*),Bash(git commit:*),Bash(git rm:*)"
   ALLOWED_GIT_READ: "Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git status:*)"
+  # Read-only filesystem inspection for the coder; Write/Edit stay the only
+  # write path. No sed: no uniqueness check like Edit, easy to over-match.
+  ALLOWED_FS_READ: "Bash(ls:*),Bash(cat:*),Bash(find:*),Bash(head:*),Bash(wc:*)"
   # `make` targets, not a package-manager-specific command, so this stays the
   # same regardless of the consumer repo's language. See templates/config/Makefile.
   ALLOWED_BUILD_TEST: "Bash(make test:*),Bash(make build:*)"
@@ -283,6 +286,13 @@ jobs:
         with:
           gh_token: ${{ steps.coder_token.outputs.token }}
 
+      # Consumer-owned `make setup`, like test/build: the coder runs in a fresh
+      # runner and its allowlist can't install anything. A failure here fails
+      # the job before any Claude tokens are spent.
+      - name: Install dependencies (make setup)
+        if: steps.guard.outputs.skip != 'true'
+        run: python3 -m interns.steps.run_setup "$GITHUB_WORKSPACE"
+
       - name: Run Claude coder (initial implementation)
         id: claude_initial
         if: steps.guard.outputs.skip != 'true' && steps.mode.outputs.fix_round != 'true'
@@ -315,7 +325,7 @@ jobs:
             --model ${{ steps.cfg.outputs.model }}
             --max-turns ${{ steps.cfg.outputs.max_turns }}
             --mcp-config /tmp/mcp-config-gh-issues.json
-            --allowedTools "Read,Grep,Glob,Write,Edit,${{ env.ALLOWED_GIT_WRITE }},${{ env.ALLOWED_BUILD_TEST }},${{ env.ALLOWED_PUSH_BRANCH }},${{ env.ALLOWED_OPEN_PR }},${{ env.ALLOWED_COMMENT_ISSUE }}"
+            --allowedTools "Read,Grep,Glob,Write,Edit,${{ env.ALLOWED_FS_READ }},${{ env.ALLOWED_GIT_WRITE }},${{ env.ALLOWED_BUILD_TEST }},${{ env.ALLOWED_PUSH_BRANCH }},${{ env.ALLOWED_OPEN_PR }},${{ env.ALLOWED_COMMENT_ISSUE }}"
             --disallowedTools "${{ steps.cfg.outputs.disallowed_tools }}"
 
       - name: Upload coder-initial execution log (debug)
@@ -366,7 +376,7 @@ jobs:
             --model ${{ steps.cfg.outputs.model }}
             --max-turns ${{ steps.cfg.outputs.max_turns }}
             --mcp-config /tmp/mcp-config-gh-issues.json
-            --allowedTools "Read,Grep,Glob,Write,Edit,${{ env.ALLOWED_GIT_WRITE }},${{ env.ALLOWED_BUILD_TEST }},${{ env.ALLOWED_PUSH_BRANCH }},${{ env.ALLOWED_COMMENT_PR }}"
+            --allowedTools "Read,Grep,Glob,Write,Edit,${{ env.ALLOWED_FS_READ }},${{ env.ALLOWED_GIT_WRITE }},${{ env.ALLOWED_BUILD_TEST }},${{ env.ALLOWED_PUSH_BRANCH }},${{ env.ALLOWED_COMMENT_PR }}"
             --disallowedTools "${{ steps.cfg.outputs.disallowed_tools }}"
 
       - name: Upload coder-fix execution log (debug)

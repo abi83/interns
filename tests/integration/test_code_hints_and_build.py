@@ -66,3 +66,29 @@ def test_neither_type_label_fails_instead_of_guessing(scenario):
     assert result.returncode != 0
     assert "neither type:bug nor type:coding-task" in result.stderr
     assert result.outputs == {}
+
+
+def test_setup_runs_the_consumer_target(scenario):
+    (scenario.workspace / "Makefile").write_text("setup:\n\ttouch installed\n")
+
+    result = scenario.run("interns.steps.run_setup", str(scenario.workspace))
+
+    assert result.returncode == 0
+    assert (scenario.workspace / "installed").exists()
+
+
+def test_failing_setup_fails_the_step(scenario):
+    (scenario.workspace / "Makefile").write_text("setup:\n\texit 1\n")
+
+    result = scenario.run("interns.steps.run_setup", str(scenario.workspace))
+
+    assert result.returncode != 0
+
+
+def test_stub_setup_only_warns(scenario):
+    (scenario.workspace / "Makefile").write_text('setup:\n\t@echo "INTERNS: not configured"\n')
+
+    result = scenario.run("interns.steps.run_setup", str(scenario.workspace))
+
+    assert result.returncode == 0
+    assert "::warning::" in result.stdout

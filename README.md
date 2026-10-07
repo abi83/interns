@@ -308,6 +308,21 @@ and the coder–reviewer loop caps (`review_loop.max_fix_rounds` /
 `max_automatic_reviews`) are documented with their defaults in the config
 file.
 
+### Makefile targets
+
+The coder runs in a fresh runner, so the consumer repo's
+[`Makefile`](templates/config/Makefile) is the language-agnostic contract:
+
+- `setup` — install dependencies. The pipeline runs `make setup` before the
+  coder starts, in both the initial and fix rounds; a non-zero exit fails the
+  job before any Claude tokens are spent.
+- `test` / `build` — run by the coder before pushing, and by the reviewer.
+
+Each target ships as a stub containing `INTERNS: not configured`. A stubbed (or
+absent) `setup` is skipped with a warning; fill in the real command to enable
+it. `interns-install` appends the `setup` stub to an existing `Makefile` that
+lacks the target.
+
 ### Doing it by hand
 
 <details>
