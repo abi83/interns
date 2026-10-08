@@ -308,6 +308,17 @@ and the coder–reviewer loop caps (`review_loop.max_fix_rounds` /
 `max_automatic_reviews`) are documented with their defaults in the config
 file.
 
+#### Agent tools
+
+interns gives each agent a fixed tool set. Extend it with `allowed_tools` and
+narrow it with `disallowed_tools` (examples in the config file); both work in
+`defaults` and per agent, and the lists add up. A deny always wins, including
+over interns' own tools.
+
+**A wildcard like `Bash(npm run *)` is effectively arbitrary code execution
+via package scripts.** Keep patterns narrow and put them under the one agent
+that needs them: `defaults` applies to every agent.
+
 ### Makefile targets
 
 The coder runs in a fresh runner, so the consumer repo's

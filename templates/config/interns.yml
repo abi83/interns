@@ -40,50 +40,29 @@ defaults:
   timeout_minutes: 20
   max_output_tokens: 32000
   cost_warn_usd: 2.0
+  # Tools on top of interns' own, for every agent (Claude Code permission
+  # patterns). Keep them narrow: "Bash(npm run *)" runs any package script.
+  # allowed_tools:
+  #   - "Bash(npm run lint:*)"
+  # Removed from every agent, interns' own tools included; beats allowed_tools.
+  # disallowed_tools:
+  #   - "WebFetch"
 
 agents:
   # The refiner investigates the codebase before rewriting, so it gets fewer
   # turns for the same budget.
   refiner:
     max_turns: 35
-    # Shrink an agent's list only once you've confirmed it needs the tool — this is a security ceiling, not a convenience knob.
-    disallowed_tools:
-      - Bash
-      - Task
-      - ScheduleWakeup
-      - WebSearch
-      - WebFetch
-      - Write
-      - Edit
-      - NotebookEdit
   estimator:
     max_turns: 30
-    disallowed_tools:
-      - Bash
-      - Task
-      - ScheduleWakeup
-      - WebSearch
-      - WebFetch
-      - Write
-      - Edit
-      - NotebookEdit
   # The coder does the most work per run, so it gets a longer timeout and turn budget.
   coder:
     max_turns: 75
     timeout_minutes: 30
-    disallowed_tools:
-      - Task
-      - ScheduleWakeup
-      - WebSearch
-      - WebFetch
-      - NotebookEdit
+    # Per-agent lists add to the defaults above.
+    # allowed_tools:
+    #   - "Bash(npx prisma generate:*)"
+    # disallowed_tools:
+    #   - "Bash(psql:*)"
   reviewer:
     max_turns: 45
-    disallowed_tools:
-      - Task
-      - ScheduleWakeup
-      - WebSearch
-      - WebFetch
-      - Write
-      - Edit
-      - NotebookEdit
