@@ -308,6 +308,36 @@ and the coder–reviewer loop caps (`review_loop.max_fix_rounds` /
 `max_automatic_reviews`) are documented with their defaults in the config
 file.
 
+#### Agent tools
+
+Each agent's tools are layered; later layers can only narrow or add to earlier ones:
+
+| Layer | Set by | Effect |
+|---|---|---|
+| `--tools` | interns, per phase (plus the built-in names from your `allowed_tools`) | The built-in tools that exist for the agent. Anything outside it is invisible, whatever else says. |
+| `--allowedTools` | interns' own list, plus your `allowed_tools` | What runs without a prompt. Headless runs have nobody to ask, so everything else is denied. |
+| `--disallowedTools` | your `disallowed_tools` only | Always wins, including over interns' own tools. |
+
+`allowed_tools` extends an agent beyond interns' set — Claude Code permission
+patterns, passed through verbatim; `agents.<name>.allowed_tools` adds to
+`defaults.allowed_tools`:
+
+```yaml
+agents:
+  coder:
+    allowed_tools:
+      - "Bash(npm run *)"
+```
+
+`disallowed_tools` removes tools, interns' own included; denying something an
+agent needs just burns its turns. The same entry in both lists of one block is
+rejected.
+
+**A wildcard like `Bash(npm run *)` is effectively arbitrary code execution
+via package scripts.** Prefer narrow patterns, and put them under the one
+agent that needs them: `defaults.allowed_tools` applies to every agent,
+refiner and estimator included.
+
 ### Makefile targets
 
 The coder runs in a fresh runner, so the consumer repo's

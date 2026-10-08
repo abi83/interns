@@ -1,3 +1,5 @@
+import contextlib
+import io
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -96,20 +98,16 @@ _BUILTIN_FIXTURE = {
     "agents": {
         "refiner": {
             "max_turns": 35,
-            "disallowed_tools": ["Bash", "Task", "ScheduleWakeup", "WebSearch", "WebFetch", "Write", "Edit", "NotebookEdit"],
         },
         "estimator": {
             "max_turns": 30,
-            "disallowed_tools": ["Bash", "Task", "ScheduleWakeup", "WebSearch", "WebFetch", "Write", "Edit", "NotebookEdit"],
         },
         "coder": {
             "max_turns": 75,
             "timeout_minutes": 30,
-            "disallowed_tools": ["Task", "ScheduleWakeup", "WebSearch", "WebFetch", "NotebookEdit"],
         },
         "reviewer": {
             "max_turns": 45,
-            "disallowed_tools": ["Task", "ScheduleWakeup", "WebSearch", "WebFetch", "Write", "Edit", "NotebookEdit"],
         },
     },
 }
@@ -177,31 +175,87 @@ class ResolveAgentConfigTests(unittest.TestCase):
         with self.assertRaises(config.ConfigError):
             config.resolve_agent_config(data, "coder", "interns.yml")
 
-    def test_refiners_builtin_disallowed_tools_blocks_bash_and_task(self):
-        cfg = config.resolve_agent_config({}, "refiner", "interns.yml")
-        self.assertIn("Bash", cfg.disallowed_tools)
-        self.assertIn("Task", cfg.disallowed_tools)
-
-    def test_coders_builtin_disallowed_tools_does_not_block_bash_write_edit(self):
+    def test_no_tool_lists_without_a_consumer_file(self):
         cfg = config.resolve_agent_config({}, "coder", "interns.yml")
-        self.assertNotIn("Bash", cfg.disallowed_tools)
-        self.assertNotIn("Write", cfg.disallowed_tools)
-        self.assertNotIn("Edit", cfg.disallowed_tools)
-        self.assertIn("Task", cfg.disallowed_tools)
+        self.assertEqual(cfg.allowed_tools, [])
+        self.assertEqual(cfg.disallowed_tools, [])
 
-    def test_reviewers_builtin_disallowed_tools_does_not_block_bash(self):
-        cfg = config.resolve_agent_config({}, "reviewer", "interns.yml")
-        self.assertNotIn("Bash", cfg.disallowed_tools)
+    def test_agent_tools_add_to_defaults_without_duplicates(self):
+        data = {
+            "defaults": {"allowed_tools": ["Bash(npm run *)", "WebFetch"]},
+            "agents": {"coder": {"allowed_tools": ["WebFetch", "Bash(npx prisma generate:*)"]}},
+        }
+        cfg = config.resolve_agent_config(data, "coder", "interns.yml")
+        self.assertEqual(cfg.allowed_tools, ["Bash(npm run *)", "WebFetch", "Bash(npx prisma generate:*)"])
 
-    def test_agent_disallowed_tools_overrides_the_builtin(self):
-        data = {"agents": {"refiner": {"disallowed_tools": ["Bash", "Task"]}}}
-        cfg = config.resolve_agent_config(data, "refiner", "interns.yml")
-        self.assertEqual(cfg.disallowed_tools, ["Bash", "Task"])
+    def test_agent_tools_do_not_leak_to_other_agents(self):
+        data = {"agents": {"coder": {"allowed_tools": ["WebFetch"]}}}
+        self.assertEqual(config.resolve_agent_config(data, "reviewer", "interns.yml").allowed_tools, [])
 
-    def test_disallowed_tools_that_is_not_a_list_is_rejected(self):
-        data = {"agents": {"refiner": {"disallowed_tools": "Bash,Task"}}}
-        with self.assertRaisesRegex(config.ConfigError, "must be a YAML list"):
-            config.resolve_agent_config(data, "refiner", "interns.yml")
+    def test_disallowed_tools_add_up_across_defaults_and_agent(self):
+        data = {"defaults": {"disallowed_tools": ["WebFetch"]}, "agents": {"coder": {"disallowed_tools": ["Write"]}}}
+        cfg = config.resolve_agent_config(data, "coder", "interns.yml")
+        self.assertEqual(cfg.disallowed_tools, ["WebFetch", "Write"])
+
+    def test_agent_deny_removes_a_default_allow(self):
+        data = {
+            "defaults": {"allowed_tools": ["WebFetch", "Bash(npm run *)"]},
+            "agents": {"reviewer": {"disallowed_tools": ["WebFetch"]}},
+        }
+        cfg = config.resolve_agent_config(data, "reviewer", "interns.yml")
+        self.assertEqual(cfg.allowed_tools, ["Bash(npm run *)"])
+        self.assertEqual(cfg.disallowed_tools, ["WebFetch"])
+
+    def test_same_entry_allowed_and_disallowed_in_one_scope_is_rejected(self):
+        for block in ({"defaults": {"allowed_tools": ["X"], "disallowed_tools": ["X"]}},
+                      {"agents": {"coder": {"allowed_tools": ["X"], "disallowed_tools": ["X"]}}}):
+            with self.assertRaisesRegex(config.ConfigError, "both allows and disallows"):
+                config.resolve_agent_config(block, "coder", "interns.yml")
+
+    def test_tool_lists_that_are_not_lists_are_rejected(self):
+        for key in ("allowed_tools", "disallowed_tools"):
+            data = {"agents": {"refiner": {key: "Bash,Task"}}}
+            with self.assertRaisesRegex(config.ConfigError, "must be a YAML list"):
+                config.resolve_agent_config(data, "refiner", "interns.yml")
+
+    def test_malformed_tool_entries_are_rejected(self):
+        for bad in ("a\nb", "a,b", 'a"b', "", 5):
+            for key in ("allowed_tools", "disallowed_tools"):
+                data = {"defaults": {key: [bad]}}
+                with self.assertRaises(config.ConfigError, msg=f"{key}: {bad!r}"):
+                    config.resolve_agent_config(data, "coder", "interns.yml")
+
+
+class AgentConfigOutputTests(unittest.TestCase):
+    def _outputs(self, data: dict, agent: str) -> dict[str, str]:
+        isfile_p, yaml_p = _yaml(data)
+        builtin_p = patch("interns.config._builtin_data", return_value=_BUILTIN_FIXTURE)
+        out = io.StringIO()
+        with isfile_p, yaml_p, builtin_p, contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(config._main(["--config", "interns.yml", "agent-config", agent]), 0)
+        return dict(line.split("=", 1) for line in out.getvalue().splitlines())
+
+    def test_no_tool_lists_emit_empty_suffixes_and_no_deny_flag(self):
+        outputs = self._outputs({}, "coder")
+        self.assertEqual(outputs["tools_suffix"], "")
+        self.assertEqual(outputs["allowed_tools_suffix"], "")
+        self.assertEqual(outputs["disallowed_tools_arg"], "")
+
+    def test_tool_lists_emit_comma_prefixed_suffixes_and_a_quoted_deny_flag(self):
+        data = {"agents": {"coder": {"allowed_tools": ["Bash(npm run *)", "WebFetch"], "disallowed_tools": ["Write", "Edit"]}}}
+        outputs = self._outputs(data, "coder")
+        self.assertEqual(outputs["tools_suffix"], ",Bash,WebFetch")
+        self.assertEqual(outputs["allowed_tools_suffix"], ",Bash(npm run *),WebFetch")
+        self.assertEqual(outputs["disallowed_tools_arg"], '--disallowedTools "Write,Edit"')
+
+
+class BuiltinToolNamesTests(unittest.TestCase):
+    def test_patterns_reduce_to_their_tool_name_once(self):
+        tools = ["Bash(npm run *)", "Bash(npx prisma generate:*)", "WebFetch"]
+        self.assertEqual(config.builtin_tool_names(tools), ["Bash", "WebFetch"])
+
+    def test_mcp_tools_are_not_builtin(self):
+        self.assertEqual(config.builtin_tool_names(["mcp__other__tool", "Read"]), ["Read"])
 
 
 class BuiltinTemplateIntegrationTests(unittest.TestCase):
@@ -220,7 +274,7 @@ class BuiltinTemplateIntegrationTests(unittest.TestCase):
         cfg = config.resolve_agent_config({}, "coder", "interns.yml")
         self.assertEqual(cfg.max_turns, 75)
         self.assertEqual(cfg.timeout_minutes, 30)
-        self.assertNotIn("Bash", cfg.disallowed_tools)
+        self.assertEqual(cfg.disallowed_tools, [])
 
 
 class ChecksConfigTests(unittest.TestCase):

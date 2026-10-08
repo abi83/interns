@@ -70,10 +70,15 @@
           "description": "Safety ceiling, not a cost lever. Lowering it truncates edits and review bodies mid-write."
         },
         "cost_warn_usd": { "type": "number", "exclusiveMinimum": 0 },
+        "allowed_tools": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Added to the phase's built-in tools and --allowedTools; agents.<name> adds to defaults. Claude Code permission patterns, verbatim."
+        },
         "disallowed_tools": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
-          "description": "Passed to --disallowedTools, overriding (not merging with) the phase's built-in default."
+          "description": "Passed to --disallowedTools; agents.<name> adds to defaults. Wins over allowed_tools and over interns' own tools."
         }
       }
     }

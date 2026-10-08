@@ -21,7 +21,7 @@ from . import cli
 
 KNOWN_TOP_KEYS = ("debug", "defaults", "agents", "wiki", "checks", "review_loop")
 KNOWN_AGENTS = ("refiner", "estimator", "coder", "reviewer")
-KNOWN_LIMIT_KEYS = ("model", "max_turns", "timeout_minutes", "max_output_tokens", "cost_warn_usd", "disallowed_tools")
+KNOWN_LIMIT_KEYS = ("model", "max_turns", "timeout_minutes", "max_output_tokens", "cost_warn_usd", "allowed_tools", "disallowed_tools")
 KNOWN_WIKI_KEYS = ("enabled", "url")
 KNOWN_CHECKS_KEYS = ("ignore", "timeout_seconds", "poll_seconds", "settle_seconds")
 KNOWN_REVIEW_LOOP_KEYS = ("max_fix_rounds", "max_automatic_reviews")
@@ -45,6 +45,7 @@ class AgentConfig:
     timeout_minutes: int
     max_output_tokens: int
     cost_warn_usd: float
+    allowed_tools: list[str]
     disallowed_tools: list[str]
     wiki_enabled: bool
     wiki_repo: str
@@ -130,6 +131,47 @@ def _builtin_data() -> dict:
     return load_raw(str(_TEMPLATE_CONFIG_PATH))
 
 
+def _tool_list(block: dict, key: str, where: str) -> list[str]:
+    value = block.get(key)
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ConfigError(f"{where}.{key} must be a YAML list of tool names")
+    for tool in value:
+        if not isinstance(tool, str) or not tool:
+            raise ConfigError(f"{where}.{key} entries must be non-empty strings (got {tool!r})")
+        if any(ch in tool for ch in '\n,"'):
+            raise ConfigError(f"{where}.{key} entry {tool!r} must not contain a newline, comma or double quote")
+    return value
+
+
+def _union(*lists: list[str]) -> list[str]:
+    return list(dict.fromkeys(item for items in lists for item in items))
+
+
+def _resolve_tool_lists(defaults_block: dict, agent_block: dict, agent: str) -> tuple[list[str], list[str]]:
+    """Consumer-only lists: `defaults` and the agent's own block add up. Deny
+    beats allow, so an exactly-matching denied entry is dropped from allow;
+    the same entry in both lists of one scope is a contradiction."""
+    allowed: list[list[str]] = []
+    disallowed: list[list[str]] = []
+    for block, where in ((defaults_block, "defaults"), (agent_block, f"agents.{agent}")):
+        scope_allowed = _tool_list(block, "allowed_tools", where)
+        scope_disallowed = _tool_list(block, "disallowed_tools", where)
+        contradiction = set(scope_allowed) & set(scope_disallowed)
+        if contradiction:
+            raise ConfigError(f"{where} both allows and disallows {sorted(contradiction)}")
+        allowed.append(scope_allowed)
+        disallowed.append(scope_disallowed)
+    denied = _union(*disallowed)
+    return [tool for tool in _union(*allowed) if tool not in denied], denied
+
+
+def builtin_tool_names(tools: list[str]) -> list[str]:
+    """`--tools` takes bare built-in names; `Bash(npm run *)` contributes `Bash`, MCP tools contribute nothing."""
+    return _union([tool.split("(", 1)[0] for tool in tools if not tool.startswith("mcp__")])
+
+
 def resolve_agent_config(data: dict, agent: str, path: str) -> AgentConfig:
     """Precedence per key: agents.<name>.<key> > defaults.<key> from the
     consumer's file, then the same two layers from the shipped template.
@@ -155,13 +197,6 @@ def resolve_agent_config(data: dict, agent: str, path: str) -> AgentConfig:
     max_output_tokens = resolve("max_output_tokens")
     cost_warn_usd = resolve("cost_warn_usd")
 
-    disallowed_tools = resolve("disallowed_tools")
-    if disallowed_tools is not None and not isinstance(disallowed_tools, list):
-        raise ConfigError(
-            f"agents.{agent}.disallowed_tools / defaults.disallowed_tools must be a YAML list of tool names"
-        )
-    disallowed_tools = disallowed_tools or []
-
     if not model:
         raise ConfigError("model resolved empty")
     if not _is_int_ge(max_turns, 1):
@@ -175,8 +210,8 @@ def resolve_agent_config(data: dict, agent: str, path: str) -> AgentConfig:
         )
     if not _is_num_gt0(cost_warn_usd):
         raise ConfigError(f"cost_warn_usd must be a positive number (got '{cost_warn_usd}')")
-    if any("\n" in tool for tool in disallowed_tools):
-        raise ConfigError("disallowed_tools must not contain newlines")
+
+    allowed_tools, disallowed_tools = _resolve_tool_lists(defaults_block, agent_block, agent)
 
     wiki = data.get("wiki") or {}
     wiki_enabled = bool(wiki.get("enabled", False))
@@ -192,7 +227,8 @@ def resolve_agent_config(data: dict, agent: str, path: str) -> AgentConfig:
         timeout_minutes=int(timeout_minutes),
         max_output_tokens=int(max_output_tokens),
         cost_warn_usd=float(cost_warn_usd),
-        disallowed_tools=[str(tool) for tool in disallowed_tools],
+        allowed_tools=allowed_tools,
+        disallowed_tools=disallowed_tools,
         wiki_enabled=wiki_enabled,
         wiki_repo=wiki_repo,
         debug=debug,
@@ -242,6 +278,14 @@ def review_loop_config(data: dict, path: str) -> ReviewLoopConfig:
     )
 
 
+def _suffix(tools: list[str]) -> str:
+    return "".join(f",{tool}" for tool in tools)
+
+
+def _flag(name: str, tools: list[str]) -> str:
+    return f'{name} "{",".join(tools)}"' if tools else ""
+
+
 def _main(argv: list[str]) -> int:
     import argparse
 
@@ -266,7 +310,9 @@ def _main(argv: list[str]) -> int:
                 f"timeout_minutes={cfg.timeout_minutes}",
                 f"max_output_tokens={cfg.max_output_tokens}",
                 f"cost_warn_usd={cfg.cost_warn_usd}",
-                f"disallowed_tools={','.join(cfg.disallowed_tools)}",
+                f"tools_suffix={_suffix(builtin_tool_names(cfg.allowed_tools))}",
+                f"allowed_tools_suffix={_suffix(cfg.allowed_tools)}",
+                f"disallowed_tools_arg={_flag('--disallowedTools', cfg.disallowed_tools)}",
                 f"wiki_enabled={'true' if cfg.wiki_enabled else 'false'}",
                 f"wiki_repo={cfg.wiki_repo}",
                 f"debug={'true' if cfg.debug else 'false'}",
@@ -275,7 +321,8 @@ def _main(argv: list[str]) -> int:
             print(
                 f"agent-config[{args.agent}]: model={cfg.model} max_turns={cfg.max_turns} "
                 f"timeout_minutes={cfg.timeout_minutes} max_output_tokens={cfg.max_output_tokens} "
-                f"cost_warn_usd={cfg.cost_warn_usd} disallowed_tools={','.join(cfg.disallowed_tools)} "
+                f"cost_warn_usd={cfg.cost_warn_usd} allowed_tools={','.join(cfg.allowed_tools)} "
+                f"disallowed_tools={','.join(cfg.disallowed_tools)} "
                 f"wiki_enabled={'true' if cfg.wiki_enabled else 'false'} "
                 f"debug={'true' if cfg.debug else 'false'}",
                 file=sys.stderr,

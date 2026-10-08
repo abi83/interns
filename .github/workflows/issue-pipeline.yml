@@ -162,9 +162,9 @@ jobs:
             --model ${{ steps.cfg.outputs.model }}
             --max-turns ${{ steps.cfg.outputs.max_turns }}
             --mcp-config /tmp/mcp-config-gh-issues.json
-            --tools "Read,Grep,Glob"
-            --allowedTools "Read,Grep,Glob,${{ env.ALLOWED_EDIT_ISSUE }},${{ env.ALLOWED_EDIT_LABELS }},${{ env.ALLOWED_COMMENT }},${{ env.ALLOWED_LIST_ISSUES }},${{ env.ALLOWED_VIEW_ISSUE }},${{ env.ALLOWED_APPLY_REFINEMENT }}"
-            --disallowedTools "${{ steps.cfg.outputs.disallowed_tools }}"
+            --tools "Read,Grep,Glob${{ steps.cfg.outputs.tools_suffix }}"
+            --allowedTools "Read,Grep,Glob,${{ env.ALLOWED_EDIT_ISSUE }},${{ env.ALLOWED_EDIT_LABELS }},${{ env.ALLOWED_COMMENT }},${{ env.ALLOWED_LIST_ISSUES }},${{ env.ALLOWED_VIEW_ISSUE }},${{ env.ALLOWED_APPLY_REFINEMENT }}${{ steps.cfg.outputs.allowed_tools_suffix }}"
+            ${{ steps.cfg.outputs.disallowed_tools_arg }}
 
       - name: Upload refiner execution log (debug)
         if: (inputs.debug == true || steps.cfg.outputs.debug == 'true') && always() && steps.claude.outputs.execution_file != ''
@@ -340,9 +340,9 @@ jobs:
             --model ${{ steps.cfg.outputs.model }}
             --max-turns ${{ steps.cfg.outputs.max_turns }}
             --mcp-config /tmp/mcp-config-gh-issues.json
-            --tools "Read,Grep,Glob"
-            --allowedTools "Read,Grep,Glob,${{ env.ALLOWED_COMMENT }},${{ env.ALLOWED_APPLY_ESTIMATION }}"
-            --disallowedTools "${{ steps.cfg.outputs.disallowed_tools }}"
+            --tools "Read,Grep,Glob${{ steps.cfg.outputs.tools_suffix }}"
+            --allowedTools "Read,Grep,Glob,${{ env.ALLOWED_COMMENT }},${{ env.ALLOWED_APPLY_ESTIMATION }}${{ steps.cfg.outputs.allowed_tools_suffix }}"
+            ${{ steps.cfg.outputs.disallowed_tools_arg }}
 
       - name: Spike advisory
         if: steps.gate.outputs.skip != 'true' && steps.claude.outcome == 'success'

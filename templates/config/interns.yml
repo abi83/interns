@@ -40,50 +40,27 @@ defaults:
   timeout_minutes: 20
   max_output_tokens: 32000
   cost_warn_usd: 2.0
+  # Tools every agent gets on top of interns' own set (Claude Code permission
+  # patterns, passed through verbatim). `agents.<name>.allowed_tools` adds to
+  # this list. WARNING: a wildcard such as "Bash(npm run *)" is arbitrary code
+  # execution via package scripts.
+  # allowed_tools:
+  #   - "Bash(npm run *)"
+  # Tools removed from every agent, including interns' own set. Wins over
+  # allowed_tools; `agents.<name>.disallowed_tools` adds to this list.
+  # disallowed_tools:
+  #   - WebFetch
 
 agents:
   # The refiner investigates the codebase before rewriting, so it gets fewer
   # turns for the same budget.
   refiner:
     max_turns: 35
-    # Shrink an agent's list only once you've confirmed it needs the tool — this is a security ceiling, not a convenience knob.
-    disallowed_tools:
-      - Bash
-      - Task
-      - ScheduleWakeup
-      - WebSearch
-      - WebFetch
-      - Write
-      - Edit
-      - NotebookEdit
   estimator:
     max_turns: 30
-    disallowed_tools:
-      - Bash
-      - Task
-      - ScheduleWakeup
-      - WebSearch
-      - WebFetch
-      - Write
-      - Edit
-      - NotebookEdit
   # The coder does the most work per run, so it gets a longer timeout and turn budget.
   coder:
     max_turns: 75
     timeout_minutes: 30
-    disallowed_tools:
-      - Task
-      - ScheduleWakeup
-      - WebSearch
-      - WebFetch
-      - NotebookEdit
   reviewer:
     max_turns: 45
-    disallowed_tools:
-      - Task
-      - ScheduleWakeup
-      - WebSearch
-      - WebFetch
-      - Write
-      - Edit
-      - NotebookEdit
