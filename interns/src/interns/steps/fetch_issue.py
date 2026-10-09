@@ -1,4 +1,4 @@
-"""Fetches an issue (with comments and GitHub relationships) and writes its
+"""Fetches an issue (with human comments and GitHub relationships) and writes its
 fields to `$GITHUB_OUTPUT` for a workflow prompt. Also the shared read model
 behind the MCP server's `view_issue` tool.
 """
@@ -31,6 +31,9 @@ query($owner: String!, $repo: String!, $number: Int!) {
   }
 }
 """
+
+
+PIPELINE_AUTHOR = "github-actions"
 
 
 @dataclass
@@ -76,6 +79,7 @@ def fetch_issue(repo: str, number: int) -> Issue:
         comments=[
             Comment(author=(c["author"] or {}).get("login", "ghost"), created_at=c["createdAt"], body=c["body"])
             for c in raw["comments"]["nodes"]
+            if (c["author"] or {}).get("login") != PIPELINE_AUTHOR
         ],
         parent=RelatedIssue(**raw["parent"]) if raw.get("parent") else None,
         sub_issues=[RelatedIssue(**n) for n in raw["subIssues"]["nodes"]],
@@ -100,11 +104,10 @@ def write_github_output(issue: Issue) -> None:
     write("labels", ", ".join(issue.labels))
     write("body", issue.body, multiline=True)
 
-    human_comments = [c for c in issue.comments if c.author != "github-actions"]
-    if human_comments:
+    if issue.comments:
         parts = [
             f"### Comment by {c.author} ({c.created_at})\n{c.body}"
-            for c in human_comments
+            for c in issue.comments
         ]
         comments_text = (
             "COMMENTS (from the owner, chronological, excluding this pipeline's own"
