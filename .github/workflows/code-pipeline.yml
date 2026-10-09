@@ -488,10 +488,12 @@ jobs:
         run: |
           if [[ "${{ steps.mode.outputs.fix_round }}" == "true" ]]; then
             python3 -m interns.entrypoint flag-failure --noun implementation \
+              --exec-file "${{ steps.claude_initial.outputs.execution_file }}${{ steps.claude_fix.outputs.execution_file }}" \
               --issue "${{ steps.issue.outputs.number }}" \
               --pr "${{ steps.pr.outputs.pr_number }}" --fix-round
           else
             python3 -m interns.entrypoint flag-failure --noun implementation \
+              --exec-file "${{ steps.claude_initial.outputs.execution_file }}${{ steps.claude_fix.outputs.execution_file }}" \
               --issue "${{ steps.issue.outputs.number }}"
           fi
 
@@ -803,6 +805,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: >
           python3 -m interns.entrypoint flag-failure --noun review
+          --exec-file "${{ steps.claude.outputs.execution_file }}"
           --pr "${{ github.event.pull_request.number || inputs.pr_number }}"
           --issue "${{ steps.linked.outputs.issue_number }}"
 

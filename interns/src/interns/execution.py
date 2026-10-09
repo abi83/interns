@@ -51,6 +51,12 @@ def result_field(exec_file: str | None, field: str) -> str | None:
     return str(value) if value not in (None, "") else None
 
 
+def permission_denials(entry: dict) -> list[dict]:
+    """The run's denied tool calls (`tool_name`, `tool_input`, ...), from the
+    result entry's `permission_denials` list."""
+    return entry.get("permission_denials") or []
+
+
 def _main(argv: list[str]) -> int:
     import argparse
 

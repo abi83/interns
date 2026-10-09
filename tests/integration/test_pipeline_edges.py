@@ -4,6 +4,8 @@ Each test runs a real entrypoint against fake `gh` and asserts on the labels
 and comments it leaves behind.
 """
 
+import json
+
 import pytest
 
 from testkit.harness import REPO, Scenario, labels_payload
@@ -165,6 +167,63 @@ def test_estimation_crash_with_no_pr_comments_the_issue_directly(scenario):
     assert scenario.label_edits("issue") == [(ISSUE, {"status:needs-attention"}, set())]
     assert scenario.comments("issue") == [(ISSUE, f"Automated estimation failed. See the run: {RUN_URL}")]
     assert scenario.calls("gh", "pr") == []
+
+
+def _write_exec_log(scenario, *, subtype, errors, denied_commands):
+    path = scenario.dir / "execution.json"
+    path.write_text(json.dumps([{
+        "type": "result", "subtype": subtype, "errors": errors,
+        "permission_denials": [
+            {"tool_name": "Bash", "tool_use_id": f"tu-{i}", "tool_input": {"command": cmd}}
+            for i, cmd in enumerate(denied_commands)
+        ],
+    }]))
+    return str(path)
+
+
+def test_failure_comment_explains_max_turns_and_lists_top_denied_commands(scenario):
+    scenario.gh("issue", "view", "labels", stdout=labels_payload("status:in-progress"))
+    denied = ["docker run x"] * 3 + ["npm ci", "make setup", "npx prisma generate", "npm test", "ls `x`", "pwd"]
+    exec_file = _write_exec_log(scenario, subtype="error_max_turns",
+                                errors=["Reached maximum number of turns (75)"], denied_commands=denied)
+
+    result = scenario.run("interns.entrypoint", "flag-failure", "--noun", "implementation",
+                          "--issue", ISSUE, "--exec-file", exec_file)
+
+    assert result.returncode == 0
+    (_, body), = scenario.comments("issue")
+    assert body == (
+        f"Automated implementation failed. See the run: {RUN_URL}\n\n"
+        "Agent stopped: Reached maximum number of turns (75).\n"
+        "9 tool calls were denied:\n"
+        "- `docker run x` (×3)\n- `npm ci`\n- `make setup`\n- `npx prisma generate`\n- `npm test`\n"
+        "- and 2 more"
+    )
+
+
+def test_failure_comment_stays_generic_when_the_execution_log_is_missing(scenario):
+    scenario.gh("issue", "view", "labels", stdout=labels_payload("status:refined"))
+
+    result = scenario.run("interns.entrypoint", "flag-failure", "--noun", "estimation",
+                          "--issue", ISSUE, "--exec-file", str(scenario.dir / "absent.json"))
+
+    assert result.returncode == 0
+    assert scenario.comments("issue") == [(ISSUE, f"Automated estimation failed. See the run: {RUN_URL}")]
+
+
+def test_fix_round_failure_comment_includes_the_details(scenario):
+    scenario.gh("pr", "view", "labels", stdout=labels_payload("pr:coding"))
+    scenario.gh("issue", "view", "labels", stdout=labels_payload("status:in-progress"))
+    exec_file = _write_exec_log(scenario, subtype="error_max_turns",
+                                errors=["Reached maximum number of turns (75)"], denied_commands=["npm ci"])
+
+    result = scenario.run("interns.entrypoint", "flag-failure", "--noun", "implementation",
+                          "--pr", PR, "--issue", ISSUE, "--fix-round", "--exec-file", exec_file)
+
+    assert result.returncode == 0
+    (_, body), = scenario.comments("issue")
+    assert "Agent stopped: Reached maximum number of turns (75)." in body
+    assert "- `npm ci`" in body
 
 
 def test_flag_failure_with_no_target_fails(scenario):
