@@ -98,6 +98,23 @@ def test_view_issue_returns_flat_json():
     assert "nodes" not in str(data)
 
 
+def test_view_issue_excludes_pipeline_comments():
+    response = {"data": {"repository": {"issue": {
+        "number": 1, "title": "T", "body": "B", "state": "OPEN",
+        "labels": {"nodes": []},
+        "comments": {"nodes": [
+            {"author": {"login": "alice"}, "createdAt": "2024-01-01T00:00:00Z", "body": "Human"},
+            {"author": {"login": "github-actions"}, "createdAt": "2024-01-02T00:00:00Z", "body": "Pipeline started"},
+        ]},
+        "parent": None,
+        "subIssues": {"nodes": []}, "blockedBy": {"nodes": []}, "blocking": {"nodes": []},
+    }}}}
+    with patch("interns.steps.fetch_issue.gh.graphql", return_value=response), patch.object(server, "_REPO", "owner/repo"):
+        data = json.loads(view_issue(issue_number=1))
+
+    assert [c["body"] for c in data["comments"]] == ["Human"]
+
+
 # ---------------------------------------------------------------------------
 # edit_issue — dispatches to gh.issue_edit_validated
 # ---------------------------------------------------------------------------

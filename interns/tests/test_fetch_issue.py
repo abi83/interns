@@ -45,7 +45,7 @@ class FetchIssueTests(unittest.TestCase):
         graphql.assert_called_once_with(fetch_issue._VIEW_QUERY, owner="owner", repo="repo", number=42)
         self.assertEqual(issue.number, 42)
         self.assertEqual(issue.labels, ["bug", "priority:high"])
-        self.assertEqual([c.author for c in issue.comments], ["alice", "github-actions"])
+        self.assertEqual([c.author for c in issue.comments], ["alice"])
         self.assertEqual(issue.parent.number, 10)
         self.assertEqual(len(issue.sub_issues), 1)
         self.assertEqual(issue.blocked_by, [])
@@ -59,6 +59,11 @@ class FetchIssueTests(unittest.TestCase):
             issue = fetch_issue.fetch_issue("owner/repo", 42)
         self.assertEqual(issue.comments[-1].author, "ghost")
         self.assertEqual(issue.comments[-1].body, "From deleted account")
+
+    def test_excludes_pipeline_comments(self):
+        with patch("interns.steps.fetch_issue.gh.graphql", return_value=GRAPHQL_RESPONSE):
+            issue = fetch_issue.fetch_issue("owner/repo", 42)
+        self.assertNotIn("Pipeline comment", [c.body for c in issue.comments])
 
     def test_null_body_and_no_parent(self):
         response = copy.deepcopy(GRAPHQL_RESPONSE)
@@ -84,22 +89,18 @@ class WriteGithubOutputTests(unittest.TestCase):
                 fetch_issue.write_github_output(issue)
             return out.read_text()
 
-    def test_writes_fields_and_excludes_bot_comments(self):
+    def test_writes_fields_and_comments(self):
         issue = Issue(
             number=5, title="My issue", body="# Body\nContent", state="OPEN", labels=["bug", "priority:high"],
-            comments=[
-                Comment("alice", "2024-01-01T00:00:00Z", "Nice"),
-                Comment("github-actions", "2024-01-02T00:00:00Z", "Bot"),
-            ],
+            comments=[Comment("alice", "2024-01-01T00:00:00Z", "Nice")],
         )
         content = self._write(issue)
         for expected in ("number=5", "title=My issue", "labels=bug, priority:high", "# Body", "Nice"):
             self.assertIn(expected, content)
-        self.assertNotIn("Bot", content)
 
-    def test_no_human_comments(self):
-        content = self._write(_issue(comments=[Comment("github-actions", "2024-01-01T00:00:00Z", "Auto")]))
-        self.assertNotIn("Auto", content)
+    def test_no_comments(self):
+        content = self._write(_issue())
+        self.assertNotIn("COMMENTS", content)
 
     def test_delimiter_in_body_cannot_inject(self):
         body = "intro\nEOF_BODY\nsome_output=injected\nEOF_COMMENTS\nmore"
