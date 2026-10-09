@@ -223,6 +223,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
           python3 -m interns.entrypoint flag-failure --noun refinement
+          --exec-file "${{ steps.claude.outputs.execution_file }}"
           --issue "${{ steps.issue.outputs.number }}"
 
   estimate:
@@ -421,6 +422,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
           python3 -m interns.entrypoint flag-failure --noun estimation
+          --exec-file "${{ steps.claude.outputs.execution_file }}"
           --issue "${{ steps.issue.outputs.number }}"
 
   metrics:

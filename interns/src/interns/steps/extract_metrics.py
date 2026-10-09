@@ -46,31 +46,6 @@ def _tool_calls(events: list[dict]) -> dict[str, int]:
     return counts
 
 
-def _denied_tools(events: list[dict]) -> list[str]:
-    """Distinct tool names denied by the permission system (main agent only).
-
-    Denials appear as user-side tool_results with is_error=True whose content
-    contains "denied"; we correlate back to the tool name via tool_use_id."""
-    tool_use_names: dict[str, str] = {}
-    denied: set[str] = set()
-    for event in events:
-        if event.get("type") == "assistant" and not event.get("isSidechain"):
-            for block in event.get("message", {}).get("content") or []:
-                if block.get("type") == "tool_use":
-                    tool_use_names[block.get("id", "")] = block["name"]
-        elif event.get("type") == "user":
-            for block in event.get("message", {}).get("content") or []:
-                if block.get("type") != "tool_result" or not block.get("is_error"):
-                    continue
-                content = block.get("content", "")
-                text = content if isinstance(content, str) else ""
-                if "denied" in text.lower():
-                    tool_id = block.get("tool_use_id", "")
-                    if tool_id in tool_use_names:
-                        denied.add(tool_use_names[tool_id])
-    return sorted(denied)
-
-
 def _models(model_usage: dict) -> dict[str, dict]:
     return {
         name: {
@@ -97,6 +72,7 @@ def build_record(exec_file: str, *, job: str, issue: int | None, pr: int | None,
     if not results:
         raise NoResultEventError(f"no result event in {exec_file}")
     result = results[-1]
+    denials = execution.permission_denials(result)
 
     return {
         "schema_version": SCHEMA_VERSION,
@@ -115,8 +91,8 @@ def build_record(exec_file: str, *, job: str, issue: int | None, pr: int | None,
         "duration_api_ms": result.get("duration_api_ms"),
         "models": _models(result.get("modelUsage") or {}),
         "tool_calls": _tool_calls(evts),
-        "permission_denials": result.get("permission_denials_count") or 0,
-        "denied_tools": _denied_tools(evts),
+        "permission_denials": len(denials),
+        "denied_tools": sorted({d["tool_name"] for d in denials}),
     }
 
 

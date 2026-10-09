@@ -90,17 +90,11 @@ def test_extract_metrics_sub_labels_bash_tool_calls(scenario):
 def test_extract_metrics_captures_permission_denials(scenario):
     exec_file = scenario.dir / "execution.json"
     exec_file.write_text(json.dumps([
-        {"type": "assistant", "message": {"content": [
-            {"type": "tool_use", "id": "tu-1", "name": "Bash", "input": {"command": "rm -rf /"}},
-            {"type": "tool_use", "id": "tu-2", "name": "Edit", "input": {}},
-        ]}},
-        {"type": "user", "message": {"content": [
-            {"type": "tool_result", "tool_use_id": "tu-1", "is_error": True,
-             "content": "Permission denied: Bash is not in the allowed tools list."},
-            {"type": "tool_result", "tool_use_id": "tu-2", "is_error": True,
-             "content": "Permission denied: Edit is not allowed here."},
-        ]}},
-        {"type": "result", "permission_denials_count": 2},
+        {"type": "result", "permission_denials": [
+            {"tool_name": "Bash", "tool_use_id": "tu-1", "tool_input": {"command": "rm -rf /"}},
+            {"tool_name": "Edit", "tool_use_id": "tu-2", "tool_input": {"file_path": "a.py"}},
+            {"tool_name": "Bash", "tool_use_id": "tu-3", "tool_input": {"command": "npm ci"}},
+        ]},
     ]))
 
     result = scenario.run("interns.entrypoint", "extract-metrics",
@@ -108,7 +102,7 @@ def test_extract_metrics_captures_permission_denials(scenario):
 
     assert result.returncode == 0
     record = json.loads(result.stdout)
-    assert record["permission_denials"] == 2
+    assert record["permission_denials"] == 3
     assert record["denied_tools"] == ["Bash", "Edit"]
 
 

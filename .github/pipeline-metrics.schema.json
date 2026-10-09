@@ -62,7 +62,7 @@
     "permission_denials": {
       "type": "integer",
       "minimum": 0,
-      "description": "result.permission_denials_count — total denied tool calls for the run."
+      "description": "length of result.permission_denials — total denied tool calls for the run."
     },
     "denied_tools": {
       "type": "array",
