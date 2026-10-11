@@ -273,7 +273,16 @@ jobs:
       # checked-out default branch and switching itself.
       - name: Create coder branch
         if: steps.guard.outputs.skip != 'true' && steps.mode.outputs.fix_round != 'true'
-        run: git checkout -b "${{ steps.hints.outputs.branch }}"
+        env:
+          BRANCH: ${{ steps.hints.outputs.branch }}
+        run: |
+          # A failed earlier run may have saved its work as a draft PR on this
+          # branch: resume from it instead of starting over (and colliding on push).
+          if git show-ref --verify --quiet "refs/remotes/origin/$BRANCH"; then
+            git checkout -B "$BRANCH" "origin/$BRANCH"
+          else
+            git checkout -b "$BRANCH"
+          fi
 
       - name: Load coder instructions
         id: instructions
@@ -337,6 +346,26 @@ jobs:
         with:
           name: execution-log-coder-initial-issue-${{ steps.issue.outputs.number }}
           path: ${{ steps.claude_initial.outputs.execution_file }}
+
+      # The agent can run out of turns before it ever commits or pushes. Save
+      # whatever it left in the working tree as a draft PR so the work isn't
+      # lost with the runner. The coder App opens it (like the agent's own PRs).
+      - name: Save unfinished work as draft PR
+        id: draft_pr
+        if: failure() && steps.guard.outputs.skip != 'true' && steps.claude_initial.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ steps.coder_token.outputs.token }}
+          ISSUE_TITLE: ${{ steps.issue.outputs.title }}
+          COMMIT_TYPE_HINT: ${{ steps.hints.outputs.commit_type_hint }}
+          GIT_AUTHOR_NAME: interns-coder
+          GIT_AUTHOR_EMAIL: interns-coder@users.noreply.github.com
+          GIT_COMMITTER_NAME: interns-coder
+          GIT_COMMITTER_EMAIL: interns-coder@users.noreply.github.com
+        run: >
+          python3 -m interns.entrypoint save-draft-pr
+          --issue "${{ steps.issue.outputs.number }}"
+          --issue-title "$ISSUE_TITLE"
+          --commit-type-hint "$COMMIT_TYPE_HINT"
 
       - name: Load coder fix-round instructions
         id: fix_instructions
@@ -496,7 +525,8 @@ jobs:
           else
             python3 -m interns.entrypoint flag-failure --noun implementation \
               --exec-file "${{ steps.claude_initial.outputs.execution_file }}${{ steps.claude_fix.outputs.execution_file }}" \
-              --issue "${{ steps.issue.outputs.number }}"
+              --issue "${{ steps.issue.outputs.number }}" \
+              --draft-pr-url "${{ steps.draft_pr.outputs.draft_pr_url }}"
           fi
 
   reviewer:
@@ -504,6 +534,9 @@ jobs:
     # (see #132 defect 8):
     #  - fork PRs have no access to secrets, so CLAUDE_CODE_OAUTH_TOKEN /
     #    INTERNS_REVIEWER_APP_PRIVATE_KEY are empty and the run just errors out;
+    #  - draft PRs are unfinished by definition (the pipeline saves a failed
+    #    coder run's work as one); the review runs when it is marked ready
+    #    (`ready_for_review`);
     #  - bot PRs other than the coder's own App (Dependabot, etc.) aren't in
     #    allowed_bots and produce an "Automated review failed" comment. The
     #    coder's bot login is per-account (interns-coder-<owner>[bot]), not a
@@ -515,6 +548,7 @@ jobs:
     if: >
       (github.event_name == 'pull_request' &&
         github.event.action != 'closed' &&
+        github.event.pull_request.draft == false &&
         github.event.pull_request.head.repo.fork == false) ||
       (github.event_name == 'workflow_dispatch' && inputs.phase == 'reviewer')
     runs-on: ubuntu-latest

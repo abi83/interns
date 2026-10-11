@@ -163,11 +163,30 @@ def pr_checks(repo: str, pr: int) -> list[dict]:
     return data
 
 
-def pr_create(repo: str, head: str, base: str, title: str, body: str) -> str:
+def pr_create(repo: str, head: str, base: str, title: str, body: str, *, draft: bool = False) -> str:
     """Open a PR and return its URL."""
-    proc = run(["pr", "create", "--repo", repo, "--head", head, "--base", base,
-                 "--title", title, "--body", body])
-    return proc.stdout.strip()
+    args = ["pr", "create", "--repo", repo, "--head", head, "--base", base,
+            "--title", title, "--body", body]
+    if draft:
+        args.append("--draft")
+    return run(args).stdout.strip()
+
+
+def pr_for_head(repo: str, head: str) -> dict | None:
+    """The open PR whose head branch is `head` (`number`, `url`, `isDraft`), or None."""
+    proc = run(["pr", "list", "--repo", repo, "--head", head, "--state", "open",
+                "--json", "number,url,isDraft"])
+    prs = json.loads(proc.stdout)
+    return prs[0] if prs else None
+
+
+def pr_update(repo: str, number: int, *, title: str, body: str) -> None:
+    run(["pr", "edit", str(number), "--repo", repo, "--title", title, "--body", body])
+
+
+def pr_ready(repo: str, number: int) -> None:
+    """Take a draft PR out of draft."""
+    run(["pr", "ready", str(number), "--repo", repo])
 
 
 def pr_submit_review(repo: str, pr: int, event: str, body: str,

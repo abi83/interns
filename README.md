@@ -319,6 +319,12 @@ over interns' own tools.
 via package scripts.** Keep patterns narrow and put them under the one agent
 that needs them: `defaults` applies to every agent.
 
+#### Wiki
+
+With `wiki.enabled`, the wiki is checked out next to the repo (`../<name>.wiki`)
+and every agent is given access to that directory, so `Read`, `Glob`, `ls` and
+`cat` work on it.
+
 ### Makefile targets
 
 The coder runs in a fresh runner, so the consumer repo's
@@ -362,6 +368,22 @@ The pipeline works around this internally by dispatching the coder fix round
 with an explicit `workflow_dispatch` instead of a label. To re-run a phase by
 hand, use the `workflow_dispatch` on the caller workflow
 (`phase: refine|estimate` / `phase: coder|reviewer`).
+
+</details>
+
+<details>
+<summary><b>The coder failed and a draft PR appeared.</b></summary>
+
+When the coder's initial run fails (out of turns, timeout, crash), the
+pipeline commits whatever it left in the working tree — except `.interns/`
+and `.github/workflows|scripts/` — pushes the branch, and opens a **draft** PR
+that `Refs #N` (it does not close the issue). The failure comment on the issue
+links it. The reviewer skips drafts and runs once the PR is marked ready.
+
+To retry, clear `status:needs-attention` and re-apply `status:ready`: the new
+run resumes from the draft's branch, and when the coder finishes, `open_pr`
+updates that same PR's title and body and marks it ready (which triggers the
+review). Nothing is opened when the failed run left no changes.
 
 </details>
 

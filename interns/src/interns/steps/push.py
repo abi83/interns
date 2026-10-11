@@ -10,12 +10,21 @@ from __future__ import annotations
 import re
 import subprocess
 
-from ..gh import GhCommandError, InvalidInputError, PushRefusedError, default_branch, pr_create
+from ..gh import (
+    GhCommandError,
+    InvalidInputError,
+    PushRefusedError,
+    default_branch,
+    pr_create,
+    pr_for_head,
+    pr_ready,
+    pr_update,
+)
 
-_PROTECTED_PATHS_RE = r"^\.github/(workflows|scripts)/"
+PROTECTED_PATHS_RE = r"^\.github/(workflows|scripts)/"
 
 
-def _git(workspace: str, *args: str) -> str:
+def git(workspace: str, *args: str) -> str:
     result = subprocess.run(
         ["git", *args], cwd=workspace or None, capture_output=True, text=True
     )
@@ -34,47 +43,57 @@ def push_branch(repo: str, workspace: str) -> str:
     protected-path check so an intermediate-only edit to a protected path is
     collapsed and doesn't trigger a false positive.
     """
-    branch = _git(workspace, "rev-parse", "--abbrev-ref", "HEAD")
+    branch = git(workspace, "rev-parse", "--abbrev-ref", "HEAD")
     if branch in ("main", "master"):
         raise PushRefusedError(f"Refusing to push {branch} directly")
 
     default = default_branch(repo)
-    _git(workspace, "fetch", "origin", default, "--quiet")
-    base = _git(workspace, "merge-base", f"origin/{default}", "HEAD")
-    head = _git(workspace, "rev-parse", "HEAD")
+    git(workspace, "fetch", "origin", default, "--quiet")
+    base = git(workspace, "merge-base", f"origin/{default}", "HEAD")
+    head = git(workspace, "rev-parse", "HEAD")
 
     if base == head:
         raise PushRefusedError(f"No commits beyond origin/{default} — nothing to push")
 
-    message = _git(workspace, "log", "-1", "--format=%B")
-    _git(workspace, "reset", "--soft", base)
-    _git(workspace, "commit", "--quiet", "-m", message)
+    message = git(workspace, "log", "-1", "--format=%B")
+    git(workspace, "reset", "--soft", base)
+    git(workspace, "commit", "--quiet", "-m", message)
 
-    changed = _git(workspace, "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD")
-    protected = [p for p in changed.splitlines() if re.search(_PROTECTED_PATHS_RE, p)]
+    changed = git(workspace, "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD")
+    protected = [p for p in changed.splitlines() if re.search(PROTECTED_PATHS_RE, p)]
     if protected:
         # Undo the squash so the branch is left in a pushable state after the
         # agent drops the offending edits and retries.
-        _git(workspace, "reset", "--soft", head)
+        git(workspace, "reset", "--soft", head)
         paths = "\n".join(f"  {p}" for p in protected)
         raise PushRefusedError(
             f"Cannot push: changes touch protected paths (drop these edits and push again):\n{paths}"
         )
 
-    _git(workspace, "push", "--force-with-lease", "-u", "origin", branch)
+    git(workspace, "push", "--force-with-lease", "-u", "origin", branch)
     return f"Branch {branch!r} squashed and pushed to origin"
 
 
 def pr_open_for_issue(repo: str, workspace: str, issue_number: int, title: str, body: str) -> str:
     """Open a PR from the current branch, automatically appending 'Closes #N' to body.
 
+    If the branch already has an open PR (e.g. the draft saved by an earlier
+    failed run), that PR gets the new title and body and is marked ready for
+    review instead of a second one being created.
+
     Raises InvalidInputError if title contains newlines.
     Raises GhCommandError if HEAD is detached.
     """
     if "\n" in title:
         raise InvalidInputError("Title must be a single line")
-    head = _git(workspace, "rev-parse", "--abbrev-ref", "HEAD")
+    head = git(workspace, "rev-parse", "--abbrev-ref", "HEAD")
     if head == "HEAD":
         raise GhCommandError("Cannot open a PR from a detached HEAD; check out a branch first")
     full_body = f"{body}\n\nCloses #{issue_number}"
-    return pr_create(repo, head, default_branch(repo), title, full_body)
+    existing = pr_for_head(repo, head)
+    if existing is None:
+        return pr_create(repo, head, default_branch(repo), title, full_body)
+    pr_update(repo, existing["number"], title=title, body=full_body)
+    if existing["isDraft"]:
+        pr_ready(repo, existing["number"])
+    return existing["url"]
