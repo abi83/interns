@@ -33,13 +33,30 @@ WRAPPER_FILES = {
 # Seeded once, then expected to carry consumer-local edits -- added when
 # missing, never overwritten.
 CONFIG_FILES = {
-    "templates/config/interns.yml": ".github/interns.yml",
+    "templates/config/defaults.yml": ".github/interns.yml",
     "templates/config/Makefile": "Makefile",
 }
+
+CONFIG_HEADER = """\
+# interns pipeline config -- every key below is commented out and shows
+# interns' current default. Interns applies these defaults when a key is
+# absent, so they track interns releases. Uncomment (with its parent keys) only
+# what you deliberately want to override.
+# Schema: abi83/interns/.github/interns.schema.json
+"""
+
+
+def render_consumer_config(defaults_text: str) -> str:
+    """The consumer's starter .github/interns.yml: interns' defaults file
+    (minus its own maintainer header) with every key commented out."""
+    body = defaults_text.split("\n\n", 1)[1]
+    commented = [f"# {line}" if line and not line.startswith("#") else line for line in body.splitlines()]
+    return CONFIG_HEADER + "\n" + "\n".join(commented) + "\n"
 
 INSTALL_FILES = {**WRAPPER_FILES, **CONFIG_FILES}
 
 MAKEFILE = "Makefile"
+CONSUMER_CONFIG = ".github/interns.yml"
 _SETUP_TARGET = re.compile(r"^setup\s*:", re.MULTILINE)
 SETUP_STUB = '''
 .PHONY: setup
@@ -60,8 +77,8 @@ workflow can't add them itself.
 - **`.github/workflows/{issue,code}-pipeline.yml`** — caller stubs that own the
   triggers and delegate to the reusable cores in `abi83/interns`, pinned to a
   release tag.
-- **`.github/interns.yml`** — per-agent limits; every key is optional and falls
-  back to the interns default.
+- **`.github/interns.yml`** — starter config with every key commented out at
+  its current interns default; uncomment only what you deliberately override.
 - **`Makefile`** — `setup`/`test`/`build` targets. `setup` installs dependencies
   before the coder starts; `test`/`build` run before a PR is opened or
   updated. Fill them in with this repo's real commands; left empty, the
@@ -108,7 +125,7 @@ def collect_missing_files(repo: gh_admin.Repo, base: str,
     for src, dest in CONFIG_FILES.items():
         if not gh_admin.path_exists(repo.slug, dest, base):
             content = gh_admin.get_file(INTERNS_REPO, src, INTERNS_REF).replace(REF_PLACEHOLDER, INTERNS_REF)
-            wanted[dest] = (content, None)
+            wanted[dest] = (render_consumer_config(content) if dest == CONSUMER_CONFIG else content, None)
             continue
         if dest != MAKEFILE:
             continue

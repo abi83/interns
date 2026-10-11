@@ -80,7 +80,7 @@ class CollectMissingFilesTests(unittest.TestCase):
         self.assertIn("INTERNS: not configured", content)
 
     def test_collect_substitutes_ref_placeholder(self):
-        tmpl = "uses: abi83/interns/.github/workflows/install.yml@__INTERNS_REF__"
+        tmpl = "# header\n\nuses: abi83/interns/.github/workflows/install.yml@__INTERNS_REF__"
         with mock.patch.object(install_files.gh_admin, "path_exists", return_value=False), \
              mock.patch.object(install_files.gh_admin, "get_existing_file", return_value=None), \
              mock.patch.object(install_files.gh_admin, "get_file", return_value=tmpl), \
@@ -95,7 +95,7 @@ class CollectMissingFilesTests(unittest.TestCase):
         with mock.patch.object(install_files.gh_admin, "path_exists", return_value=False), \
              mock.patch.object(install_files.gh_admin, "get_existing_file", return_value=None), \
              mock.patch.object(install_files.gh_admin, "list_dir", return_value=["bug.md", "config.yml"]), \
-             mock.patch.object(install_files.gh_admin, "get_file", side_effect=lambda r, p, ref: f"body:{p}"):
+             mock.patch.object(install_files.gh_admin, "get_file", side_effect=lambda r, p, ref: f"# header\n\nbody:{p}"):
             wanted = collect_missing_files(_repo(), "main", issue_templates=True)
 
         self.assertIn(".github/ISSUE_TEMPLATE/bug.md", wanted)
@@ -143,3 +143,23 @@ class CollectMissingFilesTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RenderConsumerConfigTests(unittest.TestCase):
+    DEFAULTS = "# maintainer header\n\n# doc\ndebug: false\n\nagents:\n  coder:\n    max_turns: 75\n"
+
+    def test_every_key_is_commented_out_and_the_maintainer_header_dropped(self):
+        rendered = install_files.render_consumer_config(self.DEFAULTS)
+        self.assertNotIn("maintainer header", rendered)
+        self.assertIn("# debug: false", rendered)
+        self.assertIn("# agents:\n#   coder:\n#     max_turns: 75", rendered)
+        active = [line for line in rendered.splitlines() if line.strip() and not line.startswith("#")]
+        self.assertEqual(active, [])
+
+    def test_missing_interns_yml_is_seeded_from_the_rendered_defaults(self):
+        with mock.patch.object(install_files.gh_admin, "path_exists", return_value=False), \
+             mock.patch.object(install_files.gh_admin, "get_existing_file", return_value=None), \
+             mock.patch.object(install_files.gh_admin, "get_file", return_value=self.DEFAULTS):
+            wanted = collect_missing_files(_repo(), "main", issue_templates=False)
+
+        self.assertEqual(wanted[".github/interns.yml"], (install_files.render_consumer_config(self.DEFAULTS), None))

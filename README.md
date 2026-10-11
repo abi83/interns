@@ -271,7 +271,8 @@ which carries the `workflow` scope that `GITHUB_TOKEN` is never granted, so the
 - [`.github/workflows/{issue,code}-pipeline.yml`](templates/workflows) — caller
   stubs that own the triggers and delegate to the reusable cores, pinned to the
   same version.
-- [`.github/interns.yml`](templates/config/interns.yml) — starter config.
+- `.github/interns.yml` — starter config, rendered from
+  [`defaults.yml`](templates/config/defaults.yml) with every key commented out.
 
 The `@version` those wrapper files pin to is `v0`: a floating tag that always
 points at the latest non-breaking release (`v0.1.x`, ...), the same
@@ -293,11 +294,14 @@ Pass `--issue-templates` to also add the default issue templates
 
 ### Pipeline configuration
 
-One source of truth: [`.github/interns.yml`](templates/config/interns.yml),
-installed with every key already filled in at its default so you can see
-what's configurable without reading the source. Edit it, or delete a key to
-fall back to interns' own built-in default. A value can only come from this
-file or the built-in — there is no second, overlapping source.
+Interns' defaults live in one file,
+[`templates/config/defaults.yml`](templates/config/defaults.yml). `interns-install`
+renders your `.github/interns.yml` from it with every key **commented out**, so
+you can see what's configurable and at what value without pinning a snapshot
+of it. Uncomment a key only to
+override it deliberately; everything else follows interns' defaults as they
+change. A value can only come from your file or those defaults — there is no
+second, overlapping source.
 
 The reviewer waits for **all** of a PR's checks to be green before it runs — a
 red or cancelled check on anything routes the PR to a human instead. Name any
@@ -346,11 +350,12 @@ lacks the target.
 The fully manual path stays supported: create the two Apps with the permissions
 above and install them on the repo, add the secrets and variables, set branch
 protection, and commit the caller stubs from
-[`templates/workflows/`](templates/workflows) and
-[`templates/config/interns.yml`](templates/config/interns.yml) yourself —
+[`templates/workflows/`](templates/workflows) yourself —
 including the [`install.yml`](templates/workflows/install.yml) wrapper. With
 that wrapper in place, run it (`gh workflow run install.yml`) to sync labels,
-or sync labels from the manifest by hand.
+or sync labels from the manifest by hand. `.github/interns.yml` is optional:
+create it with only the keys you override, using
+[`defaults.yml`](templates/config/defaults.yml) as the reference.
 
 </details>
 
