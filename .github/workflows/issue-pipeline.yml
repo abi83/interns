@@ -97,10 +97,10 @@ jobs:
 
       - name: Checkout wiki
         if: steps.cfg.outputs.wiki_enabled == 'true'
-        uses: actions/checkout@v5
+        uses: ./.interns/.github/actions/checkout-wiki
         with:
           repository: ${{ steps.cfg.outputs.wiki_repo }}
-          path: wiki
+          destination: ${{ steps.cfg.outputs.wiki_dir }}
 
       - name: Resolve issue template
         id: template
@@ -164,6 +164,7 @@ jobs:
             --mcp-config /tmp/mcp-config-gh-issues.json
             --tools "Read,Grep,Glob${{ steps.cfg.outputs.tools_suffix }}"
             --allowedTools "Read,Grep,Glob,${{ env.ALLOWED_EDIT_ISSUE }},${{ env.ALLOWED_EDIT_LABELS }},${{ env.ALLOWED_COMMENT }},${{ env.ALLOWED_LIST_ISSUES }},${{ env.ALLOWED_VIEW_ISSUE }},${{ env.ALLOWED_APPLY_REFINEMENT }}${{ steps.cfg.outputs.allowed_tools_suffix }}"
+            ${{ steps.cfg.outputs.add_dir_arg }}
             ${{ steps.cfg.outputs.disallowed_tools_arg }}
 
       - name: Upload refiner execution log (debug)
@@ -273,10 +274,10 @@ jobs:
 
       - name: Checkout wiki
         if: steps.cfg.outputs.wiki_enabled == 'true'
-        uses: actions/checkout@v5
+        uses: ./.interns/.github/actions/checkout-wiki
         with:
           repository: ${{ steps.cfg.outputs.wiki_repo }}
-          path: wiki
+          destination: ${{ steps.cfg.outputs.wiki_dir }}
 
       - name: Resolve issue
         id: issue
@@ -343,6 +344,7 @@ jobs:
             --mcp-config /tmp/mcp-config-gh-issues.json
             --tools "Read,Grep,Glob${{ steps.cfg.outputs.tools_suffix }}"
             --allowedTools "Read,Grep,Glob,${{ env.ALLOWED_COMMENT }},${{ env.ALLOWED_APPLY_ESTIMATION }}${{ steps.cfg.outputs.allowed_tools_suffix }}"
+            ${{ steps.cfg.outputs.add_dir_arg }}
             ${{ steps.cfg.outputs.disallowed_tools_arg }}
 
       - name: Spike advisory

@@ -12,7 +12,8 @@
 # logs as artifacts on every automatically triggered run.
 debug: false
 
-# Wiki checked out for the agents to read, at ./wiki. Disabled by default.
+# Wiki checked out for the agents to read, next to the repo checkout
+# (../<name>.wiki). Disabled by default.
 wiki:
   enabled: false
   # url: owner/repo.wiki

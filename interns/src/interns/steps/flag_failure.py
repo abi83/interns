@@ -47,9 +47,11 @@ def failure_details(exec_file: str) -> str:
 
 
 def flag_failure(repo: str, noun: str, issue: int | None, pr: int | None, fix_round: bool, *,
-                 run_url: str = "", exec_file: str = "") -> None:
+                 run_url: str = "", exec_file: str = "", draft_pr_url: str = "") -> None:
     details = failure_details(exec_file)
     suffix = f"\n\n{details}" if details else ""
+    if draft_pr_url:
+        suffix += f"\n\nDraft PR with the unfinished work: {draft_pr_url}"
     # A review-job crash leaves the PR stuck with no verdict; mark it for a
     # human. A fix-round crash escalates on the issue side, so the PR just
     # loses its label.
@@ -90,6 +92,7 @@ def _main(ctx: ActionsCtx, argv: list[str]) -> int:
     parser.add_argument("--pr", default="")
     parser.add_argument("--fix-round", action="store_true")
     parser.add_argument("--exec-file", default="")
+    parser.add_argument("--draft-pr-url", default="")
     args = parser.parse_args(argv)
 
     flag_failure(
@@ -100,5 +103,6 @@ def _main(ctx: ActionsCtx, argv: list[str]) -> int:
         args.fix_round,
         run_url=ctx.run_url(),
         exec_file=args.exec_file,
+        draft_pr_url=args.draft_pr_url,
     )
     return 0

@@ -323,6 +323,10 @@ over interns' own tools.
 via package scripts.** Keep patterns narrow and put them under the one agent
 that needs them: `defaults` applies to every agent.
 
+#### Wiki
+
+With `wiki.enabled`, the wiki is checked out next to the repo (`../<name>.wiki`) and every agent can read it.
+
 ### Makefile targets
 
 The coder runs in a fresh runner, so the consumer repo's
@@ -367,6 +371,19 @@ The pipeline works around this internally by dispatching the coder fix round
 with an explicit `workflow_dispatch` instead of a label. To re-run a phase by
 hand, use the `workflow_dispatch` on the caller workflow
 (`phase: refine|estimate` / `phase: coder|reviewer`).
+
+</details>
+
+<details>
+<summary><b>The coder failed and a draft PR appeared.</b></summary>
+
+The pipeline saves a failed initial coder run's working tree as a draft PR
+that `Refs` the issue (see [`save_draft_pr.py`](interns/src/interns/steps/save_draft_pr.py));
+the reviewer skips drafts. To retry, clear `status:needs-attention` first, then
+re-apply `status:ready`: the rerun resumes on the draft's branch and `open_pr`
+marks that PR ready. Resume finds the draft by the deterministic branch name
+`<prefix>/issue-<n>-<title slug>`, so editing the issue title or type label
+between runs starts a fresh branch.
 
 </details>
 

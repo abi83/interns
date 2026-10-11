@@ -41,7 +41,9 @@ does not run tests; the CI checks are the gate.
 
 You're already on the branch given as `BRANCH` in your prompt — it's
 derived from the issue and already checked out, no need to create or switch
-to it yourself. Commit your changes with a normal, clear commit message.
+to it yourself. If it already has commits beyond the default branch, an
+earlier attempt ran out of turns and its unfinished work was saved there:
+finish it, don't start over. Commit your changes with a normal, clear commit message.
 `mcp__gh-issues__push_branch` collapses the branch to a single commit before
 pushing, so don't rely on your intermediate commit structure surviving.
 

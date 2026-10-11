@@ -22,6 +22,11 @@ def test_every_phase_pins_builtin_tools_and_appends_consumer_additions():
         assert "${{ steps.cfg.outputs.disallowed_tools_arg }}" in block, block
 
 
+def test_every_phase_grants_access_to_the_wiki_dir():
+    for block in claude_args_blocks():
+        assert "${{ steps.cfg.outputs.add_dir_arg }}" in block, block
+
+
 def test_no_phase_hardcodes_a_denylist():
     for block in claude_args_blocks():
         assert "--disallowedTools" not in block, block

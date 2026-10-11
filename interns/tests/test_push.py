@@ -122,9 +122,10 @@ def test_push_branch_passes_workspace_as_cwd(_):
 # ---------------------------------------------------------------------------
 
 
+@patch("interns.steps.push.pr_for_head", return_value=None)
 @patch("interns.steps.push.default_branch", return_value="main")
 @patch("interns.steps.push.pr_create", return_value="https://github.com/owner/repo/pull/1")
-def test_pr_open_for_issue_appends_closes(mock_create, _):
+def test_pr_open_for_issue_appends_closes(mock_create, _, __):
     with patch("interns.steps.push.subprocess.run", return_value=_proc("feat/x")):
         result = pr_open_for_issue(REPO, WORKSPACE, 42, "feat: add thing", "Implements the thing")
 
@@ -134,9 +135,10 @@ def test_pr_open_for_issue_appends_closes(mock_create, _):
     assert result == "https://github.com/owner/repo/pull/1"
 
 
+@patch("interns.steps.push.pr_for_head", return_value=None)
 @patch("interns.steps.push.default_branch", return_value="main")
 @patch("interns.steps.push.pr_create", return_value="https://github.com/owner/repo/pull/1")
-def test_pr_open_for_issue_uses_correct_head_and_base(mock_create, _):
+def test_pr_open_for_issue_uses_correct_head_and_base(mock_create, _, __):
     with patch("interns.steps.push.subprocess.run", return_value=_proc("feat/x")):
         pr_open_for_issue(REPO, WORKSPACE, 42, "feat: add thing", "Body text here")
 
@@ -155,3 +157,19 @@ def test_pr_open_for_issue_rejects_detached_head():
 def test_pr_open_for_issue_rejects_multiline_title():
     with pytest.raises(InvalidInputError, match="single line"):
         pr_open_for_issue(REPO, WORKSPACE, 42, "line one\nline two", "Body text here")
+
+
+@pytest.mark.parametrize("is_draft", [True, False])
+def test_pr_open_for_issue_updates_the_branchs_existing_pr_and_readies_a_draft(is_draft):
+    existing = {"number": 9, "url": "https://x/pull/9", "isDraft": is_draft}
+    with patch("interns.steps.push.pr_for_head", return_value=existing), \
+         patch("interns.steps.push.pr_create") as create, \
+         patch("interns.steps.push.pr_update") as update, \
+         patch("interns.steps.push.pr_ready") as ready, \
+         patch("interns.steps.push.subprocess.run", return_value=_proc("feat/x")):
+        url = pr_open_for_issue(REPO, WORKSPACE, 42, "feat: add thing", "Body text here")
+
+    assert url == "https://x/pull/9"
+    create.assert_not_called()
+    update.assert_called_once_with(REPO, 9, title="feat: add thing", body="Body text here\n\nCloses #42")
+    assert ready.called == is_draft

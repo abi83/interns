@@ -201,6 +201,23 @@ def test_failure_comment_explains_max_turns_and_lists_top_denied_commands(scenar
     )
 
 
+def test_failure_comment_links_the_draft_pr_with_the_unfinished_work(scenario):
+    scenario.gh("issue", "view", "labels", stdout=labels_payload("status:in-progress"))
+    exec_file = _write_exec_log(scenario, subtype="error_max_turns",
+                                errors=["Reached maximum number of turns (100)"], denied_commands=[])
+    draft = "https://github.example/acme/widgets/pull/9"
+
+    result = scenario.run("interns.entrypoint", "flag-failure", "--noun", "implementation",
+                          "--issue", ISSUE, "--exec-file", exec_file, "--draft-pr-url", draft)
+
+    assert result.returncode == 0
+    assert scenario.comments("issue") == [(ISSUE, (
+        f"Automated implementation failed. See the run: {RUN_URL}\n\n"
+        "Agent stopped: Reached maximum number of turns (100).\n\n"
+        f"Draft PR with the unfinished work: {draft}"
+    ))]
+
+
 def test_failure_comment_stays_generic_when_the_execution_log_is_missing(scenario):
     scenario.gh("issue", "view", "labels", stdout=labels_payload("status:refined"))
 

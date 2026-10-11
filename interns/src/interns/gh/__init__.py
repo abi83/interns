@@ -22,8 +22,11 @@ from .ops import (  # noqa: F401
     pr_create,
     pr_diff_names,
     pr_edit,
+    pr_for_head,
     pr_list,
+    pr_ready,
     pr_submit_review,
+    pr_update,
     pr_view,
 )
 from .transport import api, api_all_pages, api_status, graphql, run  # noqa: F401
