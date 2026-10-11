@@ -63,7 +63,7 @@ env:
   # Branch checkout is a workflow step now (Create coder branch / Checkout PR
   # branch below), not something the coder does itself, so checkout/switch
   # aren't in this list.
-  ALLOWED_GIT_WRITE: "Bash(git add:*),Bash(git commit:*),Bash(git rm:*)"
+  ALLOWED_GIT_WRITE: "Bash(git add:*),Bash(git commit:*),Bash(git rm:*),Bash(git mv:*)"
   ALLOWED_GIT_READ: "Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git status:*)"
   # Read-only filesystem inspection for the coder; Write/Edit stay the only
   # write path. No sed: no uniqueness check like Edit, easy to over-match.
