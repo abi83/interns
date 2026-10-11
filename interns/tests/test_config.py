@@ -94,6 +94,7 @@ _BUILTIN_FIXTURE = {
     "wiki": {"enabled": False},
     "checks": {"ignore": [], "timeout_seconds": 1200, "poll_seconds": 20, "settle_seconds": 30},
     "review_loop": {"max_fix_rounds": 1, "max_automatic_reviews": 5},
+    "auto_proceed": {"XS": True, "S": True, "M": True, "L": False, "XL": False},
     "defaults": {
         "model": "claude-sonnet-5-5",
         "max_turns": 60,
@@ -369,6 +370,31 @@ class ReviewLoopConfigTests(unittest.TestCase):
         data = {"review_loop": {"max_automatic_reviews": 0}}
         with self.assertRaisesRegex(config.ConfigError, "review_loop.max_automatic_reviews"):
             config.review_loop_config(data, "interns.yml")
+
+
+class AutoProceedConfigTests(unittest.TestCase):
+    def setUp(self):
+        patcher = patch("interns.config._builtin_data", return_value=_BUILTIN_FIXTURE)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_defaults_proceed_up_to_m(self):
+        self.assertEqual(
+            config.auto_proceed_config({}, "interns.yml"),
+            {"XS": True, "S": True, "M": True, "L": False, "XL": False},
+        )
+
+    def test_consumer_overrides_one_size_and_keeps_the_rest(self):
+        resolved = config.auto_proceed_config({"auto_proceed": {"L": True, "XS": False}}, "interns.yml")
+        self.assertEqual(resolved, {"XS": False, "S": True, "M": True, "L": True, "XL": False})
+
+    def test_non_boolean_value_is_rejected(self):
+        with self.assertRaisesRegex(config.ConfigError, "auto_proceed.L must be true or false"):
+            config.auto_proceed_config({"auto_proceed": {"L": "yes"}}, "interns.yml")
+
+    def test_unknown_size_is_rejected(self):
+        with self.assertRaisesRegex(config.ConfigError, "unknown key 'auto_proceed.XXL'"):
+            _load({"auto_proceed": {"XXL": True}})
 
 
 class CliTests(unittest.TestCase):

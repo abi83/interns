@@ -35,7 +35,9 @@ The human owner steps in twice. First, on a refined and estimated issue: decide
 whether to run the automated implementation flow, or send the task back for
 rework — e.g. the scope is too broad to land in one PR, the estimator flagged a
 huge blast radius, or refinement surfaced blockers and missing prerequisites.
-Approving is a single move: the label `status:estimated` → `status:ready`.
+Approving is a single move: the label `status:estimated` → `status:ready` —
+or skip it for sizes you trust the pipeline with, via `auto_proceed` (see
+[Pipeline configuration](#pipeline-configuration)).
 Second, give the finished PR — already implemented and reviewer-approved — a
 final look and merge it. Everything in between is automated, and
 anything the automation can't finish — a Claude error, a vague issue
@@ -78,8 +80,8 @@ not in the manifest are left alone.
 |---|--------------------------------------------------------|-----------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `status:needs-refinement` | awaiting the refiner                                   | **human**, triggers the refinement-estimation pipeline                      | `status:refined`, or `status:needs-attention` if the refiner needs a decision                                                                                                  |
 | `status:refined` | refined, awaiting estimation                           | refiner                                                                     | `status:estimated` (+ `size:*`); `status:needs-attention` if unsizeable                                                                                                       |
-| `status:estimated` | estimated — waiting on the owner to approve or comment | estimator                                                                   | `status:ready` set by a human to trigger the coder, or a human **comment** to trigger conversational follow-up (TBD, [#11](https://github.com/abi83/interns/issues/11)). |
-| `status:ready` | approved for the coder                                 | **human**, triggers the coder-reviewer pipeline                             | `status:in-progress` when the coder starts; `status:needs-attention` if the issue isn't a `type:coding-task` / `type:bug`                                                      |
+| `status:estimated` | estimated — waiting on the owner to approve or comment | estimator                                                                   | `status:ready` set by a human (or by the pipeline when `auto_proceed` enables the size) to trigger the coder, or a human **comment** to trigger conversational follow-up (TBD, [#11](https://github.com/abi83/interns/issues/11)). |
+| `status:ready` | approved for the coder                                 | **human** (or the pipeline, per `auto_proceed`), triggers the coder-reviewer pipeline                             | `status:in-progress` when the coder starts; `status:needs-attention` if the issue isn't a `type:coding-task` / `type:bug`                                                      |
 | `status:in-progress` | a coder-reviewer loop is in progress                   | coder                                                                       | cleared when the PR merges (issue closed by `Closes #N`); `status:needs-attention` if the PR is closed unmerged, or on any pipeline stall                                        |
 | `status:needs-attention` | pipeline stalled — a human needs to look               | any agent                                                                   | cleared when a human re-dispatches (the coder drops it on pickup)                                                                                                              |
 
@@ -312,6 +314,17 @@ and the coder–reviewer loop caps (`review_loop.max_fix_rounds` /
 `max_automatic_reviews`) are documented with their defaults in the config
 file.
 
+`auto_proceed` decides, per size label, whether an estimated
+`type:coding-task` / `type:bug` goes straight to the coder without waiting for
+your `status:estimated` → `status:ready` approval. By default `XS`, `S` and `M`
+proceed; `L` and `XL` wait for you. Override single sizes in
+`.github/interns.yml` — the rest keep their defaults:
+
+```yaml
+auto_proceed:
+  L: true
+```
+
 #### Agent tools
 
 interns gives each agent a fixed tool set. Extend it with `allowed_tools` and
@@ -366,7 +379,8 @@ create it with only the keys you override, using
 
 Label edits made by `GITHUB_TOKEN` (or any action using it) don't trigger new
 workflow runs — GitHub's anti-recursion rule. The `status:estimated` →
-`status:ready` approval must be a **human** label edit for the coder to fire.
+`status:ready` approval must be a **human** label edit for the coder to fire
+(`auto_proceed` applies it with the triage App's token, which does fire it).
 The pipeline works around this internally by dispatching the coder fix round
 with an explicit `workflow_dispatch` instead of a label. To re-run a phase by
 hand, use the `workflow_dispatch` on the caller workflow

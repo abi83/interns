@@ -33,6 +33,10 @@ def test_review_loop_keys():
     assert set(PROPERTIES["review_loop"]["properties"]) == set(config.KNOWN_REVIEW_LOOP_KEYS)
 
 
+def test_auto_proceed_keys():
+    assert set(PROPERTIES["auto_proceed"]["properties"]) == set(config.KNOWN_AUTO_PROCEED_KEYS)
+
+
 def test_agent_and_defaults_blocks_use_the_limits_definition():
     blocks = [PROPERTIES["defaults"], *PROPERTIES["agents"]["properties"].values()]
     assert all(block == {"$ref": "#/definitions/limits"} for block in blocks)
