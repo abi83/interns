@@ -26,12 +26,10 @@ KNOWN_WIKI_KEYS = ("enabled", "url")
 KNOWN_CHECKS_KEYS = ("ignore", "timeout_seconds", "poll_seconds", "settle_seconds")
 KNOWN_REVIEW_LOOP_KEYS = ("max_fix_rounds", "max_automatic_reviews")
 
-# The pipeline's own built-in fallback layer: the same file
-# installer/src/interns_install/install_files.py seeds a fresh consumer's
-# .github/interns.yml from, loaded through the identical schema-validated
-# path as a consumer's file. One file, two consumers -- nothing here to
-# drift from the values a fresh install actually ships.
-_TEMPLATE_CONFIG_PATH = Path(__file__).resolve().parents[3] / "templates" / "config" / "interns.yml"
+# The pipeline's own built-in fallback layer, loaded through the identical
+# schema-validated path as a consumer's file. The consumer-facing template
+# the installer seeds is generated from this file (all keys commented out).
+_DEFAULTS_CONFIG_PATH = Path(__file__).resolve().parents[3] / "templates" / "config" / "defaults.yml"
 
 
 class ConfigError(RuntimeError):
@@ -77,10 +75,13 @@ def _yaml_to_json(path: str) -> object:
 
 
 def load_raw(path: str) -> dict:
-    """The parsed, schema-validated config file, or {} when it doesn't exist."""
+    """The parsed, schema-validated config file, or {} when it doesn't exist
+    or holds only comments (a freshly installed one)."""
     if not os.path.isfile(path):
         return {}
     data = _yaml_to_json(path)
+    if data is None:
+        return {}
     if not isinstance(data, dict):
         raise ConfigError(f"{path} is not valid YAML or not a mapping")
     _validate_schema(data, path)
@@ -126,9 +127,9 @@ def _is_num_gt0(value: object) -> bool:
 
 @functools.lru_cache(maxsize=1)
 def _builtin_data() -> dict:
-    """The shipped template, loaded and schema-validated exactly like a
+    """The shipped defaults, loaded and schema-validated exactly like a
     consumer's own config file."""
-    return load_raw(str(_TEMPLATE_CONFIG_PATH))
+    return load_raw(str(_DEFAULTS_CONFIG_PATH))
 
 
 def _tool_list(block: dict, key: str, where: str) -> list[str]:

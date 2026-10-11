@@ -1,6 +1,7 @@
 import contextlib
 import io
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -30,6 +31,9 @@ class LoadRawTests(unittest.TestCase):
         isfile_p, _ = _yaml({}, exists=False)
         with isfile_p:
             self.assertEqual(config.load_raw("none.yml"), {})
+
+    def test_comment_only_file_is_an_empty_config(self):
+        self.assertEqual(_load(None), {})
 
     def test_non_mapping_top_level_is_rejected(self):
         with self.assertRaisesRegex(config.ConfigError, "not valid YAML or not a mapping"):
@@ -78,10 +82,9 @@ class LoadRawTests(unittest.TestCase):
             _load({"review_loop": {"bogus": 1}})
 
 
-# Mirrors templates/config/interns.yml's shape and values -- the file the
-# installer seeds a fresh consumer's .github/interns.yml from, and that
+# Mirrors templates/config/defaults.yml's shape and values -- what
 # resolve_agent_config() falls back to when the consumer's own file doesn't
-# set a key. BuiltinTemplateIntegrationTests below loads the real file
+# set a key. BuiltinDefaultsIntegrationTests below loads the real file
 # directly, to catch this fixture drifting from it.
 _BUILTIN_FIXTURE = {
     "debug": False,
@@ -258,19 +261,18 @@ class BuiltinToolNamesTests(unittest.TestCase):
         self.assertEqual(config.builtin_tool_names(["mcp__other__tool", "Read"]), ["Read"])
 
 
-class BuiltinTemplateIntegrationTests(unittest.TestCase):
-    """Loads the real templates/config/interns.yml (no mocking) -- catches
-    the shipped template drifting from what resolve_agent_config() actually
-    falls back to, and _BUILTIN_FIXTURE above drifting from the template."""
+class BuiltinDefaultsIntegrationTests(unittest.TestCase):
+    """Loads the real templates/config/defaults.yml (no mocking) -- catches
+    the shipped defaults drifting from _BUILTIN_FIXTURE above."""
 
     def setUp(self):
         config._builtin_data.cache_clear()
         self.addCleanup(config._builtin_data.cache_clear)
 
-    def test_real_template_matches_the_fixture(self):
+    def test_real_defaults_match_the_fixture(self):
         self.assertEqual(config._builtin_data(), _BUILTIN_FIXTURE)
 
-    def test_coder_resolves_from_the_real_template_with_no_consumer_file(self):
+    def test_coder_resolves_from_the_real_defaults_with_no_consumer_file(self):
         cfg = config.resolve_agent_config({}, "coder", "interns.yml")
         self.assertEqual(cfg.max_turns, 75)
         self.assertEqual(cfg.timeout_minutes, 30)
@@ -365,3 +367,13 @@ class CliTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class InstalledTemplateTests(unittest.TestCase):
+    def test_fresh_install_resolves_to_the_defaults(self):
+        config._builtin_data.cache_clear()
+        self.addCleanup(config._builtin_data.cache_clear)
+        template = Path(__file__).resolve().parents[2] / "templates" / "config" / "interns.yml"
+        installed = config.load_raw(str(template))
+        self.assertEqual(installed, {})
+        self.assertEqual(config.resolve_agent_config(installed, "coder", str(template)).model, "claude-sonnet-5-5")

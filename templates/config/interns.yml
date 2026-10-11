@@ -1,6 +1,7 @@
-# interns pipeline config — every configurable key, set to its default.
-# Precedence: agents.<name>.<key> > defaults.<key> > interns' own built-in.
-# Delete a key (or leave it at the value shown) to fall back to the next one.
+# interns pipeline config -- every key below is commented out and shows
+# interns' current default. Interns applies these defaults when a key is
+# absent, so they track interns releases. Uncomment (with its parent keys) only
+# what you deliberately want to override.
 # Schema: abi83/interns/.github/interns.schema.json
 
 # Branch GitHub Pages is served from. Defaults to the repo's default branch.
@@ -9,60 +10,60 @@
 
 # Set to true to show full Claude conversation in logs and attach execution
 # logs as artifacts on every automatically triggered run.
-debug: false
+# debug: false
 
 # Wiki checked out for the agents to read, at ./wiki. Disabled by default.
-wiki:
-  enabled: false
-  # url: owner/repo.wiki
+# wiki:
+#   enabled: false
+#   # url: owner/repo.wiki
 
 # The reviewer waits for every PR check to be green before it runs. List any
 # non-blocking advisory checks here (preview deploys, coverage deltas) to keep
 # them out of that gate.
-checks:
-  ignore: []
-  #  - preview-deploy
-  # How long (in seconds) the reviewer waits for all PR checks to finish.
-  timeout_seconds: 1200
-  poll_seconds: 20
-  settle_seconds: 30
+# checks:
+#   ignore: []
+#   #  - preview-deploy
+#   # How long (in seconds) the reviewer waits for all PR checks to finish.
+#   timeout_seconds: 1200
+#   poll_seconds: 20
+#   settle_seconds: 30
 
 # Coder–reviewer loop limits. Two independent caps on the same loop:
 # max_fix_rounds bounds automatic fix rounds per CHANGES_REQUESTED verdict;
 # max_automatic_reviews bounds total reviewer runs per PR regardless of outcome.
-review_loop:
-  max_fix_rounds: 1
-  max_automatic_reviews: 5
+# review_loop:
+#   max_fix_rounds: 1
+#   max_automatic_reviews: 5
 
-defaults:
-  model: claude-sonnet-5-5
-  max_turns: 60
-  timeout_minutes: 20
-  max_output_tokens: 32000
-  cost_warn_usd: 2.0
-  # Tools on top of interns' own, for every agent (Claude Code permission
-  # patterns). Keep them narrow: "Bash(npm run *)" runs any package script.
-  # allowed_tools:
-  #   - "Bash(npm run lint:*)"
-  # Removed from every agent, interns' own tools included; beats allowed_tools.
-  # disallowed_tools:
-  #   - "WebFetch"
+# defaults:
+#   model: claude-sonnet-5-5
+#   max_turns: 60
+#   timeout_minutes: 20
+#   max_output_tokens: 32000
+#   cost_warn_usd: 2.0
+#   # Tools on top of interns' own, for every agent (Claude Code permission
+#   # patterns). Keep them narrow: "Bash(npm run *)" runs any package script.
+#   # allowed_tools:
+#   #   - "Bash(npm run lint:*)"
+#   # Removed from every agent, interns' own tools included; beats allowed_tools.
+#   # disallowed_tools:
+#   #   - "WebFetch"
 
-agents:
-  # The refiner investigates the codebase before rewriting, so it gets fewer
-  # turns for the same budget.
-  refiner:
-    max_turns: 35
-  estimator:
-    max_turns: 30
-  # The coder does the most work per run, so it gets a longer timeout and turn budget.
-  coder:
-    max_turns: 75
-    timeout_minutes: 30
-    # Per-agent lists add to the defaults above.
-    # allowed_tools:
-    #   - "Bash(npx prisma generate:*)"
-    # disallowed_tools:
-    #   - "Bash(psql:*)"
-  reviewer:
-    max_turns: 45
+# agents:
+#   # The refiner investigates the codebase before rewriting, so it gets fewer
+#   # turns for the same budget.
+#   refiner:
+#     max_turns: 35
+#   estimator:
+#     max_turns: 30
+#   # The coder does the most work per run, so it gets a longer timeout and turn budget.
+#   coder:
+#     max_turns: 75
+#     timeout_minutes: 30
+#     # Per-agent lists add to the defaults above.
+#     # allowed_tools:
+#     #   - "Bash(npx prisma generate:*)"
+#     # disallowed_tools:
+#     #   - "Bash(psql:*)"
+#   reviewer:
+#     max_turns: 45

@@ -293,11 +293,14 @@ Pass `--issue-templates` to also add the default issue templates
 
 ### Pipeline configuration
 
-One source of truth: [`.github/interns.yml`](templates/config/interns.yml),
-installed with every key already filled in at its default so you can see
-what's configurable without reading the source. Edit it, or delete a key to
-fall back to interns' own built-in default. A value can only come from this
-file or the built-in — there is no second, overlapping source.
+Interns' defaults live in one file,
+[`templates/config/defaults.yml`](templates/config/defaults.yml). The
+installed [`.github/interns.yml`](templates/config/interns.yml) is generated
+from it with every key **commented out**, so you can see what's configurable
+and at what value without pinning a snapshot of it. Uncomment a key only to
+override it deliberately; everything else follows interns' defaults as they
+change. A value can only come from your file or those defaults — there is no
+second, overlapping source.
 
 The reviewer waits for **all** of a PR's checks to be green before it runs — a
 red or cancelled check on anything routes the PR to a human instead. Name any
