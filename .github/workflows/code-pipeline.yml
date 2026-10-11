@@ -224,10 +224,10 @@ jobs:
 
       - name: Checkout wiki
         if: steps.cfg.outputs.wiki_enabled == 'true'
-        uses: actions/checkout@v5
+        uses: ./.interns/.github/actions/checkout-wiki
         with:
           repository: ${{ steps.cfg.outputs.wiki_repo }}
-          path: wiki
+          destination: ${{ steps.cfg.outputs.wiki_dir }}
 
       - name: Resolve existing PR (fix round)
         id: pr
@@ -328,6 +328,7 @@ jobs:
             --mcp-config /tmp/mcp-config-gh-issues.json
             --tools "Read,Grep,Glob,Write,Edit,Bash${{ steps.cfg.outputs.tools_suffix }}"
             --allowedTools "Read,Grep,Glob,Write,Edit,${{ env.ALLOWED_FS_READ }},${{ env.ALLOWED_GIT_WRITE }},${{ env.ALLOWED_BUILD_TEST }},${{ env.ALLOWED_PUSH_BRANCH }},${{ env.ALLOWED_OPEN_PR }},${{ env.ALLOWED_COMMENT_ISSUE }}${{ steps.cfg.outputs.allowed_tools_suffix }}"
+            ${{ steps.cfg.outputs.add_dir_arg }}
             ${{ steps.cfg.outputs.disallowed_tools_arg }}
 
       - name: Upload coder-initial execution log (debug)
@@ -380,6 +381,7 @@ jobs:
             --mcp-config /tmp/mcp-config-gh-issues.json
             --tools "Read,Grep,Glob,Write,Edit,Bash${{ steps.cfg.outputs.tools_suffix }}"
             --allowedTools "Read,Grep,Glob,Write,Edit,${{ env.ALLOWED_FS_READ }},${{ env.ALLOWED_GIT_WRITE }},${{ env.ALLOWED_BUILD_TEST }},${{ env.ALLOWED_PUSH_BRANCH }},${{ env.ALLOWED_COMMENT_PR }}${{ steps.cfg.outputs.allowed_tools_suffix }}"
+            ${{ steps.cfg.outputs.add_dir_arg }}
             ${{ steps.cfg.outputs.disallowed_tools_arg }}
 
       - name: Upload coder-fix execution log (debug)
@@ -579,10 +581,10 @@ jobs:
 
       - name: Checkout wiki
         if: steps.cfg.outputs.wiki_enabled == 'true'
-        uses: actions/checkout@v5
+        uses: ./.interns/.github/actions/checkout-wiki
         with:
           repository: ${{ steps.cfg.outputs.wiki_repo }}
-          path: wiki
+          destination: ${{ steps.cfg.outputs.wiki_dir }}
 
       - name: Wait for PR checks
         id: checks
@@ -725,6 +727,7 @@ jobs:
             --mcp-config /tmp/mcp-config-gh-issues.json
             --tools "Read,Grep,Glob,Bash${{ steps.cfg.outputs.tools_suffix }}"
             --allowedTools "Read,Grep,Glob,${{ env.ALLOWED_GIT_READ }},${{ env.ALLOWED_PR_READ }},${{ env.ALLOWED_CI_READ }},${{ env.ALLOWED_VIEW_ISSUE }},${{ env.ALLOWED_SUBMIT_REVIEW }},${{ env.ALLOWED_COMMENT_PR }}${{ steps.cfg.outputs.allowed_tools_suffix }}"
+            ${{ steps.cfg.outputs.add_dir_arg }}
             ${{ steps.cfg.outputs.disallowed_tools_arg }}
 
       - name: Upload reviewer execution log (debug)
