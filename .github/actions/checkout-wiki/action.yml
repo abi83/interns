@@ -1,8 +1,7 @@
 name: Checkout wiki
 description: >
-  Check the wiki repo out next to the repo checkout instead of inside it.
-  actions/checkout refuses a `path` outside the workspace, so it clones into
-  the workspace first and the result is moved to `destination`.
+  Check the wiki out outside the workspace. actions/checkout refuses such a
+  `path`, so it clones inside and moves the result to `destination`.
 inputs:
   repository:
     description: owner/name of the wiki repo (e.g. owner/repo.wiki).

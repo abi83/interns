@@ -2,6 +2,7 @@
 
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -42,10 +43,9 @@ def work(tmp_path, monkeypatch):
 @pytest.fixture(autouse=True)
 def fake_gh():
     with patch.object(save_draft_pr.gh, "pr_for_head", return_value=None) as for_head, \
-         patch.object(save_draft_pr.gh, "default_branch", return_value="main"), \
          patch("interns.steps.push.default_branch", return_value="main"), \
          patch.object(save_draft_pr.gh, "pr_create", return_value=DRAFT_URL) as create:
-        yield type("Gh", (), {"for_head": for_head, "create": create})
+        yield SimpleNamespace(for_head=for_head, create=create)
 
 
 def save(work: Path) -> str | None:
@@ -112,15 +112,10 @@ def test_commits_the_agent_already_made_collapse_into_one_commit_without_protect
     assert git(work, "rev-list", "--count", "origin/main..origin/feat/issue-7-thing") == "1"
 
 
-def test_nothing_changed_opens_nothing(work, fake_gh):
-    assert save(work) is None
-    fake_gh.create.assert_not_called()
-    assert git(work, "ls-remote", "--heads", "origin", "feat/issue-7-thing") == ""
-
-
-def test_only_excluded_changes_open_nothing(work, fake_gh):
-    write(work, ".interns/tool.py")
-    write(work, ".github/workflows/ci.yml")
+@pytest.mark.parametrize("excluded", [[], [".interns/tool.py", ".github/workflows/ci.yml"]])
+def test_nothing_to_save_opens_nothing(work, fake_gh, excluded):
+    for rel in excluded:
+        write(work, rel)
 
     assert save(work) is None
 
@@ -165,26 +160,16 @@ class TestDraftTitle:
         assert save_draft_pr.draft_title("feat:", "fix(#56): add a thing") == "fix(#56): add a thing"
 
 
-def test_main_writes_the_draft_url_output(work, tmp_path, monkeypatch):
+@pytest.mark.parametrize("change, expected", [("src/a.py", f"draft_pr_url={DRAFT_URL}\n"), (None, "")])
+def test_main_writes_the_draft_url_output_only_when_a_draft_was_opened(work, tmp_path, monkeypatch, change, expected):
     output = tmp_path / "out"
     output.write_bytes(b"")
     monkeypatch.setenv("GITHUB_OUTPUT", str(output))
-    write(work, "src/a.py")
+    if change:
+        write(work, change)
     ctx = ActionsCtx(repo=REPO, token="t", server_url="https://github.com", run_id="5", run_attempt=1,
                      workspace=str(work), event_name="issues", reviewer_bot="", step_summary="")
 
     assert save_draft_pr._main(ctx, ["--issue", "7", "--issue-title", "do it", "--commit-type-hint", "feat:"]) == 0
 
-    assert output.read_text() == f"draft_pr_url={DRAFT_URL}\n"
-
-
-def test_main_writes_no_output_when_nothing_was_saved(work, tmp_path, monkeypatch):
-    output = tmp_path / "out"
-    output.write_bytes(b"")
-    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
-    ctx = ActionsCtx(repo=REPO, token="t", server_url="https://github.com", run_id="5", run_attempt=1,
-                     workspace=str(work), event_name="issues", reviewer_bot="", step_summary="")
-
-    assert save_draft_pr._main(ctx, ["--issue", "7", "--issue-title", "do it", "--commit-type-hint", "feat:"]) == 0
-
-    assert output.read_text() == ""
+    assert output.read_text() == expected

@@ -321,9 +321,7 @@ that needs them: `defaults` applies to every agent.
 
 #### Wiki
 
-With `wiki.enabled`, the wiki is checked out next to the repo (`../<name>.wiki`)
-and every agent is given access to that directory, so `Read`, `Glob`, `ls` and
-`cat` work on it.
+With `wiki.enabled`, the wiki is checked out next to the repo (`../<name>.wiki`) and every agent can read it.
 
 ### Makefile targets
 
@@ -374,16 +372,13 @@ hand, use the `workflow_dispatch` on the caller workflow
 <details>
 <summary><b>The coder failed and a draft PR appeared.</b></summary>
 
-When the coder's initial run fails (out of turns, timeout, crash), the
-pipeline commits whatever it left in the working tree — except `.interns/`
-and `.github/workflows|scripts/` — pushes the branch, and opens a **draft** PR
-that `Refs #N` (it does not close the issue). The failure comment on the issue
-links it. The reviewer skips drafts and runs once the PR is marked ready.
-
-To retry, clear `status:needs-attention` and re-apply `status:ready`: the new
-run resumes from the draft's branch, and when the coder finishes, `open_pr`
-updates that same PR's title and body and marks it ready (which triggers the
-review). Nothing is opened when the failed run left no changes.
+The pipeline saves a failed initial coder run's working tree as a draft PR
+that `Refs` the issue (see [`save_draft_pr.py`](interns/src/interns/steps/save_draft_pr.py));
+the reviewer skips drafts. To retry, clear `status:needs-attention` first, then
+re-apply `status:ready`: the rerun resumes on the draft's branch and `open_pr`
+marks that PR ready. Resume finds the draft by the deterministic branch name
+`<prefix>/issue-<n>-<title slug>`, so editing the issue title or type label
+between runs starts a fresh branch.
 
 </details>
 

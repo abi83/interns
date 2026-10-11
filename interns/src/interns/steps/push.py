@@ -34,6 +34,20 @@ def git(workspace: str, *args: str) -> str:
     return result.stdout.strip()
 
 
+def unprotected_branch(workspace: str) -> str:
+    branch = git(workspace, "rev-parse", "--abbrev-ref", "HEAD")
+    if branch in ("main", "master"):
+        raise PushRefusedError(f"Refusing to push {branch} directly")
+    return branch
+
+
+def fork_point(repo: str, workspace: str) -> tuple[str, str]:
+    """(default branch, merge-base of HEAD with its fresh origin copy)."""
+    default = default_branch(repo)
+    git(workspace, "fetch", "origin", default, "--quiet")
+    return default, git(workspace, "merge-base", f"origin/{default}", "HEAD")
+
+
 def push_branch(repo: str, workspace: str) -> str:
     """Squash the current branch to one commit and push it to origin.
 
@@ -43,13 +57,8 @@ def push_branch(repo: str, workspace: str) -> str:
     protected-path check so an intermediate-only edit to a protected path is
     collapsed and doesn't trigger a false positive.
     """
-    branch = git(workspace, "rev-parse", "--abbrev-ref", "HEAD")
-    if branch in ("main", "master"):
-        raise PushRefusedError(f"Refusing to push {branch} directly")
-
-    default = default_branch(repo)
-    git(workspace, "fetch", "origin", default, "--quiet")
-    base = git(workspace, "merge-base", f"origin/{default}", "HEAD")
+    branch = unprotected_branch(workspace)
+    default, base = fork_point(repo, workspace)
     head = git(workspace, "rev-parse", "HEAD")
 
     if base == head:
@@ -77,9 +86,8 @@ def push_branch(repo: str, workspace: str) -> str:
 def pr_open_for_issue(repo: str, workspace: str, issue_number: int, title: str, body: str) -> str:
     """Open a PR from the current branch, automatically appending 'Closes #N' to body.
 
-    If the branch already has an open PR (e.g. the draft saved by an earlier
-    failed run), that PR gets the new title and body and is marked ready for
-    review instead of a second one being created.
+    A branch that already has an open PR (e.g. a failed run's draft) gets
+    that PR updated and marked ready instead of a second one.
 
     Raises InvalidInputError if title contains newlines.
     Raises GhCommandError if HEAD is detached.

@@ -347,9 +347,8 @@ jobs:
           name: execution-log-coder-initial-issue-${{ steps.issue.outputs.number }}
           path: ${{ steps.claude_initial.outputs.execution_file }}
 
-      # The agent can run out of turns before it ever commits or pushes. Save
-      # whatever it left in the working tree as a draft PR so the work isn't
-      # lost with the runner. The coder App opens it (like the agent's own PRs).
+      # The agent can run out of turns before it ever commits or pushes; keep
+      # its working tree as a draft PR instead of losing it with the runner.
       - name: Save unfinished work as draft PR
         id: draft_pr
         if: failure() && steps.guard.outputs.skip != 'true' && steps.claude_initial.outcome == 'failure'

@@ -32,21 +32,15 @@ def test_draft_step_opens_the_pr_as_the_coder_app_and_passes_the_title_through_e
     assert "save-draft-pr" in body
 
 
-def test_draft_step_precedes_the_failure_flag():
+def test_failure_comment_receives_the_draft_url_from_a_step_that_ran_before_it():
     assert WORKFLOW.index("name: Save unfinished work as draft PR") < WORKFLOW.index("name: Flag failure")
+    assert '--draft-pr-url "${{ steps.draft_pr.outputs.draft_pr_url }}"' in step("Flag failure")
 
 
-def test_initial_round_failure_comment_receives_the_draft_url():
-    flag = step("Flag failure")
-    assert '--draft-pr-url "${{ steps.draft_pr.outputs.draft_pr_url }}"' in flag
-
-
-def test_reviewer_event_trigger_skips_draft_prs():
-    assert "github.event.pull_request.draft == false" in job_if("reviewer")
-
-
-def test_reviewer_manual_dispatch_stays_unconditional():
-    assert "github.event_name == 'workflow_dispatch' && inputs.phase == 'reviewer'" in job_if("reviewer")
+def test_reviewer_skips_draft_prs_on_events_but_not_on_manual_dispatch():
+    condition = job_if("reviewer")
+    assert "github.event.pull_request.draft == false" in condition
+    assert "github.event_name == 'workflow_dispatch' && inputs.phase == 'reviewer'" in condition
 
 
 def test_caller_template_reviews_a_draft_once_it_is_marked_ready():

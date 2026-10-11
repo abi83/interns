@@ -283,7 +283,7 @@ def _suffix(tools: list[str]) -> str:
 
 
 def wiki_dir(wiki_repo: str, workspace: str) -> str:
-    """The wiki sits next to the repo checkout (`<owner-dir>/<name>.wiki`), where agents expect it."""
+    """Next to the repo checkout, where agents look for it."""
     return str(Path(workspace).parent / wiki_repo.rsplit("/", 1)[-1])
 
 
@@ -310,6 +310,7 @@ def _main(argv: list[str]) -> int:
         if args.command == "agent-config":
             cfg = resolve_agent_config(data, args.agent, args.config)
             wiki_path = wiki_dir(cfg.wiki_repo, os.environ["GITHUB_WORKSPACE"]) if cfg.wiki_enabled else ""
+            add_dir_arg = f"--add-dir {wiki_path}" if wiki_path else ""
             for line in (
                 f"model={cfg.model}",
                 f"max_turns={cfg.max_turns}",
@@ -322,7 +323,7 @@ def _main(argv: list[str]) -> int:
                 f"wiki_enabled={'true' if cfg.wiki_enabled else 'false'}",
                 f"wiki_repo={cfg.wiki_repo}",
                 f"wiki_dir={wiki_path}",
-                f"add_dir_arg={f'--add-dir {wiki_path}' if wiki_path else ''}",
+                f"add_dir_arg={add_dir_arg}",
                 f"debug={'true' if cfg.debug else 'false'}",
             ):
                 print(line)

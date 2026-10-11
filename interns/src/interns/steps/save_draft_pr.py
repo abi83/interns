@@ -14,8 +14,6 @@ from .. import cli, gh
 from ..ctx import ActionsCtx
 from . import push
 
-# The pipeline's own checkout of itself; never part of the consumer's change.
-# (The wiki lives next to the workspace, so git never sees it.)
 PIPELINE_DIR = ".interns"
 CONVENTIONAL_SUBJECT_RE = r"^\w+(\([^)]*\))?!?: "
 
@@ -44,19 +42,15 @@ def stage_unfinished_work(workspace: str, base: str) -> bool:
     protected = [path for path in staged if re.search(push.PROTECTED_PATHS_RE, path)]
     if protected:
         push.git(workspace, "reset", "--quiet", base, "--", *protected)
-    return bool(push.git(workspace, "diff", "--cached", "--name-only", base))
+    return len(staged) > len(protected)
 
 
 def save_draft_pr(repo: str, workspace: str, issue: int, title: str, run_url: str) -> str | None:
-    branch = push.git(workspace, "rev-parse", "--abbrev-ref", "HEAD")
-    if branch in ("main", "master"):
-        raise gh.PushRefusedError(f"Refusing to save work on {branch}")
+    branch = push.unprotected_branch(workspace)
     if gh.pr_for_head(repo, branch) is not None:
         return None
 
-    default = gh.default_branch(repo)
-    push.git(workspace, "fetch", "origin", default, "--quiet")
-    base = push.git(workspace, "merge-base", f"origin/{default}", "HEAD")
+    default, base = push.fork_point(repo, workspace)
     if not stage_unfinished_work(workspace, base):
         return None
 

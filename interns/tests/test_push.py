@@ -159,26 +159,17 @@ def test_pr_open_for_issue_rejects_multiline_title():
         pr_open_for_issue(REPO, WORKSPACE, 42, "line one\nline two", "Body text here")
 
 
-@patch("interns.steps.push.pr_ready")
-@patch("interns.steps.push.pr_update")
-@patch("interns.steps.push.pr_create")
-@patch("interns.steps.push.pr_for_head", return_value={"number": 9, "url": "https://x/pull/9", "isDraft": True})
-def test_pr_open_for_issue_reuses_and_readies_the_branchs_draft_pr(_, mock_create, mock_update, mock_ready):
-    with patch("interns.steps.push.subprocess.run", return_value=_proc("feat/x")):
+@pytest.mark.parametrize("is_draft", [True, False])
+def test_pr_open_for_issue_updates_the_branchs_existing_pr_and_readies_a_draft(is_draft):
+    existing = {"number": 9, "url": "https://x/pull/9", "isDraft": is_draft}
+    with patch("interns.steps.push.pr_for_head", return_value=existing), \
+         patch("interns.steps.push.pr_create") as create, \
+         patch("interns.steps.push.pr_update") as update, \
+         patch("interns.steps.push.pr_ready") as ready, \
+         patch("interns.steps.push.subprocess.run", return_value=_proc("feat/x")):
         url = pr_open_for_issue(REPO, WORKSPACE, 42, "feat: add thing", "Body text here")
 
     assert url == "https://x/pull/9"
-    mock_create.assert_not_called()
-    mock_update.assert_called_once_with(REPO, 9, title="feat: add thing", body="Body text here\n\nCloses #42")
-    mock_ready.assert_called_once_with(REPO, 9)
-
-
-@patch("interns.steps.push.pr_ready")
-@patch("interns.steps.push.pr_update")
-@patch("interns.steps.push.pr_for_head", return_value={"number": 9, "url": "https://x/pull/9", "isDraft": False})
-def test_pr_open_for_issue_leaves_an_already_ready_pr_ready(_, mock_update, mock_ready):
-    with patch("interns.steps.push.subprocess.run", return_value=_proc("feat/x")):
-        pr_open_for_issue(REPO, WORKSPACE, 42, "feat: add thing", "Body text here")
-
-    mock_update.assert_called_once()
-    mock_ready.assert_not_called()
+    create.assert_not_called()
+    update.assert_called_once_with(REPO, 9, title="feat: add thing", body="Body text here\n\nCloses #42")
+    assert ready.called == is_draft
