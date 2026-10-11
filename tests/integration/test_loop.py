@@ -37,6 +37,7 @@ def test_coder_success_squashes_pushes_opens_pr_and_reports_cost(scenario):
     scenario.git("merge-base", stdout="base-sha\n")
     scenario.git("log", stdout="feat: add thing\n")
     scenario.git("diff-tree", stdout="src/thing.py\n")
+    scenario.gh("pr", "list", stdout="[]")
     scenario.gh("pr", "create", stdout=f"https://github.example/{REPO}/pull/{PR}\n")
     scenario.gh("pr", "view", "labels", stdout=labels_payload("pr:coding"))
     exec_file = scenario.dir / "execution.json"

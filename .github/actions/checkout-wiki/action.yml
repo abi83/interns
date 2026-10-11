@@ -1,0 +1,26 @@
+name: Checkout wiki
+description: >
+  Check the wiki out outside the workspace. actions/checkout refuses such a
+  `path`, so it clones inside and moves the result to `destination`.
+inputs:
+  repository:
+    description: owner/name of the wiki repo (e.g. owner/repo.wiki).
+    required: true
+  destination:
+    description: Absolute directory to place the wiki in.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@v5
+      with:
+        repository: ${{ inputs.repository }}
+        path: .interns-wiki
+        persist-credentials: false
+
+    - name: Move wiki next to the repo checkout
+      shell: bash
+      env:
+        DESTINATION: ${{ inputs.destination }}
+      run: mv .interns-wiki "$DESTINATION"

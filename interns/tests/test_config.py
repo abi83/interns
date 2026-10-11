@@ -1,5 +1,6 @@
 import contextlib
 import io
+import os
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -247,6 +248,31 @@ class AgentConfigOutputTests(unittest.TestCase):
         self.assertEqual(outputs["tools_suffix"], ",Bash,WebFetch")
         self.assertEqual(outputs["allowed_tools_suffix"], ",Bash(npm run *),WebFetch")
         self.assertEqual(outputs["disallowed_tools_arg"], '--disallowedTools "Write,Edit"')
+
+    def test_wiki_disabled_emits_no_dir_and_no_add_dir_flag(self):
+        outputs = self._outputs({}, "coder")
+        self.assertEqual(outputs["wiki_dir"], "")
+        self.assertEqual(outputs["add_dir_arg"], "")
+
+    def test_wiki_enabled_emits_the_dir_and_an_add_dir_flag(self):
+        data = {"wiki": {"enabled": True, "url": "owner/repo.wiki"}}
+        with patch.dict(os.environ, {"GITHUB_WORKSPACE": "/w/repo/repo"}):
+            outputs = self._outputs(data, "coder")
+        self.assertEqual(outputs["wiki_dir"], "/w/repo/repo.wiki")
+        self.assertEqual(outputs["add_dir_arg"], "--add-dir /w/repo/repo.wiki")
+
+    def test_wiki_enabled_without_a_workspace_fails(self):
+        data = {"wiki": {"enabled": True, "url": "owner/repo.wiki"}}
+        with patch.dict(os.environ, clear=True), self.assertRaises(KeyError):
+            self._outputs(data, "coder")
+
+
+class WikiDirTests(unittest.TestCase):
+    def test_wiki_sits_next_to_the_workspace_under_the_wiki_repo_name(self):
+        self.assertEqual(
+            config.wiki_dir("owner/repo.wiki", "/home/runner/work/repo/repo"),
+            "/home/runner/work/repo/repo.wiki",
+        )
 
 
 class BuiltinToolNamesTests(unittest.TestCase):

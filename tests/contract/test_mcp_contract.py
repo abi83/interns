@@ -100,6 +100,7 @@ def test_push_branch_surfaces_git_error(scenario):
 def test_pr_open_for_issue_appends_closes_and_opens_pr(scenario):
     scenario.git("rev-parse", "--abbrev-ref", "HEAD", stdout="feat/issue-42")
     scenario.gh("api", f"repos/{REPO}", stdout=_API_REPO)
+    scenario.gh("pr", "list", stdout="[]")
     scenario.gh("pr", "create", stdout="https://github.example/acme/widgets/pull/99")
 
     result = push.pr_open_for_issue(REPO, "", 42, "feat: implement thing", "This implements the thing.")
@@ -116,6 +117,20 @@ def test_pr_open_for_issue_appends_closes_and_opens_pr(scenario):
     base = argv[argv.index("--base") + 1]
     default = json.loads(_API_REPO)["default_branch"]
     assert base == default
+
+
+def test_pr_open_for_issue_marks_the_branchs_draft_pr_ready_instead_of_creating_one(scenario):
+    scenario.git("rev-parse", "--abbrev-ref", "HEAD", stdout="feat/issue-42")
+    scenario.gh("pr", "list", stdout='[{"number": 99, "url": "https://github.example/acme/widgets/pull/99", "isDraft": true}]')
+    scenario.gh("pr", "edit", stdout="")
+    scenario.gh("pr", "ready", stdout="")
+
+    result = push.pr_open_for_issue(REPO, "", 42, "feat: implement thing", "This implements the thing.")
+
+    assert result == "https://github.example/acme/widgets/pull/99"
+    assert scenario.calls("gh", "pr", "create") == []
+    assert scenario.calls("gh", "pr", "edit")
+    assert scenario.calls("gh", "pr", "ready")
 
 
 def test_pr_open_for_issue_rejects_detached_head(scenario):
