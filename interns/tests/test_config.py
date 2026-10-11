@@ -1,11 +1,13 @@
 import contextlib
 import io
+import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from interns import config
+from interns_install.install_files import render_consumer_config
 
 
 def _cp(stdout: str = "", returncode: int = 0, stderr: str = ""):
@@ -373,7 +375,10 @@ class InstalledTemplateTests(unittest.TestCase):
     def test_fresh_install_resolves_to_the_defaults(self):
         config._builtin_data.cache_clear()
         self.addCleanup(config._builtin_data.cache_clear)
-        template = Path(__file__).resolve().parents[2] / "templates" / "config" / "interns.yml"
-        installed = config.load_raw(str(template))
+        defaults = Path(__file__).resolve().parents[2] / "templates" / "config" / "defaults.yml"
+        with tempfile.TemporaryDirectory() as tmp:
+            installed_path = Path(tmp) / "interns.yml"
+            installed_path.write_text(render_consumer_config(defaults.read_text()))
+            installed = config.load_raw(str(installed_path))
         self.assertEqual(installed, {})
-        self.assertEqual(config.resolve_agent_config(installed, "coder", str(template)).model, "claude-sonnet-5-5")
+        self.assertEqual(config.resolve_agent_config(installed, "coder", "interns.yml").model, "claude-sonnet-5-5")

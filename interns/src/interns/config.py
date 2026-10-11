@@ -27,8 +27,9 @@ KNOWN_CHECKS_KEYS = ("ignore", "timeout_seconds", "poll_seconds", "settle_second
 KNOWN_REVIEW_LOOP_KEYS = ("max_fix_rounds", "max_automatic_reviews")
 
 # The pipeline's own built-in fallback layer, loaded through the identical
-# schema-validated path as a consumer's file. The consumer-facing template
-# the installer seeds is generated from this file (all keys commented out).
+# schema-validated path as a consumer's file. The installer renders
+# a fresh consumer's starter .github/interns.yml from this file (all keys
+# commented out).
 _DEFAULTS_CONFIG_PATH = Path(__file__).resolve().parents[3] / "templates" / "config" / "defaults.yml"
 
 

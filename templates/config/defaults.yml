@@ -1,7 +1,6 @@
 # interns' built-in defaults -- the single source of truth for every
-# configurable key. Loaded by interns.config. templates/config/interns.yml, the
-# file installed into consumer repos, is generated from this one -- after an
-# edit run `python3 scripts/render_config_template.py`.
+# configurable key. Loaded by interns.config; interns-install renders a
+# consumer's starter .github/interns.yml from it with every key commented out.
 # Precedence: agents.<name>.<key> > defaults.<key> > these defaults.
 # Schema: abi83/interns/.github/interns.schema.json
 
