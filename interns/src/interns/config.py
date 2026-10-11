@@ -19,12 +19,13 @@ from pathlib import Path
 
 from . import cli
 
-KNOWN_TOP_KEYS = ("debug", "defaults", "agents", "wiki", "checks", "review_loop")
+KNOWN_TOP_KEYS = ("debug", "defaults", "agents", "wiki", "checks", "review_loop", "auto_proceed")
 KNOWN_AGENTS = ("refiner", "estimator", "coder", "reviewer")
 KNOWN_LIMIT_KEYS = ("model", "max_turns", "timeout_minutes", "max_output_tokens", "cost_warn_usd", "allowed_tools", "disallowed_tools")
 KNOWN_WIKI_KEYS = ("enabled", "url")
 KNOWN_CHECKS_KEYS = ("ignore", "timeout_seconds", "poll_seconds", "settle_seconds")
 KNOWN_REVIEW_LOOP_KEYS = ("max_fix_rounds", "max_automatic_reviews")
+KNOWN_AUTO_PROCEED_KEYS = ("XS", "S", "M", "L", "XL")
 
 # The pipeline's own built-in fallback layer, loaded through the identical
 # schema-validated path as a consumer's file. The installer renders
@@ -116,6 +117,10 @@ def _validate_schema(data: dict, path: str) -> None:
     for key in data.get("review_loop") or {}:
         if key not in KNOWN_REVIEW_LOOP_KEYS:
             raise ConfigError(f"unknown key 'review_loop.{key}' in {path}")
+
+    for key in data.get("auto_proceed") or {}:
+        if key not in KNOWN_AUTO_PROCEED_KEYS:
+            raise ConfigError(f"unknown key 'auto_proceed.{key}' in {path}")
 
 
 def _is_int_ge(value: object, floor: int) -> bool:
@@ -278,6 +283,18 @@ def review_loop_config(data: dict, path: str) -> ReviewLoopConfig:
         max_fix_rounds=int(max_fix_rounds),
         max_automatic_reviews=int(max_automatic_reviews),
     )
+
+
+def auto_proceed_config(data: dict, path: str) -> dict[str, bool]:
+    """Per size label: does an estimated issue go straight to the coder?
+    Merged key by key, so a consumer overriding one size keeps the rest."""
+    consumer = data.get("auto_proceed") or {}
+    builtin = _builtin_data().get("auto_proceed") or {}
+    resolved = {size: consumer.get(size, builtin.get(size)) for size in KNOWN_AUTO_PROCEED_KEYS}
+    for size, value in resolved.items():
+        if not isinstance(value, bool):
+            raise ConfigError(f"auto_proceed.{size} must be true or false (got '{value}') in {path}")
+    return resolved
 
 
 def _suffix(tools: list[str]) -> str:

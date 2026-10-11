@@ -54,6 +54,18 @@
         "max_fix_rounds": { "type": "integer", "minimum": 1 },
         "max_automatic_reviews": { "type": "integer", "minimum": 1 }
       }
+    },
+    "auto_proceed": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Per size label: true sends an estimated issue straight to the coder (status:ready) without a human approval.",
+      "properties": {
+        "XS": { "type": "boolean" },
+        "S": { "type": "boolean" },
+        "M": { "type": "boolean" },
+        "L": { "type": "boolean" },
+        "XL": { "type": "boolean" }
+      }
     }
   },
   "definitions": {

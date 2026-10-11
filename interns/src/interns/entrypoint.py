@@ -10,6 +10,7 @@ from .gh import query as gh_query
 from .steps import (
     append_metrics,
     apply_verdict,
+    auto_proceed,
     check_review_cap,
     derive_code_hints,
     extract_metrics,
@@ -40,6 +41,7 @@ _COMMANDS: dict[str, _Command] = {
     "extract-metrics": extract_metrics._main,
     "append-metrics": append_metrics._main,
     "apply-verdict": apply_verdict._main,
+    "auto-proceed": auto_proceed._main,
     "check-review-cap": check_review_cap._main,
     "derive-code-hints": derive_code_hints._main,
     "gate-issue-type": gate_issue_type._main,

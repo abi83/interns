@@ -68,3 +68,13 @@ agents:
     #   - "Bash(psql:*)"
   reviewer:
     max_turns: 45
+
+# After estimation, an issue whose size is true here goes straight to the coder
+# (status:ready) without waiting for a human to approve it. A size set to false
+# stops at status:estimated for the owner, as before.
+auto_proceed:
+  XS: true
+  S: true
+  M: true
+  L: false
+  XL: false

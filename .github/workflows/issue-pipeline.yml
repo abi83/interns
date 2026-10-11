@@ -367,6 +367,14 @@ jobs:
             exit 1
           fi
 
+      # Triage token, not GITHUB_TOKEN: a status:ready edit by GITHUB_TOKEN
+      # would not trigger the coder workflow.
+      - name: Auto-proceed to coder
+        if: steps.gate.outputs.skip != 'true' && steps.claude.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ steps.triage_token.outputs.token }}
+        run: python3 -m interns.entrypoint auto-proceed --issue "${{ steps.issue.outputs.number }}"
+
       - name: Upload estimator execution log (debug)
         if: steps.gate.outputs.skip != 'true' && (inputs.debug == true || steps.cfg.outputs.debug == 'true') && always() && steps.claude.outputs.execution_file != ''
         uses: ./.interns/.github/actions/upload-execution-log
