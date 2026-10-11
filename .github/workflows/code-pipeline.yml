@@ -105,10 +105,7 @@ jobs:
           client-id: ${{ vars.INTERNS_CODER_CLIENT_ID }}
           private-key: ${{ secrets.INTERNS_CODER_APP_PRIVATE_KEY }}
 
-      # `status:ready` is applied by the triage App when `auto_proceed` hands
-      # an estimated issue to the coder, so claude-code-action's non-human-actor
-      # check rejects the initial run unless that App's login is in
-      # allowed_bots. Resolved here rather than hardcoded, like the estimator.
+      # auto_proceed applies `status:ready` as the triage App; allowed_bots needs its login.
       - name: Generate triage app token
         id: triage_token
         uses: actions/create-github-app-token@v3
@@ -404,8 +401,7 @@ jobs:
           # The fix round is dispatched by the reviewer job via `gh workflow run`
           # with the default token, so the triggering actor is github-actions[bot],
           # not a human label event — claude-code-action refuses it unless the bot
-          # is allowlisted here. The initial-implementation step allowlists the
-          # triage App instead, which applies `status:ready` under `auto_proceed`.
+          # is allowlisted here.
           allowed_bots: "claude[bot],github-actions[bot]"
           prompt: |
             REPO: ${{ github.repository }}
