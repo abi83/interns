@@ -42,6 +42,9 @@ on:
       INTERNS_CODER_APP_PRIVATE_KEY:
         description: Private key for the coder GitHub App (paired with vars.INTERNS_CODER_CLIENT_ID); coder job only
         required: true
+      INTERNS_TRIAGE_APP_PRIVATE_KEY:
+        description: Private key for the triage GitHub App (paired with vars.INTERNS_TRIAGE_CLIENT_ID); coder job only, to allowlist it as a trigger actor
+        required: true
 
 permissions:
   contents: write
@@ -101,6 +104,18 @@ jobs:
         with:
           client-id: ${{ vars.INTERNS_CODER_CLIENT_ID }}
           private-key: ${{ secrets.INTERNS_CODER_APP_PRIVATE_KEY }}
+
+      # auto_proceed applies `status:ready` as the triage App; allowed_bots needs its login.
+      - name: Generate triage app token
+        id: triage_token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.INTERNS_TRIAGE_CLIENT_ID }}
+          private-key: ${{ secrets.INTERNS_TRIAGE_APP_PRIVATE_KEY }}
+
+      - name: Resolve triage identity
+        id: triage_ident
+        run: echo "bot=${{ steps.triage_token.outputs.app-slug }}[bot]" >> "$GITHUB_OUTPUT"
 
       - name: Checkout
         uses: actions/checkout@v5
@@ -314,7 +329,7 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ steps.coder_token.outputs.token }}
           show_full_output: ${{ inputs.debug == true || steps.cfg.outputs.debug == 'true' }}
-          allowed_bots: "claude[bot]"
+          allowed_bots: "claude[bot],${{ steps.triage_ident.outputs.bot }}"
           prompt: |
             REPO: ${{ github.repository }}
             ISSUE NUMBER: ${{ steps.issue.outputs.number }}
@@ -386,8 +401,7 @@ jobs:
           # The fix round is dispatched by the reviewer job via `gh workflow run`
           # with the default token, so the triggering actor is github-actions[bot],
           # not a human label event — claude-code-action refuses it unless the bot
-          # is allowlisted here. The initial-implementation step doesn't need this:
-          # it's triggered by a real `status:ready` label event on the issue.
+          # is allowlisted here.
           allowed_bots: "claude[bot],github-actions[bot]"
           prompt: |
             REPO: ${{ github.repository }}
