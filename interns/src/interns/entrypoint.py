@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from collections.abc import Callable
 
-from . import cli, run_summary, verdict
+from . import cli, run_summary
 from .gh import query as gh_query
 from .steps import (
     append_metrics,
@@ -28,6 +28,7 @@ from .steps import (
     save_draft_pr,
     spike_advisory,
     sync_labels,
+    verdict,
     wait_for_checks,
 )
 from .ctx import ActionsCtx

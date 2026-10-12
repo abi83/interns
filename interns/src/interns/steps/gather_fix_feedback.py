@@ -10,7 +10,8 @@ from __future__ import annotations
 import subprocess
 import sys
 
-from .. import cli, gh, verdict
+from .. import cli, gh
+from ..domain import verdict
 from ..ctx import ActionsCtx
 
 

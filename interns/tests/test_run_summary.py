@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from interns import gh, run_summary
 from interns.ctx import ActionsCtx
-from interns.verdict import Review
+from interns.domain.verdict import Review
 
 REPO = "owner/repo"
 SERVER = "https://github.com"

@@ -17,7 +17,7 @@ from __future__ import annotations
 import os
 
 from .. import cli, gh
-from . import labels
+from ..domain import labels
 from ..ctx import ActionsCtx
 
 SENTINEL_NAME = ".coder-gave-up.md"

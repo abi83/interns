@@ -10,7 +10,7 @@ No-op on any other issue type, or a spike not yet estimated.
 from __future__ import annotations
 
 from .. import gh
-from . import labels
+from ..domain import labels
 from ..ctx import ActionsCtx
 
 ADVISORY = (

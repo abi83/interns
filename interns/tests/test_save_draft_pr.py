@@ -43,7 +43,7 @@ def work(tmp_path, monkeypatch):
 @pytest.fixture(autouse=True)
 def fake_gh():
     with patch.object(save_draft_pr.gh, "pr_for_head", return_value=None) as for_head, \
-         patch("interns.steps.push.default_branch", return_value="main"), \
+         patch("interns.domain.push.default_branch", return_value="main"), \
          patch.object(save_draft_pr.gh, "pr_create", return_value=DRAFT_URL) as create:
         yield SimpleNamespace(for_head=for_head, create=create)
 

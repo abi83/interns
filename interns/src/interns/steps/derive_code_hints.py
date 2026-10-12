@@ -13,7 +13,7 @@ from __future__ import annotations
 import re
 
 from .. import cli, gh
-from . import labels
+from ..domain import labels
 from ..ctx import ActionsCtx
 
 

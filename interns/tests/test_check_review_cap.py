@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from interns.steps import check_review_cap
 from interns.ctx import ActionsCtx
-from interns.verdict import Review
+from interns.domain.verdict import Review
 
 
 class CheckCapTests(unittest.TestCase):

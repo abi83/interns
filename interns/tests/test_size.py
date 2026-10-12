@@ -1,6 +1,6 @@
 import unittest
 
-from interns.size import roll_up_size
+from interns.domain.size import roll_up_size
 
 
 class RollUpSizeTests(unittest.TestCase):

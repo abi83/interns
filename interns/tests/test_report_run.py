@@ -3,18 +3,19 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from interns import execution
 from interns.steps import report_run
 
 
 class FormatCostTests(unittest.TestCase):
     def test_formats_to_four_decimal_places(self):
-        self.assertEqual(report_run.format_cost("0.42"), "0.4200")
+        self.assertEqual(execution.format_cost("0.42"), "0.4200")
 
     def test_none_is_unknown(self):
-        self.assertEqual(report_run.format_cost(None), "unknown")
+        self.assertEqual(execution.format_cost(None), "unknown")
 
     def test_empty_string_is_unknown(self):
-        self.assertEqual(report_run.format_cost(""), "unknown")
+        self.assertEqual(execution.format_cost(""), "unknown")
 
 
 class ReportTests(unittest.TestCase):

@@ -1,6 +1,6 @@
 """Contract tests for push-path pipeline operations.
 
-These tests run interns.steps.push functions in-process with fake git and gh on PATH
+These tests run interns.domain.push functions in-process with fake git and gh on PATH
 (via Scenario.activate), so the actual subprocess argument shapes are verified
 against realistic fake responses rather than hand-written subprocess mocks.
 """
@@ -9,8 +9,8 @@ import json
 
 import pytest
 from interns import gh
-from interns.size import Estimation, Score
-from interns.steps import labels, push
+from interns.domain.size import Estimation, Score
+from interns.domain import labels, push
 from interns.gh import GhCommandError, InvalidInputError, PushRefusedError
 
 from testkit.harness import REPO, Scenario

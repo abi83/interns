@@ -12,14 +12,10 @@ from .. import cli, execution, gh
 from ..ctx import ActionsCtx
 
 
-def format_cost(raw: str | None) -> str:
-    return f"{float(raw):.4f}" if raw else "unknown"
-
-
 def report(repo: str, phase: str, exec_file: str | None, issue: int | None,
            pr: int | None, warn: str | None, *, run_url: str = "") -> None:
     raw_cost = execution.result_field(exec_file, "total_cost_usd")
-    body = f"{phase} [pipeline run]({run_url}) — cost: ${format_cost(raw_cost)}"
+    body = f"{phase} [pipeline run]({run_url}) — cost: ${execution.format_cost(raw_cost)}"
     if warn:
         body += f"\n\n⚠️ {warn}"
 

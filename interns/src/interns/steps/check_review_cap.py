@@ -12,8 +12,8 @@ workflow_dispatch is an explicit human override and never calls this module.
 
 from __future__ import annotations
 
-from .. import cli, config, gh, verdict
-from . import labels
+from .. import cli, config, gh
+from ..domain import labels, verdict
 from ..ctx import ActionsCtx
 
 

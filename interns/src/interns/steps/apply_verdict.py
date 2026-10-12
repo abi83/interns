@@ -10,8 +10,8 @@ The fix-round decision is read from the verdict, not a label.
 
 from __future__ import annotations
 
-from .. import cli, config, gh, verdict
-from . import labels
+from .. import cli, config, gh
+from ..domain import labels, verdict
 from ..ctx import ActionsCtx
 
 

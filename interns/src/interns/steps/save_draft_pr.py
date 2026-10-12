@@ -12,7 +12,7 @@ import re
 
 from .. import cli, gh
 from ..ctx import ActionsCtx
-from . import push
+from ..domain import push
 
 PIPELINE_DIR = ".interns"
 CONVENTIONAL_SUBJECT_RE = r"^\w+(\([^)]*\))?!?: "

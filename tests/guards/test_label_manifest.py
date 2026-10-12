@@ -1,11 +1,11 @@
-"""`.github/labels.json` and the label constants in `interns.steps.labels`/`interns.size` must agree."""
+"""`.github/labels.json` and the label constants in `interns.domain.labels`/`interns.domain.size` must agree."""
 
 import json
 import re
 from pathlib import Path
 
-from interns.steps import labels
-from interns import size
+from interns.domain import labels
+from interns.domain import size
 
 MANIFEST = Path(__file__).resolve().parents[2] / ".github/labels.json"
 LIFECYCLE_PREFIXES = ("status:", "pr:")
