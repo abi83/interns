@@ -32,17 +32,7 @@ REPO = "acme/widgets"
 
 
 def default_ctx(**overrides) -> ActionsCtx:
-    defaults: dict = dict(
-        repo=REPO,
-        token="",
-        server_url="",
-        run_id="",
-        run_attempt=1,
-        workspace=".",
-        event_name="",
-        reviewer_bot="",
-        step_summary="",
-    )
+    defaults: dict = dict(repo=REPO, token="", server_url="")
     defaults.update(overrides)
     return ActionsCtx(**defaults)
 
@@ -97,6 +87,7 @@ class Scenario:
             "GITHUB_REPOSITORY": REPO,
             "GITHUB_SERVER_URL": "https://github.example",
             "GITHUB_RUN_ID": "4242",
+            "GITHUB_RUN_ATTEMPT": "1",
             "GITHUB_OUTPUT": str(self.github_output),
             "GITHUB_WORKSPACE": str(self.workspace),
             "REVIEWER_BOT": "reviewer-bot",

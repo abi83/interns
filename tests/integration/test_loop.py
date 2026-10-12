@@ -22,7 +22,7 @@ def scenario(tmp_path) -> Scenario:
 
 
 def review(state: str, commit: str = HEAD, login: str = "reviewer-bot") -> dict:
-    return {"id": 1, "user": {"login": login}, "state": state, "commit_id": commit}
+    return {"id": 1, "user": {"login": login}, "state": state, "commit_id": commit, "submitted_at": "2026-01-01T00:00:00Z", "body": ""}
 
 
 def reviews_on_pr(scenario: Scenario, *reviews: dict) -> None:

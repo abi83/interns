@@ -119,7 +119,7 @@ def _main(ctx: ActionsCtx, argv: list[str]) -> int:
     args = parser.parse_args(argv)
 
     server = ctx.server_url
-    run_id = ctx.run_id or "unknown"
+    run_id = ctx.run_id
     remote = f"https://x-access-token:{ctx.token}@{server.removeprefix('https://')}/{ctx.repo}.git"
 
     try:

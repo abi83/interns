@@ -2,12 +2,17 @@ import unittest
 from unittest.mock import patch
 
 from interns import gh, verdict
-from interns.verdict import Review
+from interns.verdict import FullReview, Review
 
 
 def _reviews_payload(entries: list[tuple[str, str, str]]) -> list[dict]:
-    return [{"user": {"login": login}, "state": state, "commit_id": commit_id}
+    return [{"user": {"login": login}, "state": state, "commit_id": commit_id,
+             "id": 1, "submitted_at": "2024-01-01T00:00:00Z", "body": None}
             for login, state, commit_id in entries]
+
+
+def _full(login, state, commit_id):
+    return FullReview(login, state, commit_id, id=1, submitted_at="2024-01-01T00:00:00Z", body="")
 
 
 class AllReviewsTests(unittest.TestCase):
@@ -19,13 +24,19 @@ class AllReviewsTests(unittest.TestCase):
         with patch("interns.gh.api_all_pages", return_value=payload):
             reviews = verdict.all_reviews("o/r", 12)
         self.assertEqual(reviews, [
-            Review("somedev", "COMMENTED", "sha1"),
-            Review("reviewer[bot]", "CHANGES_REQUESTED", "sha1"),
+            _full("somedev", "COMMENTED", "sha1"),
+            _full("reviewer[bot]", "CHANGES_REQUESTED", "sha1"),
         ])
 
     def test_unexpected_payload_raises(self):
         with patch("interns.gh.api_all_pages", return_value={"not": "a list"}):
             with self.assertRaises(gh.GhCommandError):
+                verdict.all_reviews("o/r", 12)
+
+    def test_payload_missing_a_required_key_raises(self):
+        payload = [{"user": {"login": "somedev"}, "state": "COMMENTED", "id": 1, "submitted_at": "t", "body": ""}]
+        with patch("interns.gh.api_all_pages", return_value=payload):
+            with self.assertRaises(KeyError):
                 verdict.all_reviews("o/r", 12)
 
 
@@ -37,7 +48,7 @@ class ReviewsByTests(unittest.TestCase):
         ])
         with patch("interns.gh.api_all_pages", return_value=payload):
             reviews = verdict.reviews_by("o/r", 12, "reviewer[bot]")
-        self.assertEqual(reviews, [Review("reviewer[bot]", "CHANGES_REQUESTED", "sha1")])
+        self.assertEqual(reviews, [_full("reviewer[bot]", "CHANGES_REQUESTED", "sha1")])
 
     def test_no_reviews_from_that_login(self):
         with patch("interns.gh.api_all_pages", return_value=_reviews_payload([("somedev", "COMMENTED", "sha1")])):

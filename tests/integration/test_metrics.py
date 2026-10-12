@@ -248,8 +248,8 @@ def test_append_metrics_main_reports_the_exhausted_retry_error(scenario, monkeyp
         scenario.git(cmd)
     scenario.git("add")
     scenario.git("push", code=1)
-    ctx = ActionsCtx(repo=REPO, token="tok", server_url="https://github.example", run_id="4242",
-                     run_attempt=1, workspace=".", event_name="", reviewer_bot="", step_summary="")
+    monkeypatch.setenv("GITHUB_RUN_ID", "4242")
+    ctx = ActionsCtx(repo=REPO, token="tok", server_url="https://github.example")
 
     exit_code = append_metrics._main(ctx, [str(record)])
 

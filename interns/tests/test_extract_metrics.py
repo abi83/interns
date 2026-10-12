@@ -1,7 +1,9 @@
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from interns import cli
 from interns.steps import extract_metrics
@@ -113,9 +115,10 @@ class CliTests(unittest.TestCase):
         self._tmpdir = tempfile.TemporaryDirectory()
         self.exec_file = Path(self._tmpdir.name) / "exec.json"
         self.exec_file.write_text(json.dumps(EXEC_EVENTS))
-        self.ctx = ActionsCtx(repo="owner/repo", token="", server_url="", run_id="42",
-                               run_attempt=2, workspace=".", event_name="",
-                               reviewer_bot="", step_summary="")
+        self.ctx = ActionsCtx(repo="owner/repo", token="", server_url="")
+        env = patch.dict(os.environ, {"GITHUB_RUN_ID": "42", "GITHUB_RUN_ATTEMPT": "2"})
+        env.start()
+        self.addCleanup(env.stop)
 
     def tearDown(self):
         self._tmpdir.cleanup()
@@ -155,13 +158,10 @@ class CliTests(unittest.TestCase):
         self.assertEqual(out, "")
 
     def test_missing_run_id_fails_cleanly(self):
-        ctx_no_run = ActionsCtx(repo="owner/repo", token="", server_url="", run_id="",
-                                 run_attempt=1, workspace=".", event_name="",
-                                 reviewer_bot="", step_summary="")
-        with self.assertRaisesRegex(cli.MissingEnvError, "unset"):
+        with patch.dict(os.environ, clear=True), self.assertRaisesRegex(cli.MissingEnvError, "GITHUB_RUN_ID unset"):
             import io, contextlib
             with contextlib.redirect_stdout(io.StringIO()):
-                extract_metrics._main(ctx_no_run, ["--exec-file", str(self.exec_file),
+                extract_metrics._main(self.ctx, ["--exec-file", str(self.exec_file),
                                                     "--job", "coder", "--ref", REF])
 
 

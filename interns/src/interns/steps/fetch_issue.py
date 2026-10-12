@@ -5,7 +5,6 @@ behind the MCP server's `view_issue` tool.
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
 
 from .. import cli, gh
@@ -90,12 +89,7 @@ def fetch_issue(repo: str, number: int) -> Issue:
 
 def write_github_output(issue: Issue) -> None:
     """Write issue fields to $GITHUB_OUTPUT for use in workflow steps."""
-    output_path = os.environ.get("GITHUB_OUTPUT", "")
-
     def write(key: str, value: str, multiline: bool = False) -> None:
-        if not output_path:
-            print(f"{key}={value!r}")
-            return
         entry = cli.github_output_block(key, value.encode()) if multiline else f"{key}={value}\n".encode()
         cli.append_output(entry)
 
