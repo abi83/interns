@@ -29,7 +29,7 @@ def build_output(name: str, files: list[str]) -> bytes:
 def _main(argv: list[str]) -> int:
     import argparse
 
-    parser = argparse.ArgumentParser(prog="python -m pipeline.prompt")
+    parser = argparse.ArgumentParser(prog="python -m interns.prompt")
     parser.add_argument("files", nargs="+")
     args = parser.parse_args(argv)
 

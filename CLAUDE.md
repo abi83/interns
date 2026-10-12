@@ -2,7 +2,10 @@
 
 ## Stack
 
-Python, stdlib only. Bash scripts are being migrated to Python (abi83/interns#155).
+Python. The `interns` and `installer` packages are stdlib only; third-party
+dependencies live only in `mcp/`. The `yq` binary is a runtime prerequisite
+(config parsing). `install.sh` is intentionally shell: it runs before Python/uv
+exist.
 
 ## What this is
 

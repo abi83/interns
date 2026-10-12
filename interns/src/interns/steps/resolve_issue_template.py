@@ -64,7 +64,7 @@ def build_skeleton(builtin_dir: Path, consumer_dir: Path, types: list[str]) -> s
 def _main(argv: list[str]) -> int:
     import argparse
 
-    parser = argparse.ArgumentParser(prog="python -m pipeline.resolve_issue_template")
+    parser = argparse.ArgumentParser(prog="python -m interns.steps.resolve_issue_template")
     parser.add_argument("--builtin-dir", required=True)
     parser.add_argument("--consumer-dir", default=".github/ISSUE_TEMPLATE")
     parser.add_argument("--types", default=" ".join(DEFAULT_TYPES))

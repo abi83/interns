@@ -1,7 +1,7 @@
 """The pipeline's `gh` parsing against responses captured from the real CLI.
 
 Fixtures are raw `gh` stdout (regenerate with tests/contract/capture.py). The
-fake `gh` replays them, so the real `pipeline.gh` argv building and JSON
+fake `gh` replays them, so the real `interns.gh.ops` argv building and JSON
 handling run against real shapes rather than hand-written ones.
 """
 
@@ -17,7 +17,7 @@ from interns.steps import labels, wait_for_checks
 from testkit.harness import Scenario
 
 FIXTURES = Path(__file__).parent / "fixtures"
-REPO = "abi83/interns"
+REPO = "acme/widgets"
 
 
 def fixture(name: str) -> str:
@@ -38,7 +38,7 @@ def test_current_repo_reads_owner_type_from_the_repos_api(scenario):
 
     repo = gh_admin.current_repo(REPO)
 
-    assert (repo.owner, repo.name, repo.is_org) == ("abi83", "interns", False)
+    assert (repo.owner, repo.name, repo.is_org) == ("acme", "widgets", False)
 
 
 def test_default_branch(scenario):

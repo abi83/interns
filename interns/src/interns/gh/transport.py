@@ -2,7 +2,7 @@
 and GraphQL primitives. No domain knowledge lives here — only the mechanics
 of speaking to the `gh` CLI and surfacing failures as typed exceptions.
 
-Higher-level issue/PR/label operations live in `pipeline.gh`. Admin-scoped
+Higher-level issue/PR/label operations live in `interns.gh.ops`. Admin-scoped
 installer operations live in `interns_install.gh_admin`."""
 
 from __future__ import annotations

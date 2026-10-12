@@ -1,7 +1,7 @@
 name: resolve-agent-config
 description: >
   Resolve the effective execution limits (and wiki setting) for one agent job
-  via pipeline.config: config file, else the built-in default. No other
+  via interns.config: config file, else the built-in default. No other
   override layer.
 
 inputs:
