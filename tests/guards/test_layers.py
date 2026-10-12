@@ -3,7 +3,7 @@
 Layer order:
   interns.gh.transport  ->  interns.gh.ops  ->  interns.domain  ->  adapters
                                                  |- pipeline steps (interns.steps)
-                                                 |- MCP server (mcp/server.py)
+                                                 |- MCP server (gh_issues_mcp/server.py)
                                                  `- Actions entrypoint (interns.entrypoint)
 
 Rules:
@@ -26,7 +26,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 INTERNS_SRC = ROOT / "interns" / "src" / "interns"
-MCP_SERVER = ROOT / "mcp" / "server.py"
+MCP_SERVER = ROOT / "gh_issues_mcp" / "server.py"
 
 TOP_LEVEL_ENTRYPOINT = "entrypoint.py"
 

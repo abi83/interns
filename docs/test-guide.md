@@ -3,7 +3,7 @@
 ## How to run
 
 ```sh
-uv run --frozen python -m pytest interns/tests installer/tests mcp/tests  # unit tier
+uv run --frozen python -m pytest interns/tests installer/tests gh_issues_mcp/tests  # unit tier
 uv run --frozen python -m pytest tests/integration                         # integration tier
 uv run --frozen python -m pytest tests/guards tests/contract               # guards + contracts
 uv run --frozen ruff check .                                               # lint

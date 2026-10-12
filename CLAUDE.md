@@ -3,7 +3,7 @@
 ## Stack
 
 Python. The `interns` and `installer` packages are stdlib only; third-party
-dependencies live only in `mcp/`. The `yq` binary is a runtime prerequisite
+dependencies live only in `gh_issues_mcp/`. The `yq` binary is a runtime prerequisite
 (config parsing). `install.sh` is intentionally shell: it runs before Python/uv
 exist.
 

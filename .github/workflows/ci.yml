@@ -70,7 +70,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - name: Unit tests — with coverage floor 84%
         run: |
-          uv run --frozen python -m coverage run -m pytest interns/tests installer/tests mcp/tests
+          uv run --frozen python -m coverage run -m pytest interns/tests installer/tests gh_issues_mcp/tests
           uv run --frozen python -m coverage combine
           uv run --frozen python -m coverage report --fail-under=84
       - name: Guards and contract tests
