@@ -1,8 +1,9 @@
 import unittest
 from unittest.mock import patch
 
-from interns import gh, verdict
-from interns.verdict import FullReview, Review
+from interns import gh
+from interns.domain import verdict
+from interns.domain.verdict import FullReview, Review
 
 
 def _reviews_payload(entries: list[tuple[str, str, str]]) -> list[dict]:

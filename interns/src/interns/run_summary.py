@@ -14,9 +14,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import best_effort, execution, gh, verdict
-from .steps import labels, report_run
+from . import best_effort, execution, gh
 from .ctx import ActionsCtx
+from .domain import labels, verdict
 
 
 def _issue_title(repo: str, issue: str) -> str | None:
@@ -233,13 +233,13 @@ def build_summary(ctx: SummaryContext, phase: str, exec_file: str | None) -> str
     if not _execution_file_written(exec_file):
         lines += ["", "> _No execution file — the agent step was killed (timed out) before writing results._"]
 
-    cost_line = f"**Cost:** ${report_run.format_cost(raw_cost)}"
+    cost_line = f"**Cost:** ${execution.format_cost(raw_cost)}"
     if num_turns:
         cost_line += f" · {num_turns} turns"
     lines.append(cost_line)
 
     if raw_cost and ctx.cost_warn and float(raw_cost) > float(ctx.cost_warn):
-        lines += ["", f"⚠️ cost ${report_run.format_cost(raw_cost)} over the ${float(ctx.cost_warn):.2f} warn limit"]
+        lines += ["", f"⚠️ cost ${execution.format_cost(raw_cost)} over the ${float(ctx.cost_warn):.2f} warn limit"]
 
     lines += [f"[Full run log]({ctx.run_url})", "", "### Agent's final message", ""]
     lines += _quote_final_message(final_msg)

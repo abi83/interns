@@ -11,7 +11,7 @@ Invoked by the gate-issue-type composite action.
 from __future__ import annotations
 
 from .. import cli, gh
-from . import labels
+from ..domain import labels
 from ..ctx import ActionsCtx
 
 

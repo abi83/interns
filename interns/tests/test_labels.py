@@ -2,8 +2,8 @@ import unittest
 from unittest.mock import patch
 
 from interns import gh
-from interns.size import Estimation, Score
-from interns.steps import labels
+from interns.domain.size import Estimation, Score
+from interns.domain import labels
 
 
 def _labels_response(names: list[str]) -> dict:

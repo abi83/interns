@@ -13,8 +13,8 @@ from typing import Annotated, Literal
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from interns import gh
-from interns.size import Estimation
-from interns.steps import fetch_issue, labels, push
+from interns.domain import issues, labels, push
+from interns.domain.size import Estimation
 from interns.gh import GhCommandError, InvalidInputError, PushRefusedError  # noqa: F401 — re-exported for callers
 from pydantic import BaseModel, Field
 
@@ -117,7 +117,7 @@ def view_issue(
     Returns a flat JSON object — labels is a list of strings, comments is a list
     of {author, created_at, body} objects.
     """
-    return json.dumps(dataclasses.asdict(fetch_issue.fetch_issue(_REPO, issue_number)))
+    return json.dumps(dataclasses.asdict(issues.fetch_issue(_REPO, issue_number)))
 
 
 # ---------------------------------------------------------------------------

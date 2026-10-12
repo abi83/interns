@@ -13,8 +13,8 @@ import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
 import server
-from interns.size import Estimation, Score
-from interns.steps import fetch_issue
+from interns.domain.size import Estimation, Score
+from interns.domain import issues
 from server import (
     GhCommandError,
     InlineComment,
@@ -82,8 +82,8 @@ def test_known_labels_are_loaded_once_at_import_time(tmp_path):
 
 
 def test_view_issue_returns_flat_json():
-    with patch("server.fetch_issue.fetch_issue") as mock_fetch:
-        mock_fetch.return_value = fetch_issue.Issue(
+    with patch("server.issues.fetch_issue") as mock_fetch:
+        mock_fetch.return_value = issues.Issue(
             number=1,
             title="T",
             body="B",
@@ -110,7 +110,7 @@ def test_view_issue_excludes_pipeline_comments():
         "parent": None,
         "subIssues": {"nodes": []}, "blockedBy": {"nodes": []}, "blocking": {"nodes": []},
     }
-    with patch("interns.steps.fetch_issue.gh.issue_with_relations", return_value=response), patch.object(server, "_REPO", "owner/repo"):
+    with patch("interns.domain.issues.gh.issue_with_relations", return_value=response), patch.object(server, "_REPO", "owner/repo"):
         data = json.loads(view_issue(issue_number=1))
 
     assert [c["body"] for c in data["comments"]] == ["Human"]

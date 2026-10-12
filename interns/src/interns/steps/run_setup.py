@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 from .. import cli
-from .check_build_config import MARKER
+from ..domain.build_config import MARKER
 
 _SETUP_TARGET = re.compile(rb"^setup\s*:", re.MULTILINE)
 

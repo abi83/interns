@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections import Counter
 
 from .. import cli, execution, gh
-from . import labels
+from ..domain import labels
 from ..ctx import ActionsCtx
 
 

@@ -1,15 +1,20 @@
 """Enforces import-direction rules for the interns layering.
 
 Layer order:
-  interns.gh.transport  →  interns.gh.ops  →  core  →  adapters
-                             ├─ MCP server (mcp/server.py)
-                             └─ Actions entrypoint (interns.entrypoint)
+  interns.gh.transport  ->  interns.gh.ops  ->  interns.domain  ->  adapters
+                                                 |- pipeline steps (interns.steps)
+                                                 |- MCP server (mcp/server.py)
+                                                 `- Actions entrypoint (interns.entrypoint)
 
 Rules:
   1. interns.gh.transport imports no other interns module.
-  2. Core interns modules do not import interns.entrypoint.
-  3. MCP server does not import interns.entrypoint or interns.ctx.
-  4. Steps, verdict, run_summary and the MCP server use `interns.gh` ops only —
+  2. interns.gh imports nothing from domain, steps or entrypoint.
+  3. interns.domain imports nothing from steps, entrypoint, ctx or mcp.
+  4. A step imports no other step, and neither entrypoint nor mcp.
+  5. Shared top-level modules (run_summary, execution, config, ...) import
+     neither steps nor entrypoint.
+  6. The MCP server imports nothing from steps, entrypoint or ctx.
+  7. Domain, steps, run_summary and the MCP server use `interns.gh` ops only --
      they never import `interns.gh.transport`, and `interns.gh` exposes no
      transport primitive.
 """
@@ -22,6 +27,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 INTERNS_SRC = ROOT / "interns" / "src" / "interns"
 MCP_SERVER = ROOT / "mcp" / "server.py"
+
+TOP_LEVEL_ENTRYPOINT = "entrypoint.py"
 
 
 def _resolved_imports(path: Path, package: str) -> list[str]:
@@ -68,36 +75,74 @@ def _check(violations: list[str], path: Path, package: str, forbidden: list[str]
 TRANSPORT_PRIMITIVES = ("api", "api_all_pages", "api_status", "graphql", "run")
 
 
-def test_layer_violations() -> None:
-    violations: list[str] = []
+def _modules(subpackage: str) -> list[Path]:
+    paths = sorted(p for p in (INTERNS_SRC / subpackage).glob("*.py") if p.name != "__init__.py")
+    assert paths, f"no modules found under {subpackage}/"
+    return paths
 
-    # Rule 1: transport layer imports no other interns module.
-    _check(violations, INTERNS_SRC / "gh" / "transport.py", "interns.gh", ["interns"])
 
-    # Rule 2: core modules (flat + steps/ + gh/) must not import interns.entrypoint.
-    flat_core = [p for p in INTERNS_SRC.glob("*.py") if p.name not in ("__init__.py", "entrypoint.py")]
-    steps_core = list((INTERNS_SRC / "steps").glob("*.py"))
-    gh_core = [p for p in (INTERNS_SRC / "gh").glob("*.py") if p.name != "__init__.py"]
-    pkg_map = (
-        [(p, "interns") for p in flat_core]
-        + [(p, "interns.steps") for p in steps_core]
-        + [(p, "interns.gh") for p in gh_core]
+def _top_level_modules() -> list[Path]:
+    paths = sorted(
+        p for p in INTERNS_SRC.glob("*.py") if p.name not in ("__init__.py", TOP_LEVEL_ENTRYPOINT)
     )
-    for mod, pkg in pkg_map:
-        _check(violations, mod, pkg, ["interns.entrypoint"])
+    assert paths
+    return paths
 
-    # Rule 3: MCP server must not import interns.entrypoint or interns.ctx.
-    _check(violations, MCP_SERVER, "", ["interns.entrypoint", "interns.ctx"])
 
-    # Rule 4: ops-only callers never reach for the transport layer.
-    ops_only = [
-        (p, "interns.steps") for p in steps_core
-    ] + [(INTERNS_SRC / "verdict.py", "interns"), (INTERNS_SRC / "run_summary.py", "interns")]
-    for mod, pkg in ops_only:
-        _check(violations, mod, pkg, ["interns.gh.transport"])
-    _check(violations, MCP_SERVER, "", ["interns.gh.transport"])
+def _violations(modules: list[Path], package: str, forbidden: list[str]) -> list[str]:
+    violations: list[str] = []
+    for path in modules:
+        _check(violations, path, package, forbidden)
+    return violations
 
+
+def _fail_if(violations: list[str]) -> None:
     assert not violations, "Layer violations:\n" + "\n".join(sorted(violations))
+
+
+def test_transport_imports_no_other_interns_module() -> None:
+    _fail_if(_violations([INTERNS_SRC / "gh" / "transport.py"], "interns.gh", ["interns"]))
+
+
+def test_gh_does_not_import_upper_layers() -> None:
+    forbidden = ["interns.domain", "interns.steps", "interns.entrypoint", "mcp"]
+    _fail_if(_violations(_modules("gh"), "interns.gh", forbidden))
+
+
+def test_domain_does_not_import_adapters() -> None:
+    forbidden = ["interns.steps", "interns.entrypoint", "interns.ctx", "mcp"]
+    _fail_if(_violations(_modules("domain"), "interns.domain", forbidden))
+
+
+def test_steps_do_not_import_each_other_or_adapters() -> None:
+    steps = _modules("steps")
+    violations: list[str] = []
+    for path in steps:
+        other_steps = [f"interns.steps.{p.stem}" for p in steps if p != path]
+        _check(violations, path, "interns.steps", other_steps + ["interns.entrypoint", "mcp"])
+    _fail_if(violations)
+
+
+def test_shared_top_level_modules_do_not_import_steps_or_entrypoint() -> None:
+    _fail_if(_violations(_top_level_modules(), "interns", ["interns.steps", "interns.entrypoint"]))
+
+
+def test_mcp_server_imports_neither_steps_entrypoint_nor_ctx() -> None:
+    forbidden = ["interns.steps", "interns.entrypoint", "interns.ctx"]
+    _fail_if(_violations([MCP_SERVER], "", forbidden))
+
+
+def test_ops_only_callers_never_import_transport() -> None:
+    modules = [
+        *((p, "interns.domain") for p in _modules("domain")),
+        *((p, "interns.steps") for p in _modules("steps")),
+        (INTERNS_SRC / "run_summary.py", "interns"),
+        (MCP_SERVER, ""),
+    ]
+    violations: list[str] = []
+    for path, package in modules:
+        _check(violations, path, package, ["interns.gh.transport"])
+    _fail_if(violations)
 
 
 def test_gh_package_exposes_no_transport_primitives() -> None:

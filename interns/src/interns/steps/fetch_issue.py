@@ -1,67 +1,15 @@
-"""Fetches an issue (with human comments and GitHub relationships) and writes its
-fields to `$GITHUB_OUTPUT` for a workflow prompt. Also the shared read model
-behind the MCP server's `view_issue` tool.
-"""
+"""Fetches an issue and writes its fields to `$GITHUB_OUTPUT` for a workflow prompt."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import argparse
 
-from .. import cli, gh
+from .. import cli
 from ..ctx import ActionsCtx
-
-PIPELINE_AUTHOR = "github-actions"
-
-
-@dataclass
-class Comment:
-    author: str
-    created_at: str
-    body: str
+from ..domain import issues
 
 
-@dataclass
-class RelatedIssue:
-    number: int
-    title: str
-    state: str
-
-
-@dataclass
-class Issue:
-    number: int
-    title: str
-    body: str
-    state: str
-    labels: list[str]
-    comments: list[Comment]
-    parent: RelatedIssue | None = None
-    sub_issues: list[RelatedIssue] = field(default_factory=list)
-    blocked_by: list[RelatedIssue] = field(default_factory=list)
-    blocking: list[RelatedIssue] = field(default_factory=list)
-
-
-def fetch_issue(repo: str, number: int) -> Issue:
-    raw = gh.issue_with_relations(repo, number)
-    return Issue(
-        number=raw["number"],
-        title=raw["title"],
-        body=raw["body"] or "",
-        state=raw["state"],
-        labels=[n["name"] for n in raw["labels"]["nodes"]],
-        comments=[
-            Comment(author=(c["author"] or {}).get("login", "ghost"), created_at=c["createdAt"], body=c["body"])
-            for c in raw["comments"]["nodes"]
-            if (c["author"] or {}).get("login") != PIPELINE_AUTHOR
-        ],
-        parent=RelatedIssue(**raw["parent"]) if raw.get("parent") else None,
-        sub_issues=[RelatedIssue(**n) for n in raw["subIssues"]["nodes"]],
-        blocked_by=[RelatedIssue(**n) for n in raw["blockedBy"]["nodes"]],
-        blocking=[RelatedIssue(**n) for n in raw["blocking"]["nodes"]],
-    )
-
-
-def write_github_output(issue: Issue) -> None:
+def write_github_output(issue: issues.Issue) -> None:
     """Write issue fields to $GITHUB_OUTPUT for use in workflow steps."""
     def write(key: str, value: str, multiline: bool = False) -> None:
         entry = cli.github_output_block(key, value.encode()) if multiline else f"{key}={value}\n".encode()
@@ -88,10 +36,8 @@ def write_github_output(issue: Issue) -> None:
 
 
 def _main(ctx: ActionsCtx, argv: list[str]) -> int:
-    import argparse
-
     parser = argparse.ArgumentParser(prog="interns.entrypoint fetch-issue")
     parser.add_argument("--issue", type=int, required=True)
     args = parser.parse_args(argv)
-    write_github_output(fetch_issue(ctx.repo, args.issue))
+    write_github_output(issues.fetch_issue(ctx.repo, args.issue))
     return 0

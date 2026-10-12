@@ -475,6 +475,22 @@ re-run. The record shape is versioned by `schema_version`, specified in
 Read the log from any client with a single unauthenticated fetch of
 `raw.githubusercontent.com/<owner>/<repo>/metrics/metrics.jsonl`.
 
+## Code layout
+
+Python under `interns/src/interns`, with imports flowing one way
+(enforced by `tests/guards/test_layers.py`):
+
+`gh.transport` → `gh.ops` → `domain` → `steps` / `mcp/server.py` / `entrypoint`
+
+- `gh/` — the only code that talks to `gh`; `transport` is private to `gh`.
+- `domain/` — shared logic and read models (`labels`, `issues`, `push`,
+  `verdict`, `size`, `build_config`). Imports nothing from `steps`,
+  `entrypoint` or `mcp`.
+- `steps/` — one module per workflow command, a thin wrapper over `domain/`.
+  A step never imports another step.
+- `entrypoint.py` — builds `ActionsCtx` and dispatches to the steps.
+- `mcp/server.py` — the agent-facing MCP tools, built on `domain/`.
+
 ## License
 
 MIT

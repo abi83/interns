@@ -6,7 +6,7 @@ Only the PR is escalated; the issue keeps its status because the work is in a PR
 from __future__ import annotations
 
 from .. import gh
-from . import labels
+from ..domain import labels
 from ..ctx import ActionsCtx
 
 

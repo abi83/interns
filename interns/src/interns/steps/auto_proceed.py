@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from .. import config, gh
 from ..ctx import ActionsCtx
-from . import labels
+from ..domain import labels
 
 CODER_TYPES = (labels.TYPE_CODING_TASK, labels.TYPE_BUG)
 

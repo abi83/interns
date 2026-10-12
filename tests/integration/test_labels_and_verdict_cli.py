@@ -1,4 +1,4 @@
-"""Direct CLI entrypoints for `interns.steps.labels` and `interns.verdict`:
+"""Direct CLI entrypoints for `interns.steps.labels` and `interns.steps.verdict`:
 workflow steps call these subcommands straight from YAML via `interns.entrypoint`.
 """
 
@@ -86,7 +86,7 @@ def test_labels_escalate_pr_sets_needs_attention(scenario):
     assert scenario.label_edits("pr") == [(PR, {"pr:needs-attention"}, {"pr:coding"})]
 
 
-# --- interns.verdict ---------------------------------------------------------
+# --- interns.steps.verdict ---------------------------------------------------------
 
 def test_verdict_verdict_for_head_prints_the_latest_state(scenario):
     scenario.gh(f"repos/{REPO}/pulls/{PR}/reviews", stdout=[[review("APPROVED")]])

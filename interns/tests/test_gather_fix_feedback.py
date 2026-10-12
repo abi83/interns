@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from interns.steps import gather_fix_feedback
 from interns.ctx import ActionsCtx
-from interns.verdict import FullReview
+from interns.domain.verdict import FullReview
 
 
 class BuildFeedbackTextTests(unittest.TestCase):

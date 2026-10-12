@@ -70,3 +70,7 @@ def _main(argv: list[str]) -> int:
 
 if __name__ == "__main__":
     sys.exit(cli.run(_main))
+
+
+def format_cost(raw: str | None) -> str:
+    return f"{float(raw):.4f}" if raw else "unknown"
