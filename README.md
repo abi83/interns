@@ -483,7 +483,7 @@ Read the log from any client with a single unauthenticated fetch of
 Python under `interns/src/interns`, with imports flowing one way
 (enforced by `tests/guards/test_layers.py`):
 
-`gh.transport` → `gh.ops` → `domain` → `steps` / `mcp/server.py` / `entrypoint`
+`gh.transport` → `gh.ops` → `domain` → `steps` / `gh_issues_mcp/server.py` / `entrypoint`
 
 - `gh/` — the only code that talks to `gh`; `transport` is private to `gh`.
 - `domain/` — shared logic and read models (`labels`, `issues`, `push`,
@@ -497,7 +497,7 @@ Python under `interns/src/interns`, with imports flowing one way
   `cli.build_parser(<command>)`. Exception: `check-build-config`, `config`,
   `prompt`, `resolve-issue-template` and `run-setup` take `(argv)` only, because
   their workflow steps carry no GitHub token or repository env for the ctx.
-- `mcp/server.py` — the agent-facing MCP tools, built on `domain/`.
+- `gh_issues_mcp/server.py` — the agent-facing MCP tools, built on `domain/`.
 
 ## License
 

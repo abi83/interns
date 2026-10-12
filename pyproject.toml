@@ -14,15 +14,15 @@ package = false
 # One test configuration for all three packages. Tests import the packages
 # from source, so no install step is needed and every suite runs from here.
 [tool.pytest.ini_options]
-testpaths = ["interns/tests", "installer/tests", "mcp/tests", "tests"]
-pythonpath = [".", "tests", "interns/src", "installer/src", "mcp"]
+testpaths = ["interns/tests", "installer/tests", "gh_issues_mcp/tests", "tests"]
+pythonpath = [".", "tests", "interns/src", "installer/src", "gh_issues_mcp"]
 # importlib: the suites share basenames (test_cli.py) and one has no __init__.py.
 addopts = "--import-mode=importlib"
 
 [tool.coverage.run]
 branch = true
 # Directories, not packages, so modules a tier never imports still count as uncovered.
-source = ["interns/src", "installer/src", "mcp"]
+source = ["interns/src", "installer/src", "gh_issues_mcp"]
 omit = ["*/tests/*"]
 parallel = true
 disable_warnings = ["module-not-imported", "no-data-collected"]
@@ -46,7 +46,7 @@ ignore = ["E501"]
 
 [tool.pyright]
 pythonVersion = "3.12"
-include = ["interns", "installer", "mcp", "tests"]
-extraPaths = ["interns/src", "installer/src", "mcp", "tests"]
+include = ["interns", "installer", "gh_issues_mcp", "tests"]
+extraPaths = ["interns/src", "installer/src", "gh_issues_mcp", "tests"]
 exclude = ["**/.venv", ".claude"]
 typeCheckingMode = "basic"

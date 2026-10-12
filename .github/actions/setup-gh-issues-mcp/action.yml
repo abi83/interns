@@ -30,7 +30,7 @@ runs:
               "command": "uv",
               "args": [
                 "--directory",
-                "${{ github.workspace }}/.interns/mcp",
+                "${{ github.workspace }}/.interns/gh_issues_mcp",
                 "run",
                 "server.py",
               ],
