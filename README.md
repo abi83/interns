@@ -100,7 +100,7 @@ Two limits bound the loop:
   reviews on the PR, automatic review stops entirely and stays manual.
 
 A red PR check also sends the PR straight to `pr:needs-attention`, with no fix
-round.
+round. The linked issue keeps its status.
 
 | Label | Meaning                                      | Set by                      | Moves to |
 |---|----------------------------------------------|-----------------------------|---|

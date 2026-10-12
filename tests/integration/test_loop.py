@@ -123,11 +123,11 @@ def test_red_check_routes_to_a_human_without_running_the_reviewer(scenario):
     assert gate.outputs == {"ok": "false", "reason": "red checks: ci=fail"}
 
     routed = scenario.run("interns.entrypoint", "route-red-checks",
-                          "--pr", PR, "--issue", ISSUE, "--reason", gate.outputs["reason"])
+                          "--pr", PR, "--reason", gate.outputs["reason"])
 
     assert routed.returncode == 0
     assert scenario.label_edits("pr") == [(PR, {"pr:needs-attention"}, {"pr:coding"})]
-    assert scenario.label_edits("issue") == [(ISSUE, {"status:needs-attention"}, {"status:in-progress"})]
+    assert scenario.label_edits("issue") == []
     assert "red checks: ci=fail" in scenario.comments("pr")[0][1]
     assert scenario.calls("gh", "api") == []
 
