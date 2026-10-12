@@ -646,7 +646,6 @@ jobs:
         run: >
           python3 -m interns.entrypoint route-red-checks
           --pr "${{ github.event.pull_request.number }}"
-          --issue "${{ steps.linked.outputs.issue_number }}"
           --reason "${{ steps.checks.outputs.reason }}"
 
       # The reviewer runs under its own GitHub App identity, distinct from the
