@@ -6,7 +6,7 @@ requires-python = ">=3.12"
 dependencies = ["mcp==2.2.0"]
 
 [dependency-groups]
-dev = ["pytest==9.1.1", "pytest-mock==3.15.1", "coverage==7.16.1", "ruff==0.15.0", "pip-audit==2.10.1"]
+dev = ["pytest==9.1.1", "pytest-mock==3.15.1", "coverage==7.16.1", "ruff==0.15.0", "pip-audit==2.10.1", "pyright==1.1.408"]
 
 [tool.uv]
 package = false
@@ -38,4 +38,15 @@ extend-exclude = [".claude"]
 
 [tool.ruff.lint]
 # F: unused imports/variables, undefined names -- the cheap dead-code guard.
-select = ["F"]
+# E: pycodestyle, B: bugbear, UP: pyupgrade, SIM: simplify.
+select = ["E", "F", "B", "UP", "SIM"]
+# E501: no formatter owns line length here, and wrapping ~1000 existing lines
+# would be churn without a correctness benefit.
+ignore = ["E501"]
+
+[tool.pyright]
+pythonVersion = "3.12"
+include = ["interns", "installer", "mcp", "tests"]
+extraPaths = ["interns/src", "installer/src", "mcp", "tests"]
+exclude = ["**/.venv", ".claude"]
+typeCheckingMode = "basic"

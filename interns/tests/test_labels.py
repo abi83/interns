@@ -81,10 +81,8 @@ class ApplyTransitionTests(unittest.TestCase):
         )
 
     def test_a_failed_edit_raises(self):
-        with patch("interns.gh.issue_view", return_value=_labels_response([])), \
-             patch("interns.gh.issue_edit", side_effect=gh.GhCommandError("boom")):
-            with self.assertRaises(gh.GhCommandError):
-                labels.apply_transition("o/r", 7, labels.refinement_needs_attention())
+        with patch("interns.gh.issue_view", return_value=_labels_response([])), patch("interns.gh.issue_edit", side_effect=gh.GhCommandError("boom")), self.assertRaises(gh.GhCommandError):
+            labels.apply_transition("o/r", 7, labels.refinement_needs_attention())
 
 
 class SetPrPipelineLabelTests(unittest.TestCase):
@@ -139,14 +137,12 @@ class EditIssueLabelsValidatedTests(unittest.TestCase):
         self.assertEqual(labels.edit_issue_labels_validated("o/r", 7), "Nothing to do")
 
     def test_unknown_add_label_raises(self):
-        with patch("interns.gh.label_names", return_value=[]):
-            with self.assertRaisesRegex(gh.InvalidInputError, "don't exist"):
-                labels.edit_issue_labels_validated("o/r", 7, add=["no-such"])
+        with patch("interns.gh.label_names", return_value=[]), self.assertRaisesRegex(gh.InvalidInputError, "don't exist"):
+            labels.edit_issue_labels_validated("o/r", 7, add=["no-such"])
 
     def test_unknown_remove_label_raises(self):
-        with patch("interns.gh.label_names", return_value=[]):
-            with self.assertRaisesRegex(gh.InvalidInputError, "don't exist"):
-                labels.edit_issue_labels_validated("o/r", 7, remove=["no-such"])
+        with patch("interns.gh.label_names", return_value=[]), self.assertRaisesRegex(gh.InvalidInputError, "don't exist"):
+            labels.edit_issue_labels_validated("o/r", 7, remove=["no-such"])
 
 
 class ApplyRefinementTests(unittest.TestCase):
@@ -185,11 +181,8 @@ class ApplyEstimationTests(unittest.TestCase):
         self.assertEqual(calls, ["edit", "comment"])
 
     def test_failed_transition_posts_no_comment(self):
-        with patch("interns.gh.issue_view", return_value=_labels_response(["status:refined"])), \
-             patch("interns.gh.issue_edit", side_effect=gh.GhCommandError("boom")), \
-             patch("interns.gh.issue_comment") as comment:
-            with self.assertRaises(gh.GhCommandError):
-                labels.apply_estimation("o/r", 7, "estimated", _estimation("Low", "Low", "Low", "Low"))
+        with patch("interns.gh.issue_view", return_value=_labels_response(["status:refined"])), patch("interns.gh.issue_edit", side_effect=gh.GhCommandError("boom")), patch("interns.gh.issue_comment") as comment, self.assertRaises(gh.GhCommandError):
+            labels.apply_estimation("o/r", 7, "estimated", _estimation("Low", "Low", "Low", "Low"))
         comment.assert_not_called()
 
     def test_comment_lists_the_four_scores(self):

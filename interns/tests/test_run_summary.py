@@ -261,9 +261,8 @@ class CostAndExecFileTests(unittest.TestCase):
 class UnknownPhaseTests(unittest.TestCase):
     def test_errors_on_an_unknown_phase(self):
         patches = _patch()
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
-            with self.assertRaises(ValueError):
-                _build("Bogus", None, issue="7")
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], self.assertRaises(ValueError):
+            _build("Bogus", None, issue="7")
 
 
 class RoundLineTests(unittest.TestCase):
@@ -291,7 +290,8 @@ class CliTests(unittest.TestCase):
             patches = _patch(issue_labels=lambda repo, issue: ["status:needs-attention"])
             with patch.dict(os.environ, env), patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
                 run_summary.main(ctx, ["--phase", "Refinement", "--issue", "7"])
-            content = open(summary_path).read()
+            with open(summary_path) as f:
+                content = f.read()
         self.assertIn("## Refinement run", content)
         self.assertIn("Stopped for clarification", content)
 

@@ -17,6 +17,7 @@ import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from . import cli
 
@@ -127,7 +128,7 @@ def _is_num_gt0(value: object) -> bool:
 class _Rule:
     valid: Callable[[object], bool]
     expected: str
-    cast: Callable[[object], object]
+    cast: Callable[[Any], Any]
     note: str = ""
 
 
@@ -229,7 +230,7 @@ def resolve_agent_config(data: dict, agent: str, path: str) -> AgentConfig:
     model = resolve("model")
     if not model:
         raise ConfigError("model resolved empty")
-    limits = {key: _validated(rule, resolve(key), key) for key, rule in _AGENT_RULES.items()}
+    limits: dict[str, Any] = {key: _validated(rule, resolve(key), key) for key, rule in _AGENT_RULES.items()}
 
     allowed_tools, disallowed_tools = _resolve_tool_lists(defaults_block, agent_block, agent)
 
@@ -285,10 +286,12 @@ def auto_proceed_config(data: dict, path: str) -> dict[str, bool]:
     Merged key by key, so a consumer overriding one size keeps the rest."""
     consumer = data.get("auto_proceed") or {}
     builtin = _builtin_data().get("auto_proceed") or {}
-    resolved = {size: consumer.get(size, builtin.get(size)) for size in KNOWN_SIZES}
-    for size, value in resolved.items():
+    resolved: dict[str, bool] = {}
+    for size in KNOWN_SIZES:
+        value = consumer.get(size, builtin.get(size))
         if not isinstance(value, bool):
             raise ConfigError(f"auto_proceed.{size} must be true or false (got '{value}') in {path}")
+        resolved[size] = value
     return resolved
 
 

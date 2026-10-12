@@ -29,14 +29,12 @@ class BuildFeedbackTextTests(unittest.TestCase):
         reviews = [
             FullReview(login="somedev", state="APPROVED", commit_id="sha1", id=1, submitted_at="t1", body="lgtm"),
         ]
-        with patch("interns.steps.gather_fix_feedback.verdict.all_reviews", return_value=reviews):
-            with self.assertRaises(gather_fix_feedback.NoChangesRequestedReviewError):
-                gather_fix_feedback.build_feedback_text("acme/widgets", 6)
+        with patch("interns.steps.gather_fix_feedback.verdict.all_reviews", return_value=reviews), self.assertRaises(gather_fix_feedback.NoChangesRequestedReviewError):
+            gather_fix_feedback.build_feedback_text("acme/widgets", 6)
 
     def test_raises_when_there_is_no_changes_requested_review(self):
-        with patch("interns.steps.gather_fix_feedback.verdict.all_reviews", return_value=[]):
-            with self.assertRaises(gather_fix_feedback.NoChangesRequestedReviewError):
-                gather_fix_feedback.build_feedback_text("acme/widgets", 6)
+        with patch("interns.steps.gather_fix_feedback.verdict.all_reviews", return_value=[]), self.assertRaises(gather_fix_feedback.NoChangesRequestedReviewError):
+            gather_fix_feedback.build_feedback_text("acme/widgets", 6)
 
 
 class CliTests(unittest.TestCase):

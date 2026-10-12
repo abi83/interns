@@ -15,7 +15,7 @@ absent label -- which `gh` would reject -- never happens in the first place.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import NamedTuple
+from typing import Literal, NamedTuple, get_args
 
 from .. import best_effort, gh
 from .size import Estimation
@@ -31,9 +31,8 @@ PR_CODING = "pr:coding"
 PR_IN_REVIEW = "pr:in-review"
 PR_NEEDS_ATTENTION = "pr:needs-attention"
 
-TYPE_CODING_TASK = "type:coding-task"
-TYPE_BUG = "type:bug"
-TYPE_SPIKE = "type:spike"
+TypeLabel = Literal["type:coding-task", "type:bug", "type:spike"]
+TYPE_CODING_TASK, TYPE_BUG, TYPE_SPIKE = get_args(TypeLabel)
 
 SIZE_PREFIX = "size:"
 

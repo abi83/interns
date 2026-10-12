@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import functools
+import inspect
 import json
 import os
 import pathlib
@@ -12,11 +13,13 @@ from typing import Annotated, Literal
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
-from interns import gh
+from interns import cli, gh
 from interns.domain import issues, labels, push
 from interns.domain.size import Estimation
-from interns.gh import GhCommandError, InvalidInputError, PushRefusedError  # noqa: F401 — re-exported for callers
+from interns.gh import GhCommandError, InvalidInputError, PushRefusedError
 from pydantic import BaseModel, Field
+
+__all__ = ["GhCommandError", "InvalidInputError", "PushRefusedError", "build_server"]
 
 TOOLS_ENV = "INTERNS_MCP_TOOLS"
 
@@ -44,6 +47,28 @@ def _surface_anticipated_errors(fn: Callable[..., str]) -> Callable[..., str]:
     return wrapper
 
 
+def _repo() -> str:
+    return cli.require_env("GITHUB_REPOSITORY")
+
+
+def _workspace() -> str:
+    return cli.require_env("GITHUB_WORKSPACE")
+
+
+def _describe_labels(fn: Callable[..., str]) -> Callable[..., str]:
+    """Advertise the manifest's label names on `list_issues`; read at server build, not at import."""
+    description = f"Label to filter by. Pass '' (or omit) to list all open issues. Valid labels: {', '.join(_load_label_names())}."
+
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs) -> str:
+        return fn(*args, **kwargs)
+
+    signature = inspect.signature(fn, eval_str=True)
+    label = signature.parameters["label"].replace(annotation=Annotated[str, Field(description=description)])
+    wrapper.__signature__ = signature.replace(parameters=[label])  # type: ignore[attr-defined]
+    return wrapper
+
+
 def build_server(tool_names: list[str]) -> MCPServer:
     """An MCP server exposing exactly `tool_names`; unknown or empty fails fast."""
     if not tool_names:
@@ -51,13 +76,13 @@ def build_server(tool_names: list[str]) -> MCPServer:
     unknown = sorted(set(tool_names) - _TOOLS.keys())
     if unknown:
         raise ValueError(f"Unknown tool(s) in {TOOLS_ENV}: {', '.join(unknown)}. Known: {', '.join(sorted(_TOOLS))}")
+    _repo()
+    _workspace()
     server = MCPServer("gh-issues")
     for name in tool_names:
-        server.add_tool(_surface_anticipated_errors(_TOOLS[name]))
+        fn = _surface_anticipated_errors(_TOOLS[name])
+        server.add_tool(_describe_labels(fn) if name == "list_issues" else fn)
     return server
-
-_REPO = os.environ.get("GITHUB_REPOSITORY", "")
-_WORKSPACE = os.environ.get("GITHUB_WORKSPACE", "")
 
 _LABELS_JSON = pathlib.Path(__file__).parent.parent / ".github" / "labels.json"
 
@@ -73,7 +98,7 @@ class InlineComment(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Label description helper (computed once at import)
+# Label manifest
 # ---------------------------------------------------------------------------
 
 
@@ -82,15 +107,6 @@ def _load_label_names() -> list[str]:
     return [entry["name"] for entry in data["labels"]]
 
 
-# Computed once at import time, not re-read per call: labels.json only changes
-# via a separate PR to this repo, never mid-process, so a stale in-process
-# cache for the lifetime of one server run is an acceptable, intentional trade-off.
-_KNOWN_LABELS = _load_label_names()
-_LABEL_DESCRIPTION = (
-    "Label to filter by. Pass '' (or omit) to list all open issues. "
-    + (f"Valid labels: {', '.join(_KNOWN_LABELS)}." if _KNOWN_LABELS else "")
-)
-
 # ---------------------------------------------------------------------------
 # Issue read tools
 # ---------------------------------------------------------------------------
@@ -98,13 +114,13 @@ _LABEL_DESCRIPTION = (
 
 @_tool
 def list_issues(
-    label: Annotated[str, Field(description=_LABEL_DESCRIPTION)] = "",
+    label: Annotated[str, Field(description="Label to filter by. Pass '' (or omit) to list all open issues.")] = "",
 ) -> str:
     """List open issues in the repository.
 
     Returns a JSON array; each element has number, title, labels, state.
     """
-    return json.dumps(gh.issue_list(_REPO, label=label))
+    return json.dumps(gh.issue_list(_repo(), label=label))
 
 
 @_tool
@@ -117,7 +133,7 @@ def view_issue(
     Returns a flat JSON object — labels is a list of strings, comments is a list
     of {author, created_at, body} objects.
     """
-    return json.dumps(dataclasses.asdict(issues.fetch_issue(_REPO, issue_number)))
+    return json.dumps(dataclasses.asdict(issues.fetch_issue(_repo(), issue_number)))
 
 
 # ---------------------------------------------------------------------------
@@ -131,7 +147,7 @@ def comment_issue(
     body: Annotated[str, Field(description="Comment body (markdown).", min_length=1, max_length=10000)],
 ) -> str:
     """Post a comment on an issue."""
-    return gh.issue_comment(_REPO, issue_number, body) or f"Comment posted on issue #{issue_number}"
+    return gh.issue_comment(_repo(), issue_number, body) or f"Comment posted on issue #{issue_number}"
 
 
 @_tool
@@ -148,7 +164,7 @@ def edit_issue(
     Always pass the full rewritten body. Pass title only when it needs
     correcting — omit it to leave the existing title in place.
     """
-    return gh.issue_edit_validated(_REPO, issue_number, body=body, title=title)
+    return gh.issue_edit_validated(_repo(), issue_number, body=body, title=title)
 
 
 @_tool
@@ -162,7 +178,7 @@ def edit_issue_labels(
     Only labels that exist in the repository are accepted. Pass an empty list
     to skip adding or removing.
     """
-    return labels.edit_issue_labels_validated(_REPO, issue_number, add=add_labels, remove=remove_labels)
+    return labels.edit_issue_labels_validated(_repo(), issue_number, add=add_labels, remove=remove_labels)
 
 
 # ---------------------------------------------------------------------------
@@ -176,7 +192,7 @@ def comment_pr(
     body: Annotated[str, Field(description="Comment body (markdown).", min_length=1, max_length=10000)],
 ) -> str:
     """Post a comment on a pull request."""
-    return gh.pr_comment(_REPO, pr_number, body) or f"Comment posted on PR #{pr_number}"
+    return gh.pr_comment(_repo(), pr_number, body) or f"Comment posted on PR #{pr_number}"
 
 
 @_tool
@@ -190,7 +206,7 @@ def open_pr(
     Appends 'Closes #<issue_number>' to the body automatically so the PR is
     linked to the issue via GitHub's closing-reference mechanism.
     """
-    return push.pr_open_for_issue(_REPO, _WORKSPACE, issue_number, title, body)
+    return push.pr_open_for_issue(_repo(), _workspace(), issue_number, title, body)
 
 
 @_tool
@@ -205,7 +221,7 @@ def submit_pr_review(
 ) -> str:
     """Submit a formal PR review (verdict + optional inline comments) atomically."""
     comment_dicts = [c.model_dump() for c in (comments or [])]
-    return json.dumps(gh.pr_submit_review(_REPO, pr_number, event, body, comment_dicts))
+    return json.dumps(gh.pr_submit_review(_repo(), pr_number, event, body, comment_dicts))
 
 
 # ---------------------------------------------------------------------------
@@ -222,7 +238,7 @@ def push_branch() -> str:
     Squashing happens before the protected-path check so an intermediate-only
     edit to a protected path is collapsed and doesn't trigger a false positive.
     """
-    return push.push_branch(_REPO, _WORKSPACE)
+    return push.push_branch(_repo(), _workspace())
 
 
 # ---------------------------------------------------------------------------
@@ -236,7 +252,7 @@ def apply_refinement_outcome(
     issue_number: Annotated[int, Field(description="Issue number.")],
     outcome: Annotated[Literal["refined", "needs-attention"], Field(description="Refinement outcome.")],
     type_label: Annotated[
-        Literal[labels.TYPE_CODING_TASK, labels.TYPE_BUG, labels.TYPE_SPIKE] | None,
+        labels.TypeLabel | None,
         Field(description="Required when outcome='refined'. The type label for this issue."),
     ] = None,
 ) -> str:
@@ -247,7 +263,7 @@ def apply_refinement_outcome(
                     (which triggers the estimate job).
     needs-attention → removes status:needs-refinement, adds status:needs-attention.
     """
-    return labels.apply_refinement(_REPO, issue_number, outcome, type_label)
+    return labels.apply_refinement(_repo(), issue_number, outcome, type_label)
 
 
 @_tool
@@ -273,7 +289,7 @@ def apply_estimation_outcome(
     score comment. Call with outcome='needs-attention' when the issue cannot
     be sized.
     """
-    return labels.apply_estimation(_REPO, issue_number, outcome, estimation)
+    return labels.apply_estimation(_repo(), issue_number, outcome, estimation)
 
 
 if __name__ == "__main__":

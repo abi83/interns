@@ -3,6 +3,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 from interns import cli
@@ -46,7 +47,7 @@ class BuildRecordTests(unittest.TestCase):
         self._tmpdir.cleanup()
 
     def _build(self, **overrides):
-        kwargs = dict(job="coder", issue=117, pr=128, repo="owner/repo",
+        kwargs: dict[str, Any] = dict(job="coder", issue=117, pr=128, repo="owner/repo",
                       run_id=42, run_attempt=2, interns_ref=REF)
         kwargs.update(overrides)
         return extract_metrics.build_record(str(self.exec_file), **kwargs)
@@ -159,7 +160,8 @@ class CliTests(unittest.TestCase):
 
     def test_missing_run_id_fails_cleanly(self):
         with patch.dict(os.environ, clear=True), self.assertRaisesRegex(cli.MissingEnvError, "GITHUB_RUN_ID unset"):
-            import io, contextlib
+            import io
+            import contextlib
             with contextlib.redirect_stdout(io.StringIO()):
                 extract_metrics.main(self.ctx, ["--exec-file", str(self.exec_file),
                                                     "--job", "coder", "--ref", REF])

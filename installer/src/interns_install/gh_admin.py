@@ -59,7 +59,10 @@ def current_repo(explicit: str | None) -> Repo:
     owner = data["owner"]["login"]
     name = data["name"]
     # `repo view --json owner` carries only id and login, not the owner type.
-    owner_type = gh_transport.api(f"repos/{owner}/{name}")["owner"]["type"]
+    repo_info = gh_transport.api(f"repos/{owner}/{name}")
+    if not isinstance(repo_info, dict):
+        raise gh_transport.GhCommandError(f"unexpected repo payload for {owner}/{name}")
+    owner_type = repo_info["owner"]["type"]
     return Repo(owner=owner, name=name, is_org=owner_type == "Organization")
 
 

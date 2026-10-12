@@ -7,6 +7,7 @@ uv run --frozen python -m pytest interns/tests installer/tests mcp/tests  # unit
 uv run --frozen python -m pytest tests/integration                         # integration tier
 uv run --frozen python -m pytest tests/guards tests/contract               # guards + contracts
 uv run --frozen ruff check .                                               # lint
+uv run --frozen pyright                                                    # type check
 ```
 
 ## Tiers

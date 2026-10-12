@@ -45,16 +45,14 @@ class LoadRawTests(unittest.TestCase):
     def test_yq_failure_is_surfaced(self):
         isfile_p = patch("interns.config.os.path.isfile", return_value=True)
         run_p = patch("interns.config.subprocess.run", return_value=_cp(returncode=1, stderr="bad yaml"))
-        with isfile_p, run_p:
-            with self.assertRaisesRegex(config.ConfigError, "not valid YAML"):
-                config.load_raw("interns.yml")
+        with isfile_p, run_p, self.assertRaisesRegex(config.ConfigError, "not valid YAML"):
+            config.load_raw("interns.yml")
 
     def test_missing_yq_binary_is_surfaced(self):
         isfile_p = patch("interns.config.os.path.isfile", return_value=True)
         run_p = patch("interns.config.subprocess.run", side_effect=FileNotFoundError())
-        with isfile_p, run_p:
-            with self.assertRaisesRegex(config.ConfigError, "yq"):
-                config.load_raw("interns.yml")
+        with isfile_p, run_p, self.assertRaisesRegex(config.ConfigError, "yq"):
+            config.load_raw("interns.yml")
 
     def test_unknown_top_level_key(self):
         with self.assertRaisesRegex(config.ConfigError, "unknown top-level key 'junk'"):
@@ -328,14 +326,12 @@ class DefaultsCoverLoaderKeysTests(unittest.TestCase):
 
 class MissingDefaultKeyTests(unittest.TestCase):
     def test_checks_key_absent_everywhere_raises_naming_it(self):
-        with patch("interns.config._builtin_data", return_value={"checks": {"poll_seconds": 20, "settle_seconds": 30}}):
-            with self.assertRaisesRegex(config.ConfigError, "checks.timeout_seconds"):
-                config.checks_config({}, "interns.yml")
+        with patch("interns.config._builtin_data", return_value={"checks": {"poll_seconds": 20, "settle_seconds": 30}}), self.assertRaisesRegex(config.ConfigError, "checks.timeout_seconds"):
+            config.checks_config({}, "interns.yml")
 
     def test_review_loop_key_absent_everywhere_raises_naming_it(self):
-        with patch("interns.config._builtin_data", return_value={"review_loop": {"max_fix_rounds": 1}}):
-            with self.assertRaisesRegex(config.ConfigError, "review_loop.max_automatic_reviews"):
-                config.review_loop_config({}, "interns.yml")
+        with patch("interns.config._builtin_data", return_value={"review_loop": {"max_fix_rounds": 1}}), self.assertRaisesRegex(config.ConfigError, "review_loop.max_automatic_reviews"):
+            config.review_loop_config({}, "interns.yml")
 
     def test_consumer_value_does_not_need_a_default(self):
         with patch("interns.config._builtin_data", return_value={}):

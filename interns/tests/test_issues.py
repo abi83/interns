@@ -31,6 +31,7 @@ class FetchIssueTests(unittest.TestCase):
         self.assertEqual(issue.number, 42)
         self.assertEqual(issue.labels, ["bug", "priority:high"])
         self.assertEqual([c.author for c in issue.comments], ["alice"])
+        assert issue.parent is not None
         self.assertEqual(issue.parent.number, 10)
         self.assertEqual(len(issue.sub_issues), 1)
         self.assertEqual(issue.blocked_by, [])
