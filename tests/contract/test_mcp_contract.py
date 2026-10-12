@@ -9,6 +9,7 @@ import json
 
 import pytest
 from interns import gh
+from interns.size import Estimation, Score
 from interns.steps import labels, push
 from interns.gh import GhCommandError, InvalidInputError, PushRefusedError
 
@@ -257,7 +258,9 @@ def test_apply_refinement_needs_attention_applies_transition(scenario):
 def test_apply_estimation_estimated_applies_size_transition(scenario):
     scenario.gh("issue", "view", stdout=json.dumps({"labels": [{"name": "status:refined"}]}))
 
-    result = labels.apply_estimation(REPO, 7, "estimated", "Low", "Mid", "Low", "Low")
+    estimation = Estimation(*(Score(level, "because") for level in ("Low", "Mid", "Low", "Low")))
+
+    result = labels.apply_estimation(REPO, 7, "estimated", estimation)
 
     edits = scenario.calls("gh", "issue", "edit")
     assert edits

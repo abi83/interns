@@ -14,18 +14,14 @@ import json
 import os
 import subprocess
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
 from . import cli
 
-KNOWN_TOP_KEYS = ("debug", "defaults", "agents", "wiki", "checks", "review_loop", "auto_proceed")
-KNOWN_AGENTS = ("refiner", "estimator", "coder", "reviewer")
-KNOWN_LIMIT_KEYS = ("model", "max_turns", "timeout_minutes", "max_output_tokens", "cost_warn_usd", "allowed_tools", "disallowed_tools")
-KNOWN_WIKI_KEYS = ("enabled", "url")
-KNOWN_CHECKS_KEYS = ("ignore", "timeout_seconds", "poll_seconds", "settle_seconds")
-KNOWN_REVIEW_LOOP_KEYS = ("max_fix_rounds", "max_automatic_reviews")
-KNOWN_AUTO_PROCEED_KEYS = ("XS", "S", "M", "L", "XL")
+_SCHEMA_PATH = Path(__file__).resolve().parents[3] / ".github" / "interns.schema.json"
+_SCHEMA = json.loads(_SCHEMA_PATH.read_text())
 
 # The pipeline's own built-in fallback layer, loaded through the identical
 # schema-validated path as a consumer's file. The installer renders
@@ -90,37 +86,33 @@ def load_raw(path: str) -> dict:
     return data
 
 
-def _validate_schema(data: dict, path: str) -> None:
-    for key in data:
-        if key not in KNOWN_TOP_KEYS:
-            raise ConfigError(f"unknown top-level key '{key}' in {path}")
+def _schema_properties(node: dict) -> dict:
+    ref = node.get("$ref")
+    if ref:
+        node = _SCHEMA["definitions"][ref.rsplit("/", 1)[-1]]
+    return node.get("properties", {})
 
-    for key in data.get("defaults") or {}:
-        if key not in KNOWN_LIMIT_KEYS:
-            raise ConfigError(f"unknown key 'defaults.{key}' in {path}")
 
-    for agent, block in (data.get("agents") or {}).items():
-        if agent not in KNOWN_AGENTS:
-            raise ConfigError(f"unknown agent '{agent}' in {path}")
-        for key in block or {}:
-            if key not in KNOWN_LIMIT_KEYS:
-                raise ConfigError(f"unknown key 'agents.{agent}.{key}' in {path}")
+KNOWN_AGENTS = tuple(_schema_properties(_SCHEMA)["agents"]["properties"])
+KNOWN_SIZES = tuple(_schema_properties(_SCHEMA)["auto_proceed"]["properties"])
 
-    for key in data.get("wiki") or {}:
-        if key not in KNOWN_WIKI_KEYS:
-            raise ConfigError(f"unknown key 'wiki.{key}' in {path}")
 
-    for key in data.get("checks") or {}:
-        if key not in KNOWN_CHECKS_KEYS:
-            raise ConfigError(f"unknown key 'checks.{key}' in {path}")
+def _unknown_key_error(parents: tuple[str, ...], key: str, path: str) -> ConfigError:
+    if not parents:
+        return ConfigError(f"unknown top-level key '{key}' in {path}")
+    if parents == ("agents",):
+        return ConfigError(f"unknown agent '{key}' in {path}")
+    return ConfigError(f"unknown key '{'.'.join((*parents, key))}' in {path}")
 
-    for key in data.get("review_loop") or {}:
-        if key not in KNOWN_REVIEW_LOOP_KEYS:
-            raise ConfigError(f"unknown key 'review_loop.{key}' in {path}")
 
-    for key in data.get("auto_proceed") or {}:
-        if key not in KNOWN_AUTO_PROCEED_KEYS:
-            raise ConfigError(f"unknown key 'auto_proceed.{key}' in {path}")
+def _validate_schema(data: dict, path: str, node: dict = _SCHEMA, parents: tuple[str, ...] = ()) -> None:
+    """Rejects keys the schema doesn't declare, at every nesting level."""
+    known = _schema_properties(node)
+    for key, value in data.items():
+        if key not in known:
+            raise _unknown_key_error(parents, key, path)
+        if isinstance(value, dict):
+            _validate_schema(value, path, known[key], (*parents, key))
 
 
 def _is_int_ge(value: object, floor: int) -> bool:
@@ -129,6 +121,42 @@ def _is_int_ge(value: object, floor: int) -> bool:
 
 def _is_num_gt0(value: object) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0
+
+
+@dataclass(frozen=True)
+class _Rule:
+    valid: Callable[[object], bool]
+    expected: str
+    cast: Callable[[object], object]
+    note: str = ""
+
+
+_POSITIVE_INT = _Rule(lambda v: _is_int_ge(v, 1), "a positive integer", int)
+_POSITIVE_NUMBER = _Rule(_is_num_gt0, "a positive number", float)
+
+_AGENT_RULES = {
+    "max_turns": _POSITIVE_INT,
+    "timeout_minutes": _POSITIVE_INT,
+    "max_output_tokens": _Rule(
+        lambda v: _is_int_ge(v, 16000), "an integer >= 16000", int, " -- it is a safety ceiling, not a cost lever"
+    ),
+    "cost_warn_usd": _POSITIVE_NUMBER,
+}
+_CHECKS_RULES = {
+    "timeout_seconds": _POSITIVE_NUMBER,
+    "poll_seconds": _POSITIVE_NUMBER,
+    "settle_seconds": _POSITIVE_NUMBER,
+}
+_REVIEW_LOOP_RULES = {
+    "max_fix_rounds": _POSITIVE_INT,
+    "max_automatic_reviews": _POSITIVE_INT,
+}
+
+
+def _validated(rule: _Rule, value: object, label: str, suffix: str = ""):
+    if not rule.valid(value):
+        raise ConfigError(f"{label} must be {rule.expected} (got '{value}'){suffix}{rule.note}")
+    return rule.cast(value)
 
 
 @functools.lru_cache(maxsize=1)
@@ -199,24 +227,9 @@ def resolve_agent_config(data: dict, agent: str, path: str) -> AgentConfig:
         return None
 
     model = resolve("model")
-    max_turns = resolve("max_turns")
-    timeout_minutes = resolve("timeout_minutes")
-    max_output_tokens = resolve("max_output_tokens")
-    cost_warn_usd = resolve("cost_warn_usd")
-
     if not model:
         raise ConfigError("model resolved empty")
-    if not _is_int_ge(max_turns, 1):
-        raise ConfigError(f"max_turns must be a positive integer (got '{max_turns}')")
-    if not _is_int_ge(timeout_minutes, 1):
-        raise ConfigError(f"timeout_minutes must be a positive integer (got '{timeout_minutes}')")
-    if not _is_int_ge(max_output_tokens, 16000):
-        raise ConfigError(
-            f"max_output_tokens must be an integer >= 16000 (got '{max_output_tokens}') "
-            "-- it is a safety ceiling, not a cost lever"
-        )
-    if not _is_num_gt0(cost_warn_usd):
-        raise ConfigError(f"cost_warn_usd must be a positive number (got '{cost_warn_usd}')")
+    limits = {key: _validated(rule, resolve(key), key) for key, rule in _AGENT_RULES.items()}
 
     allowed_tools, disallowed_tools = _resolve_tool_lists(defaults_block, agent_block, agent)
 
@@ -230,10 +243,7 @@ def resolve_agent_config(data: dict, agent: str, path: str) -> AgentConfig:
 
     return AgentConfig(
         model=str(model),
-        max_turns=int(max_turns),
-        timeout_minutes=int(timeout_minutes),
-        max_output_tokens=int(max_output_tokens),
-        cost_warn_usd=float(cost_warn_usd),
+        **limits,
         allowed_tools=allowed_tools,
         disallowed_tools=disallowed_tools,
         wiki_enabled=wiki_enabled,
@@ -250,47 +260,24 @@ def _section_value(consumer: dict, builtin: dict, section: str, key: str):
     raise ConfigError(f"{section}.{key} is set neither in the config nor in the shipped defaults")
 
 
+def _section_limits(data: dict, section: str, rules: dict[str, _Rule], path: str) -> dict:
+    consumer = data.get(section) or {}
+    builtin = _builtin_data().get(section) or {}
+    return {
+        key: _validated(rule, _section_value(consumer, builtin, section, key), f"{section}.{key}", f" in {path}")
+        for key, rule in rules.items()
+    }
+
+
 def checks_config(data: dict, path: str) -> ChecksConfig:
-    checks = data.get("checks") or {}
-    ignore = checks.get("ignore", [])
+    ignore = (data.get("checks") or {}).get("ignore", [])
     if not isinstance(ignore, list):
         raise ConfigError(f"checks.ignore must be a YAML list of check names in {path}")
-
-    builtin_checks = _builtin_data().get("checks") or {}
-    timeout = _section_value(checks, builtin_checks, "checks", "timeout_seconds")
-    poll = _section_value(checks, builtin_checks, "checks", "poll_seconds")
-    settle = _section_value(checks, builtin_checks, "checks", "settle_seconds")
-
-    if not _is_num_gt0(timeout):
-        raise ConfigError(f"checks.timeout_seconds must be a positive number (got '{timeout}') in {path}")
-    if not _is_num_gt0(poll):
-        raise ConfigError(f"checks.poll_seconds must be a positive number (got '{poll}') in {path}")
-    if not _is_num_gt0(settle):
-        raise ConfigError(f"checks.settle_seconds must be a positive number (got '{settle}') in {path}")
-
-    return ChecksConfig(
-        ignore=[str(name) for name in ignore],
-        timeout_seconds=float(timeout),
-        poll_seconds=float(poll),
-        settle_seconds=float(settle),
-    )
+    return ChecksConfig(ignore=[str(name) for name in ignore], **_section_limits(data, "checks", _CHECKS_RULES, path))
 
 
 def review_loop_config(data: dict, path: str) -> ReviewLoopConfig:
-    rl = data.get("review_loop") or {}
-    builtin_rl = _builtin_data().get("review_loop") or {}
-    max_fix_rounds = _section_value(rl, builtin_rl, "review_loop", "max_fix_rounds")
-    max_automatic_reviews = _section_value(rl, builtin_rl, "review_loop", "max_automatic_reviews")
-
-    if not _is_int_ge(max_fix_rounds, 1):
-        raise ConfigError(f"review_loop.max_fix_rounds must be a positive integer (got '{max_fix_rounds}') in {path}")
-    if not _is_int_ge(max_automatic_reviews, 1):
-        raise ConfigError(f"review_loop.max_automatic_reviews must be a positive integer (got '{max_automatic_reviews}') in {path}")
-
-    return ReviewLoopConfig(
-        max_fix_rounds=int(max_fix_rounds),
-        max_automatic_reviews=int(max_automatic_reviews),
-    )
+    return ReviewLoopConfig(**_section_limits(data, "review_loop", _REVIEW_LOOP_RULES, path))
 
 
 def auto_proceed_config(data: dict, path: str) -> dict[str, bool]:
@@ -298,7 +285,7 @@ def auto_proceed_config(data: dict, path: str) -> dict[str, bool]:
     Merged key by key, so a consumer overriding one size keeps the rest."""
     consumer = data.get("auto_proceed") or {}
     builtin = _builtin_data().get("auto_proceed") or {}
-    resolved = {size: consumer.get(size, builtin.get(size)) for size in KNOWN_AUTO_PROCEED_KEYS}
+    resolved = {size: consumer.get(size, builtin.get(size)) for size in KNOWN_SIZES}
     for size, value in resolved.items():
         if not isinstance(value, bool):
             raise ConfigError(f"auto_proceed.{size} must be true or false (got '{value}') in {path}")

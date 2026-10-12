@@ -57,18 +57,14 @@ You also have this phase-specific tool:
 
 | Tool | What it does |
 |---|---|
-| `mcp__gh-issues__apply_estimation_outcome` | Submit the final estimation — posts the score comment and advances the issue |
+| `mcp__gh-issues__apply_estimation_outcome` | Submit the final estimation — advances the issue and posts the score comment |
 
 On the normal path:
 
 Call `mcp__gh-issues__apply_estimation_outcome` with `issue_number`,
-`outcome='estimated'`, and for each of the four dimensions its score
-(`Low`, `Mid`, or `High`) and one sentence of reasoning:
-
-- `blast_radius` / `blast_radius_reason`
-- `touch` / `touch_reason`
-- `human_involvement` / `human_involvement_reason`
-- `review_overhead` / `review_overhead_reason`
+`outcome='estimated'`, and an `estimation` object with the four dimensions
+`blast_radius`, `touch`, `human_involvement` and `review_overhead`. Each is
+`{"level": "Low"|"Mid"|"High", "reason": "<one sentence>"}`.
 
 On a stop path:
 

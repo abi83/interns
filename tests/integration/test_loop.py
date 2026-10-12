@@ -143,7 +143,8 @@ def test_issue_moves_through_refine_estimate_and_needs_attention(scenario):
 
     scenario.gh("issue", "view", "labels", stdout=labels_payload("status:refined", "type:coding-task"))
     estimated = scenario.run_tool("apply_estimation_outcome", issue_number=int(ISSUE), outcome="estimated",
-                                  blast_radius="Low", touch="Low", human_involvement="Low", review_overhead="Low")
+                                  estimation={k: {"level": "Low", "reason": "r"} for k in
+                                              ("blast_radius", "touch", "human_involvement", "review_overhead")})
     assert estimated.returncode == 0
     assert scenario.label_edits("issue")[1] == (ISSUE, {"status:estimated", "size:XS"}, {"status:refined"})
 

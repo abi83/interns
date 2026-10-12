@@ -34,6 +34,10 @@ def _patch(**overrides):
     )
 
 
+def _build(phase, exec_file, **fields):
+    return run_summary.build_summary(run_summary.SummaryContext(REPO, SERVER, **fields), phase, exec_file)
+
+
 class CoderSectionTests(unittest.TestCase):
     def test_issue_round_pr_outcome_files_cost_final_message(self):
         patches = _patch(
@@ -41,9 +45,7 @@ class CoderSectionTests(unittest.TestCase):
             pr_diff_names=lambda repo, pr: ["src/a.ts", "src/b.ts", "src/c.ts"],
         )
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
-            summary = run_summary.build_summary(
-                REPO, SERVER, "Coder", None, issue="42", pr="99", round_="initial",
-            )
+            summary = _build("Coder", None, issue="42", pr="99", round_="initial")
         self.assertIn("## Coder run", summary)
         self.assertIn("**Issue:** [#42](https://github.com/owner/repo/issues/42) — Add a widget", summary)
         self.assertIn("**Round:** Initial implementation", summary)
@@ -57,17 +59,13 @@ class CoderSectionTests(unittest.TestCase):
         patches = _patch(pr_diff_names=boom)
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], \
              patch("sys.stderr", io.StringIO()):
-            summary = run_summary.build_summary(
-                REPO, SERVER, "Coder", None, issue="42", pr="99", round_="initial",
-            )
+            summary = _build("Coder", None, issue="42", pr="99", round_="initial")
         self.assertIn("**Files changed:** unknown", summary)
 
     def test_no_pr_opened_surfaces_a_blocked_outcome_without_the_log(self):
         patches = _patch()
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
-            summary = run_summary.build_summary(
-                REPO, SERVER, "Coder", None, issue="42", pr="", round_="initial",
-            )
+            summary = _build("Coder", None, issue="42", pr="", round_="initial")
         self.assertIn("**Outcome:** ⚠️ No PR — see the final message below.", summary)
         self.assertNotIn("Files changed", summary)
 
@@ -80,9 +78,7 @@ class CoderSectionTests(unittest.TestCase):
             pr_view=lambda repo, pr, fields: {"headRefOid": "newsha"},
         )
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
-            summary = run_summary.build_summary(
-                REPO, SERVER, "Coder", None, issue="42", pr="99", round_="fix",
-            )
+            summary = _build("Coder", None, issue="42", pr="99", round_="fix")
         self.assertIn("**Round:** Fix round 2", summary)
         self.assertIn("**Outcome:** PR updated — [#99](https://github.com/owner/repo/pull/99)", summary)
 
@@ -92,17 +88,13 @@ class CoderSectionTests(unittest.TestCase):
             pr_view=lambda repo, pr, fields: {"headRefOid": "samesha"},
         )
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
-            summary = run_summary.build_summary(
-                REPO, SERVER, "Coder", None, issue="42", pr="99", round_="fix",
-            )
+            summary = _build("Coder", None, issue="42", pr="99", round_="fix")
         self.assertIn("**Outcome:** ⚠️ No new commit pushed — see the final message below.", summary)
 
     def test_fix_round_with_no_changes_requested_reviews_shows_fix_round_zero(self):
         patches = _patch()
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
-            summary = run_summary.build_summary(
-                REPO, SERVER, "Coder", None, issue="42", pr="99", round_="fix",
-            )
+            summary = _build("Coder", None, issue="42", pr="99", round_="fix")
         self.assertIn("**Round:** Fix round 0", summary)
 
     def test_a_failed_review_lookup_on_a_fix_round_omits_the_count(self):
@@ -111,9 +103,7 @@ class CoderSectionTests(unittest.TestCase):
         patches = _patch(all_reviews=boom)
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], \
              patch("sys.stderr", io.StringIO()):
-            summary = run_summary.build_summary(
-                REPO, SERVER, "Coder", None, issue="42", pr="99", round_="fix",
-            )
+            summary = _build("Coder", None, issue="42", pr="99", round_="fix")
         self.assertIn("**Round:** Fix round\n", summary)
 
 
@@ -125,9 +115,7 @@ class ReviewSectionTests(unittest.TestCase):
         buf = io.StringIO()
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], \
              patch("sys.stderr", buf):
-            summary = run_summary.build_summary(
-                REPO, SERVER, "Review", None, pr="99", reviewer_bot="reviewer-app[bot]",
-            )
+            summary = _build("Review", None, pr="99", reviewer_bot="reviewer-app[bot]")
         self.assertIn("Review lookup failed", summary)
         self.assertIn("warning:", buf.getvalue())
 
@@ -137,9 +125,7 @@ class ReviewSectionTests(unittest.TestCase):
             reviews_by=lambda repo, pr, login: [Review(login, "APPROVED", "headsha")],
         )
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
-            summary = run_summary.build_summary(
-                REPO, SERVER, "Review", None, pr="99", issue="42", reviewer_bot="reviewer-app[bot]",
-            )
+            summary = _build("Review", None, pr="99", issue="42", reviewer_bot="reviewer-app[bot]")
         self.assertIn("**PR:** [#99](https://github.com/owner/repo/pull/99) — feat: widget", summary)
         self.assertIn("**Round:** initial review", summary)
         self.assertIn("**Outcome:** ✅ Approved", summary)
@@ -150,9 +136,7 @@ class ReviewSectionTests(unittest.TestCase):
             reviews_by=lambda repo, pr, login: [Review(login, "CHANGES_REQUESTED", "oldsha")],
         )
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
-            summary = run_summary.build_summary(
-                REPO, SERVER, "Review", None, pr="99", reviewer_bot="reviewer-app[bot]",
-            )
+            summary = _build("Review", None, pr="99", reviewer_bot="reviewer-app[bot]")
         self.assertIn("**Round:** re-review (after 1 changes-requested)", summary)
         self.assertIn("**Outcome:** ⚠️ No verdict submitted — see the final message below.", summary)
 
@@ -162,9 +146,7 @@ class ReviewSectionTests(unittest.TestCase):
             reviews_by=lambda repo, pr, login: [Review(login, "CHANGES_REQUESTED", "head1")],
         )
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
-            summary = run_summary.build_summary(
-                REPO, SERVER, "Review", None, pr="99", reviewer_bot="reviewer-app[bot]",
-            )
+            summary = _build("Review", None, pr="99", reviewer_bot="reviewer-app[bot]")
         self.assertIn("**Round:** initial review", summary)
         self.assertIn("**Outcome:** 🔴 Changes requested", summary)
 
@@ -177,9 +159,7 @@ class ReviewSectionTests(unittest.TestCase):
             ],
         )
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
-            summary = run_summary.build_summary(
-                REPO, SERVER, "Review", None, pr="99", reviewer_bot="reviewer-app[bot]",
-            )
+            summary = _build("Review", None, pr="99", reviewer_bot="reviewer-app[bot]")
         self.assertIn("**Round:** re-review (after 1 changes-requested)", summary)
         self.assertIn("**Outcome:** 🔴 Changes requested", summary)
 
@@ -189,9 +169,7 @@ class ReviewSectionTests(unittest.TestCase):
             reviews_by=lambda repo, pr, login: [Review(login, "CHANGES_REQUESTED", "oldsha")],
         )
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
-            summary = run_summary.build_summary(
-                REPO, SERVER, "Review", None, pr="99", reviewer_bot="reviewer-app[bot]",
-            )
+            summary = _build("Review", None, pr="99", reviewer_bot="reviewer-app[bot]")
         self.assertIn("**Outcome:** ⚠️ No verdict submitted — see the final message below.", summary)
 
 
@@ -203,7 +181,7 @@ class RefinementSectionTests(unittest.TestCase):
         buf = io.StringIO()
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], \
              patch("sys.stderr", buf):
-            summary = run_summary.build_summary(REPO, SERVER, "Refinement", None, issue="7")
+            summary = _build("Refinement", None, issue="7")
         self.assertIn("Label lookup failed", summary)
         self.assertIn("warning:", buf.getvalue())
 
@@ -213,14 +191,14 @@ class RefinementSectionTests(unittest.TestCase):
             issue_labels=lambda repo, issue: ["type:coding-task", "status:refined"],
         )
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
-            summary = run_summary.build_summary(REPO, SERVER, "Refinement", None, issue="7")
+            summary = _build("Refinement", None, issue="7")
         self.assertIn("## Refinement run", summary)
         self.assertIn("**Outcome:** Body refined", summary)
 
     def test_stopped_for_clarification(self):
         patches = _patch(issue_labels=lambda repo, issue: ["status:needs-attention"])
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
-            summary = run_summary.build_summary(REPO, SERVER, "Refinement", None, issue="7")
+            summary = _build("Refinement", None, issue="7")
         self.assertIn("**Outcome:** ⚠️ Stopped for clarification — see the final message below.", summary)
 
 
@@ -231,13 +209,13 @@ class EstimationSectionTests(unittest.TestCase):
         patches = _patch(issue_labels=boom)
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], \
              patch("sys.stderr", io.StringIO()):
-            summary = run_summary.build_summary(REPO, SERVER, "Estimation", None, issue="7")
+            summary = _build("Estimation", None, issue="7")
         self.assertIn("Label lookup failed", summary)
 
     def test_estimate_posted_with_size_label(self):
         patches = _patch(issue_labels=lambda repo, issue: ["type:coding-task", "status:estimated", "size:M"])
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
-            summary = run_summary.build_summary(REPO, SERVER, "Estimation", None, issue="7")
+            summary = _build("Estimation", None, issue="7")
         self.assertIn("**Outcome:** Estimate posted — `size:M`", summary)
 
 
@@ -245,28 +223,28 @@ class CostAndExecFileTests(unittest.TestCase):
     def test_missing_execution_file_yields_an_unknown_cost_and_a_placeholder_message(self):
         patches = _patch(issue_labels=lambda repo, issue: [])
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
-            summary = run_summary.build_summary(REPO, SERVER, "Refinement", "/no/such/file", issue="7")
+            summary = _build("Refinement", "/no/such/file", issue="7")
         self.assertIn("**Cost:** $unknown", summary)
         self.assertIn("> _No final message — the run produced no result output._", summary)
 
     def test_missing_execution_file_reports_a_timeout(self):
         patches = _patch()
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
-            summary = run_summary.build_summary(REPO, SERVER, "Refinement", None, issue="7", cost_warn="0.30")
+            summary = _build("Refinement", None, issue="7", cost_warn="0.30")
         self.assertIn("killed (timed out) before writing results", summary)
 
     def test_cost_over_the_warn_limit_adds_a_warning_line(self, ):
         patches = _patch(issue_labels=lambda repo, issue: ["status:refined"])
         exec_file = self._write_exec({"total_cost_usd": 2.5, "result": "done"})
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
-            summary = run_summary.build_summary(REPO, SERVER, "Refinement", exec_file, issue="7", cost_warn="0.30")
+            summary = _build("Refinement", exec_file, issue="7", cost_warn="0.30")
         self.assertIn("⚠️ cost $2.5000 over the $0.30 warn limit", summary)
 
     def test_cost_under_the_warn_limit_adds_no_warning_line(self):
         patches = _patch(issue_labels=lambda repo, issue: ["status:refined"])
         exec_file = self._write_exec({"total_cost_usd": 0.10, "result": "done"})
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
-            summary = run_summary.build_summary(REPO, SERVER, "Refinement", exec_file, issue="7", cost_warn="0.30")
+            summary = _build("Refinement", exec_file, issue="7", cost_warn="0.30")
         self.assertNotIn("warn limit", summary)
 
     def _write_exec(self, result_fields: dict) -> str:
@@ -285,7 +263,7 @@ class UnknownPhaseTests(unittest.TestCase):
         patches = _patch()
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
             with self.assertRaises(ValueError):
-                run_summary.build_summary(REPO, SERVER, "Bogus", None, issue="7")
+                _build("Bogus", None, issue="7")
 
 
 class RoundLineTests(unittest.TestCase):

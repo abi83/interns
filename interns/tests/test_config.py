@@ -316,10 +316,10 @@ class DefaultsCoverLoaderKeysTests(unittest.TestCase):
         self.addCleanup(config._builtin_data.cache_clear)
 
     def test_checks_keys_are_in_the_shipped_defaults(self):
-        self.assertEqual(set(config._builtin_data()["checks"]), set(config.KNOWN_CHECKS_KEYS))
+        self.assertEqual(set(config._builtin_data()["checks"]), set(config._schema_properties(config._SCHEMA["properties"]["checks"])))
 
     def test_review_loop_keys_are_in_the_shipped_defaults(self):
-        self.assertEqual(set(config._builtin_data()["review_loop"]), set(config.KNOWN_REVIEW_LOOP_KEYS))
+        self.assertEqual(set(config._builtin_data()["review_loop"]), set(config._schema_properties(config._SCHEMA["properties"]["review_loop"])))
 
     def test_loaders_resolve_from_the_shipped_defaults_alone(self):
         config.checks_config({}, "interns.yml")
