@@ -132,17 +132,21 @@ class EscalatePrTests(unittest.TestCase):
         mock_edit.assert_called_once_with("o/r", 3, add_labels=["pr:needs-attention"], remove_labels=["pr:in-review"])
 
 
-class EditIssueLabelsValidatedTests(unittest.TestCase):
-    def test_noop_returns_nothing_to_do(self):
-        self.assertEqual(labels.edit_issue_labels_validated("o/r", 7), "Nothing to do")
+class SetIssueTypeTests(unittest.TestCase):
+    def test_swaps_a_wrong_type_label_and_leaves_other_labels_alone(self):
+        with patch("interns.gh.issue_view", return_value=_labels_response(["type:spike", "status:needs-refinement"])), \
+             patch("interns.gh.issue_edit") as mock_edit:
+            result = labels.set_issue_type("o/r", 7, "type:bug")
+        mock_edit.assert_called_once_with("o/r", 7, add_labels=["type:bug"], remove_labels=["type:spike"])
+        self.assertEqual(result, "Issue #7 type set to type:bug")
 
-    def test_unknown_add_label_raises(self):
-        with patch("interns.gh.label_names", return_value=[]), self.assertRaisesRegex(gh.InvalidInputError, "don't exist"):
-            labels.edit_issue_labels_validated("o/r", 7, add=["no-such"])
-
-    def test_unknown_remove_label_raises(self):
-        with patch("interns.gh.label_names", return_value=[]), self.assertRaisesRegex(gh.InvalidInputError, "don't exist"):
-            labels.edit_issue_labels_validated("o/r", 7, remove=["no-such"])
+    def test_rejects_a_non_type_label_without_calling_gh(self):
+        with patch("interns.gh.issue_view") as view, patch("interns.gh.issue_edit") as edit:
+            for bad in ("status:ready", "pr:coding", "size:S", "bug"):
+                with self.assertRaisesRegex(gh.InvalidInputError, "type_label must be one of"):
+                    labels.set_issue_type("o/r", 7, bad)
+        view.assert_not_called()
+        edit.assert_not_called()
 
 
 class ApplyRefinementTests(unittest.TestCase):

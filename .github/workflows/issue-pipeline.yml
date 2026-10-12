@@ -38,7 +38,7 @@ permissions:
 env:
   ALLOWED_LIST_ISSUES: "mcp__gh-issues__list_issues"
   ALLOWED_VIEW_ISSUE: "mcp__gh-issues__view_issue"
-  ALLOWED_EDIT_LABELS: "mcp__gh-issues__edit_issue_labels"
+  ALLOWED_SET_ISSUE_TYPE: "mcp__gh-issues__set_issue_type"
   ALLOWED_EDIT_ISSUE: "mcp__gh-issues__edit_issue"
   ALLOWED_COMMENT: "mcp__gh-issues__comment_issue"
   ALLOWED_APPLY_REFINEMENT: "mcp__gh-issues__apply_refinement_outcome"
@@ -127,7 +127,7 @@ jobs:
         uses: ./.interns/.github/actions/setup-gh-issues-mcp
         with:
           gh_token: ${{ steps.triage_token.outputs.token }}
-          tools: list_issues,view_issue,edit_issue_labels,edit_issue,comment_issue,apply_refinement_outcome
+          tools: list_issues,view_issue,set_issue_type,edit_issue,comment_issue,apply_refinement_outcome
 
       - name: Run Claude refinement
         id: claude
@@ -163,7 +163,7 @@ jobs:
             --max-turns ${{ steps.cfg.outputs.max_turns }}
             --mcp-config /tmp/mcp-config-gh-issues.json
             --tools "Read,Grep,Glob${{ steps.cfg.outputs.tools_suffix }}"
-            --allowedTools "Read,Grep,Glob,${{ env.ALLOWED_EDIT_ISSUE }},${{ env.ALLOWED_EDIT_LABELS }},${{ env.ALLOWED_COMMENT }},${{ env.ALLOWED_LIST_ISSUES }},${{ env.ALLOWED_VIEW_ISSUE }},${{ env.ALLOWED_APPLY_REFINEMENT }}${{ steps.cfg.outputs.allowed_tools_suffix }}"
+            --allowedTools "Read,Grep,Glob,${{ env.ALLOWED_EDIT_ISSUE }},${{ env.ALLOWED_SET_ISSUE_TYPE }},${{ env.ALLOWED_COMMENT }},${{ env.ALLOWED_LIST_ISSUES }},${{ env.ALLOWED_VIEW_ISSUE }},${{ env.ALLOWED_APPLY_REFINEMENT }}${{ steps.cfg.outputs.allowed_tools_suffix }}"
             ${{ steps.cfg.outputs.add_dir_arg }}
             ${{ steps.cfg.outputs.disallowed_tools_arg }}
 

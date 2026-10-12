@@ -25,8 +25,11 @@ Four agents pick issues up by label and hand them along a fixed track:
 
 Agents never call the GitHub API directly: every read and write — issue
 lookups, label changes, comments, reviews — goes through an MCP server that
-validates the request first, so a misfiring agent can't step outside the
-label state machine or touch a protected path. Whatever can be decided
+validates the request first. Agents have no tool that writes an arbitrary
+label: lifecycle labels (`status:*`, `pr:*`, `size:*`) change only through a
+phase's outcome tool, and the refiner's one other label write is limited to
+`type:*`. So a misfiring agent can't step outside the label state machine or
+touch a protected path. Whatever can be decided
 without judgment — creating a branch, checking whether tests pass, rolling
 up an estimate to a size, appending metrics — runs as plain scripted logic
 around the agent instead of burning its tokens on a deterministic task.

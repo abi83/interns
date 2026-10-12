@@ -33,7 +33,7 @@ __all__ = [
     "pr_submit_review", "pr_for_head", "pr_ready", "pr_update",
     "issue_with_relations", "pr_reviews", "pr_review_comments", "issue_comments_all",
     "default_branch", "dispatch_workflow",
-    "label_list", "label_names", "label_create", "label_edit",
+    "label_list", "label_create", "label_edit",
     "list_secret_names", "list_variable_names",
 ]
 
@@ -288,10 +288,6 @@ def label_list(repo: str) -> list[dict]:
         {"name": lbl["name"], "color": lbl["color"], "description": lbl["description"]}
         for lbl in api_all_pages(f"repos/{repo}/labels?per_page=100")
     ]
-
-
-def label_names(repo: str) -> list[str]:
-    return [entry["name"] for entry in label_list(repo)]
 
 
 def label_create(repo: str, name: str, color: str, description: str) -> None:

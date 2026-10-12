@@ -380,10 +380,6 @@ class SharedClientAdditionsTests(unittest.TestCase):
         self.assertIn("owner=o", cmd)
         self.assertIn("number=3", cmd)
 
-    def test_label_names(self):
-        with patch("interns.gh.ops.label_list", return_value=[{"name": "bug"}, {"name": "x"}]):
-            self.assertEqual(gh.label_names("o/r"), ["bug", "x"])
-
 
 class IssueEditValidatedTests(unittest.TestCase):
     def test_returns_fallback_message_when_gh_returns_empty(self):

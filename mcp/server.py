@@ -168,17 +168,15 @@ def edit_issue(
 
 
 @_tool
-def edit_issue_labels(
+def set_issue_type(
     issue_number: Annotated[int, Field(description="Issue number.")],
-    add_labels: Annotated[list[str] | None, Field(description="Labels to add.")] = None,
-    remove_labels: Annotated[list[str] | None, Field(description="Labels to remove.")] = None,
+    type_label: Annotated[labels.TypeLabel, Field(description="The issue's type label.")],
 ) -> str:
-    """Add or remove labels on an issue.
+    """Make type_label the issue's only type:* label, removing any other type:* label.
 
-    Only labels that exist in the repository are accepted. Pass an empty list
-    to skip adding or removing.
+    Touches no other labels; lifecycle labels change only through the outcome tools.
     """
-    return labels.edit_issue_labels_validated(_repo(), issue_number, add=add_labels, remove=remove_labels)
+    return labels.set_issue_type(_repo(), issue_number, type_label)
 
 
 # ---------------------------------------------------------------------------

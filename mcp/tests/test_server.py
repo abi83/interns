@@ -1,7 +1,7 @@
 """Tests for gh-issues MCP server (dispatch layer only).
 
 Business-logic tests for push_branch, pr_open_for_issue, issue_edit_validated,
-edit_issue_labels_validated, apply_refinement, and apply_estimation live in
+set_issue_type, apply_refinement, and apply_estimation live in
 pipeline/tests/ and tests/contract/test_mcp_contract.py.
 """
 
@@ -17,7 +17,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 import server
 from interns.cli import MissingEnvError
 from interns.domain.size import Estimation, Score
-from interns.domain import issues
+from interns.domain import issues, labels
 from server import (
     GhCommandError,
     InlineComment,
@@ -29,9 +29,9 @@ from server import (
     apply_estimation_outcome,
     apply_refinement_outcome,
     edit_issue,
-    edit_issue_labels,
     open_pr,
     push_branch,
+    set_issue_type,
     submit_pr_review,
     view_issue,
 )
@@ -174,31 +174,22 @@ def test_edit_issue_rejects_multiline_title():
 
 
 # ---------------------------------------------------------------------------
-# edit_issue_labels — dispatches to labels.edit_issue_labels_validated
+# set_issue_type — dispatches to labels.set_issue_type
 # ---------------------------------------------------------------------------
 
 
-def test_edit_issue_labels_dispatches_to_pipeline():
-    with patch("server.labels.edit_issue_labels_validated", return_value="Added: bug") as mock:
-        result = edit_issue_labels(issue_number=7, add_labels=["bug"])
-    mock.assert_called_once_with("owner/repo", 7, add=["bug"], remove=None)
-    assert result == "Added: bug"
+def test_set_issue_type_dispatches_to_pipeline():
+    with patch("server.labels.set_issue_type", return_value="Issue #7 type set to type:bug") as mock:
+        result = set_issue_type(issue_number=7, type_label="type:bug")
+    mock.assert_called_once_with("owner/repo", 7, "type:bug")
+    assert result == "Issue #7 type set to type:bug"
 
 
-def test_edit_issue_labels_noop():
-    with patch("server.labels.edit_issue_labels_validated", return_value="Nothing to do") as mock:
-        result = edit_issue_labels(issue_number=7)
-    mock.assert_called_once_with("owner/repo", 7, add=None, remove=None)
-    assert result == "Nothing to do"
-
-
-def test_edit_issue_labels_rejects_unknown():
-    with (
-        patch("server.labels.edit_issue_labels_validated",
-                   side_effect=InvalidInputError("Labels don't exist, not added: no-such-label")),
-        pytest.raises(InvalidInputError, match="don't exist"),
-    ):
-        edit_issue_labels(issue_number=7, add_labels=["no-such-label"])
+def test_set_issue_type_schema_only_admits_type_labels():
+    (tool,) = asyncio.run(build_server(["set_issue_type"]).list_tools())
+    schema = tool.input_schema
+    assert schema["properties"]["type_label"]["enum"] == list(labels.TYPE_LABELS)
+    assert sorted(schema["properties"]) == ["issue_number", "type_label"]
 
 
 # ---------------------------------------------------------------------------
