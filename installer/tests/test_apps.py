@@ -17,7 +17,7 @@ from interns_install.console import Console
 
 class ConvertManifestTests(unittest.TestCase):
     def test_returns_conversion_body(self):
-        with mock.patch.object(gh, "api", return_value={"pem": "----KEY----", "id": 1}) as api:
+        with mock.patch.object(gh_admin.gh_transport, "api", return_value={"pem": "----KEY----", "id": 1}) as api:
             data = convert_manifest("abc123")
         self.assertEqual(data["pem"], "----KEY----")
         args, kwargs = api.call_args
@@ -25,12 +25,12 @@ class ConvertManifestTests(unittest.TestCase):
         self.assertEqual(kwargs["method"], "POST")
 
     def test_raises_when_pem_missing(self):
-        with mock.patch.object(gh, "api", return_value={"id": 1}):
+        with mock.patch.object(gh_admin.gh_transport, "api", return_value={"id": 1}):
             with self.assertRaises(gh.GhError):
                 convert_manifest("abc123")
 
     def test_raises_on_non_dict_response(self):
-        with mock.patch.object(gh, "api", return_value=None):
+        with mock.patch.object(gh_admin.gh_transport, "api", return_value=None):
             with self.assertRaises(gh.GhError):
                 convert_manifest("abc123")
 

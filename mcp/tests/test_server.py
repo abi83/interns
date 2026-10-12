@@ -99,7 +99,7 @@ def test_view_issue_returns_flat_json():
 
 
 def test_view_issue_excludes_pipeline_comments():
-    response = {"data": {"repository": {"issue": {
+    response = {
         "number": 1, "title": "T", "body": "B", "state": "OPEN",
         "labels": {"nodes": []},
         "comments": {"nodes": [
@@ -108,8 +108,8 @@ def test_view_issue_excludes_pipeline_comments():
         ]},
         "parent": None,
         "subIssues": {"nodes": []}, "blockedBy": {"nodes": []}, "blocking": {"nodes": []},
-    }}}}
-    with patch("interns.steps.fetch_issue.gh.graphql", return_value=response), patch.object(server, "_REPO", "owner/repo"):
+    }
+    with patch("interns.steps.fetch_issue.gh.issue_with_relations", return_value=response), patch.object(server, "_REPO", "owner/repo"):
         data = json.loads(view_issue(issue_number=1))
 
     assert [c["body"] for c in data["comments"]] == ["Human"]

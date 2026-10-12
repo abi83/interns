@@ -1,14 +1,17 @@
 """Enforces import-direction rules for the interns layering.
 
 Layer order:
-  gh_transport  →  core  →  adapters
+  interns.gh.transport  →  interns.gh.ops  →  core  →  adapters
                              ├─ MCP server (mcp/server.py)
                              └─ Actions entrypoint (interns.entrypoint)
 
 Rules:
-  1. gh_transport imports no other interns module.
+  1. interns.gh.transport imports no other interns module.
   2. Core interns modules do not import interns.entrypoint.
   3. MCP server does not import interns.entrypoint or interns.ctx.
+  4. Steps, verdict, run_summary and the MCP server use `interns.gh` ops only —
+     they never import `interns.gh.transport`, and `interns.gh` exposes no
+     transport primitive.
 """
 
 from __future__ import annotations
@@ -62,6 +65,9 @@ def _check(violations: list[str], path: Path, package: str, forbidden: list[str]
         violations.append(f"{rel}: imports {hit!r}")
 
 
+TRANSPORT_PRIMITIVES = ("api", "api_all_pages", "api_status", "graphql", "run")
+
+
 def test_layer_violations() -> None:
     violations: list[str] = []
 
@@ -83,4 +89,19 @@ def test_layer_violations() -> None:
     # Rule 3: MCP server must not import interns.entrypoint or interns.ctx.
     _check(violations, MCP_SERVER, "", ["interns.entrypoint", "interns.ctx"])
 
+    # Rule 4: ops-only callers never reach for the transport layer.
+    ops_only = [
+        (p, "interns.steps") for p in steps_core
+    ] + [(INTERNS_SRC / "verdict.py", "interns"), (INTERNS_SRC / "run_summary.py", "interns")]
+    for mod, pkg in ops_only:
+        _check(violations, mod, pkg, ["interns.gh.transport"])
+    _check(violations, MCP_SERVER, "", ["interns.gh.transport"])
+
     assert not violations, "Layer violations:\n" + "\n".join(sorted(violations))
+
+
+def test_gh_package_exposes_no_transport_primitives() -> None:
+    from interns import gh
+
+    leaked = [name for name in TRANSPORT_PRIMITIVES if hasattr(gh, name)]
+    assert not leaked, f"interns.gh re-exports transport primitives: {leaked}"

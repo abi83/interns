@@ -15,17 +15,17 @@ class RunTests(unittest.TestCase):
     def test_gh_not_installed(self):
         with patch("interns.gh.transport.subprocess.run", side_effect=FileNotFoundError()):
             with self.assertRaises(gh.GhNotInstalledError):
-                gh.run(["auth", "status"])
+                gh_transport.run(["auth", "status"])
 
     def test_command_failure_raises_with_stderr(self):
         exc = subprocess.CalledProcessError(1, ["gh", "issue", "view", "1"], output="", stderr="not found")
         with patch("interns.gh.transport.subprocess.run", side_effect=exc):
             with self.assertRaisesRegex(gh.GhCommandError, "not found"):
-                gh.run(["issue", "view", "1"])
+                gh_transport.run(["issue", "view", "1"])
 
     def test_success_returns_completed_process(self):
         with patch("interns.gh.transport.subprocess.run", return_value=_proc(stdout="ok")) as mock_run:
-            result = gh.run(["auth", "status"])
+            result = gh_transport.run(["auth", "status"])
         self.assertEqual(result.stdout, "ok")
         self.assertEqual(mock_run.call_args[0][0], ["gh", "auth", "status"])
 
@@ -33,7 +33,7 @@ class RunTests(unittest.TestCase):
 class ApiTests(unittest.TestCase):
     def test_get_parses_json_body(self):
         with patch("interns.gh.transport.subprocess.run", return_value=_proc(stdout='{"a": 1}')) as mock_run:
-            result = gh.api("repos/acme/widgets")
+            result = gh_transport.api("repos/acme/widgets")
         self.assertEqual(result, {"a": 1})
         args = mock_run.call_args[0][0]
         self.assertIn("repos/acme/widgets", args)
@@ -41,11 +41,11 @@ class ApiTests(unittest.TestCase):
 
     def test_empty_body_returns_none(self):
         with patch("interns.gh.transport.subprocess.run", return_value=_proc(stdout="")):
-            self.assertIsNone(gh.api("repos/acme/widgets"))
+            self.assertIsNone(gh_transport.api("repos/acme/widgets"))
 
     def test_post_sends_fields(self):
         with patch("interns.gh.transport.subprocess.run", return_value=_proc(stdout="")) as mock_run:
-            gh.api("repos/acme/widgets/labels", method="POST", fields={"name": "bug"})
+            gh_transport.api("repos/acme/widgets/labels", method="POST", fields={"name": "bug"})
         args = mock_run.call_args[0][0]
         self.assertIn("-f", args)
         self.assertIn("name=bug", args)
@@ -54,29 +54,62 @@ class ApiTests(unittest.TestCase):
         exc = subprocess.CalledProcessError(1, ["gh"], output="", stderr="HTTP 404: Not Found")
         with patch("interns.gh.transport.subprocess.run", side_effect=exc):
             with self.assertRaises(gh.GhCommandError):
-                gh.api("repos/acme/missing")
+                gh_transport.api("repos/acme/missing")
 
 
 class ApiStatusTests(unittest.TestCase):
     def test_ok(self):
         with patch("interns.gh.transport.subprocess.run", return_value=_proc(stdout='{"a": 1}')):
-            self.assertEqual(gh.api_status("repos/acme/widgets"), ("ok", {"a": 1}))
+            self.assertEqual(gh_transport.api_status("repos/acme/widgets"), ("ok", {"a": 1}))
 
     def test_missing_on_404(self):
         exc = subprocess.CalledProcessError(1, ["gh"], output="", stderr="HTTP 404: Not Found")
         with patch("interns.gh.transport.subprocess.run", side_effect=exc):
-            self.assertEqual(gh.api_status("repos/acme/missing"), ("missing", None))
+            self.assertEqual(gh_transport.api_status("repos/acme/missing"), ("missing", None))
 
     def test_blocked_on_403(self):
         exc = subprocess.CalledProcessError(1, ["gh"], output="", stderr="HTTP 403: Forbidden")
         with patch("interns.gh.transport.subprocess.run", side_effect=exc):
-            self.assertEqual(gh.api_status("repos/acme/widgets"), ("blocked", None))
+            self.assertEqual(gh_transport.api_status("repos/acme/widgets"), ("blocked", None))
 
     def test_other_errors_raise(self):
         exc = subprocess.CalledProcessError(1, ["gh"], output="", stderr="dial tcp: connection refused")
         with patch("interns.gh.transport.subprocess.run", side_effect=exc):
             with self.assertRaises(gh.GhCommandError):
-                gh.api_status("repos/acme/widgets")
+                gh_transport.api_status("repos/acme/widgets")
+
+
+class IssueWithRelationsTests(unittest.TestCase):
+    def test_sends_owner_repo_and_number_and_returns_issue_node(self):
+        body = '{"data": {"repository": {"issue": {"number": 3}}}}'
+        with patch.object(gh_transport.subprocess, "run", return_value=_proc(body)) as run:
+            self.assertEqual(gh.issue_with_relations("o/r", 3), {"number": 3})
+        cmd = run.call_args[0][0]
+        self.assertIn("owner=o", cmd)
+        self.assertIn("repo=r", cmd)
+        self.assertIn("number=3", cmd)
+
+    def test_non_issue_number_raises_clear_error(self):
+        body = '{"data": {"repository": {"issue": null}}}'
+        with patch.object(gh_transport.subprocess, "run", return_value=_proc(body)):
+            with self.assertRaisesRegex(gh.InvalidInputError, "#250 is not an issue.*pull request"):
+                gh.issue_with_relations("o/r", 250)
+
+
+class PaginatedReadTests(unittest.TestCase):
+    def _path(self, call) -> str:
+        with patch.object(gh_transport.subprocess, "run", return_value=_proc("[[1], [2]]")) as run:
+            self.assertEqual(call(), [1, 2])
+        return run.call_args[0][0][-1]
+
+    def test_pr_reviews(self):
+        self.assertEqual(self._path(lambda: gh.pr_reviews("o/r", 4)), "repos/o/r/pulls/4/reviews")
+
+    def test_pr_review_comments(self):
+        self.assertEqual(self._path(lambda: gh.pr_review_comments("o/r", 4)), "repos/o/r/pulls/4/comments")
+
+    def test_issue_comments_all(self):
+        self.assertEqual(self._path(lambda: gh.issue_comments_all("o/r", 4)), "repos/o/r/issues/4/comments")
 
 
 class IssueViewEditTests(unittest.TestCase):
@@ -225,7 +258,7 @@ class PrChecksTests(unittest.TestCase):
 class ApiAllPagesTests(unittest.TestCase):
     def test_flattens_every_page(self):
         with patch("interns.gh.transport.subprocess.run", return_value=_proc(stdout='[[1, 2], [3]]')) as mock_run:
-            self.assertEqual(gh.api_all_pages("repos/acme/widgets/pulls/1/reviews"), [1, 2, 3])
+            self.assertEqual(gh_transport.api_all_pages("repos/acme/widgets/pulls/1/reviews"), [1, 2, 3])
         args = mock_run.call_args[0][0]
         self.assertIn("--paginate", args)
         self.assertIn("--slurp", args)
@@ -357,7 +390,7 @@ class SharedClientAdditionsTests(unittest.TestCase):
 
     def test_graphql_sends_query_and_typed_variables(self):
         with patch.object(gh_transport.subprocess, "run", return_value=_proc('{"data": {}}')) as run:
-            self.assertEqual(gh.graphql("query {}", owner="o", number=3), {"data": {}})
+            self.assertEqual(gh_transport.graphql("query {}", owner="o", number=3), {"data": {}})
         cmd = run.call_args[0][0]
         self.assertIn("query=query {}", cmd)
         self.assertIn("owner=o", cmd)
