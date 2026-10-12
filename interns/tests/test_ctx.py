@@ -81,6 +81,14 @@ class UrlMethodTests(unittest.TestCase):
             "https://github.com/acme/widgets/pull/12",
         )
 
+    def test_config_path_defaults_when_unset(self):
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(self._ctx().config_path, ".github/interns.yml")
+
+    def test_config_path_honours_override(self):
+        with patch.dict(os.environ, {"INTERNS_CONFIG": "custom.yml"}):
+            self.assertEqual(self._ctx().config_path, "custom.yml")
+
     def test_explicit_server_url(self):
         ctx = self._ctx(server_url="https://ghe.example.com")
         self.assertEqual(ctx.pr_url(12), "https://ghe.example.com/acme/widgets/pull/12")

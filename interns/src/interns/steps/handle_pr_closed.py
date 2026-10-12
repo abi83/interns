@@ -36,10 +36,8 @@ def handle_pr_closed(repo: str, pr: int, issue: int | None, merged: bool, *, ser
     )
 
 
-def _main(ctx: ActionsCtx, argv: list[str]) -> int:
-    import argparse
-
-    parser = argparse.ArgumentParser(prog="interns.entrypoint handle-pr-closed")
+def main(ctx: ActionsCtx, argv: list[str]) -> int:
+    parser = cli.build_parser("handle-pr-closed")
     parser.add_argument("--pr", type=int, required=True)
     parser.add_argument("--issue", default="")
     parser.add_argument("--merged", required=True)

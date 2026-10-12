@@ -9,7 +9,7 @@ would not fire the coder workflow.
 
 from __future__ import annotations
 
-from .. import config, gh
+from .. import cli, config, gh
 from ..ctx import ActionsCtx
 from ..domain import labels
 
@@ -39,15 +39,12 @@ def proceed(repo: str, issue: int, auto_proceed: dict[str, bool]) -> str | None:
     return size
 
 
-def _main(ctx: ActionsCtx, argv: list[str]) -> int:
-    import argparse
-    import os
-
-    parser = argparse.ArgumentParser(prog="interns.entrypoint auto-proceed")
+def main(ctx: ActionsCtx, argv: list[str]) -> int:
+    parser = cli.build_parser("auto-proceed")
     parser.add_argument("--issue", type=int, required=True)
     args = parser.parse_args(argv)
 
-    config_path = os.environ.get("INTERNS_CONFIG", ".github/interns.yml")
+    config_path = ctx.config_path
     auto_proceed = config.auto_proceed_config(config.load_raw(config_path), config_path)
     size = proceed(ctx.repo, args.issue, auto_proceed)
     if size is None:

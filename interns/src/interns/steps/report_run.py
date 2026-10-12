@@ -27,10 +27,8 @@ def report(repo: str, phase: str, exec_file: str | None, issue: int | None,
         raise ValueError("report-run: need an issue or PR number")
 
 
-def _main(ctx: ActionsCtx, argv: list[str]) -> int:
-    import argparse
-
-    parser = argparse.ArgumentParser(prog="interns.entrypoint report-run")
+def main(ctx: ActionsCtx, argv: list[str]) -> int:
+    parser = cli.build_parser("report-run")
     parser.add_argument("--phase", required=True)
     parser.add_argument("--exec-file", required=True)
     parser.add_argument("--issue", default="")

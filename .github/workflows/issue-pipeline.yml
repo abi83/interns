@@ -118,7 +118,7 @@ jobs:
       # guaranteed tool call per file, every run (#98's investigation).
       - name: Load refiner instructions
         id: instructions
-        run: python3 -m interns.prompt .interns/.github/prompts/_shared.md .interns/.github/prompts/refine.md
+        run: python3 -m interns.entrypoint prompt .interns/.github/prompts/_shared.md .interns/.github/prompts/refine.md
 
       # Triage App token, not GITHUB_TOKEN: the apply_refinement_outcome tool
       # writes status:refined, which must trigger the estimate job. GitHub's
@@ -303,7 +303,7 @@ jobs:
       - name: Load estimator instructions
         id: instructions
         if: steps.gate.outputs.skip != 'true'
-        run: python3 -m interns.prompt .interns/.github/prompts/_shared.md .interns/.github/prompts/estimate.md
+        run: python3 -m interns.entrypoint prompt .interns/.github/prompts/_shared.md .interns/.github/prompts/estimate.md
 
       - name: Set up gh-issues MCP server
         if: steps.gate.outputs.skip != 'true'

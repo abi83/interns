@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import argparse
 
 from .. import cli
 from ..ctx import ActionsCtx
@@ -35,8 +34,8 @@ def write_github_output(issue: issues.Issue) -> None:
         write("comments", "", multiline=True)
 
 
-def _main(ctx: ActionsCtx, argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(prog="interns.entrypoint fetch-issue")
+def main(ctx: ActionsCtx, argv: list[str]) -> int:
+    parser = cli.build_parser("fetch-issue")
     parser.add_argument("--issue", type=int, required=True)
     args = parser.parse_args(argv)
     write_github_output(issues.fetch_issue(ctx.repo, args.issue))

@@ -68,16 +68,13 @@ def apply_verdict(repo: str, pr: int, issue: int | None, reviewer_bot: str, *, m
     )
 
 
-def _main(ctx: ActionsCtx, argv: list[str]) -> int:
-    import argparse
-    import os
-
-    parser = argparse.ArgumentParser(prog="interns.entrypoint apply-verdict")
+def main(ctx: ActionsCtx, argv: list[str]) -> int:
+    parser = cli.build_parser("apply-verdict")
     parser.add_argument("--pr", type=int, required=True)
     parser.add_argument("--issue", default="")
     args = parser.parse_args(argv)
 
-    config_path = os.environ.get("INTERNS_CONFIG", ".github/interns.yml")
+    config_path = ctx.config_path
     rl = config.review_loop_config(config.load_raw(config_path), config_path)
 
     apply_verdict(

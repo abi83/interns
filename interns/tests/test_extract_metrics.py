@@ -128,7 +128,7 @@ class CliTests(unittest.TestCase):
         import contextlib
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            status = extract_metrics._main(self.ctx, argv)
+            status = extract_metrics.main(self.ctx, argv)
         return status, out.getvalue()
 
     def test_emits_one_line_with_core_run_fields(self):
@@ -161,7 +161,7 @@ class CliTests(unittest.TestCase):
         with patch.dict(os.environ, clear=True), self.assertRaisesRegex(cli.MissingEnvError, "GITHUB_RUN_ID unset"):
             import io, contextlib
             with contextlib.redirect_stdout(io.StringIO()):
-                extract_metrics._main(self.ctx, ["--exec-file", str(self.exec_file),
+                extract_metrics.main(self.ctx, ["--exec-file", str(self.exec_file),
                                                     "--job", "coder", "--ref", REF])
 
 

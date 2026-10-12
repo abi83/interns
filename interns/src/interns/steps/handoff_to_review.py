@@ -26,10 +26,8 @@ def handoff(repo: str, issue: int, pr: int | None, *, run_url: str = "") -> None
     )
 
 
-def _main(ctx: ActionsCtx, argv: list[str]) -> int:
-    import argparse
-
-    parser = argparse.ArgumentParser(prog="interns.entrypoint handoff-to-review")
+def main(ctx: ActionsCtx, argv: list[str]) -> int:
+    parser = cli.build_parser("handoff-to-review")
     parser.add_argument("--issue", type=int, required=True)
     parser.add_argument("--pr", default="")
     args = parser.parse_args(argv)

@@ -17,7 +17,7 @@ def scenario(tmp_path) -> Scenario:
 def test_build_config_is_unconfigured_with_the_stub_marker(scenario):
     (scenario.workspace / "Makefile").write_text("test:\n\t@echo INTERNS: not configured\n")
 
-    result = scenario.run("interns.steps.check_build_config", str(scenario.workspace))
+    result = scenario.run("interns.entrypoint", "check-build-config", str(scenario.workspace))
 
     assert result.outputs == {"configured": "false"}
 
@@ -25,13 +25,13 @@ def test_build_config_is_unconfigured_with_the_stub_marker(scenario):
 def test_build_config_is_configured_once_the_stub_is_replaced(scenario):
     (scenario.workspace / "Makefile").write_text("test:\n\tpytest\n")
 
-    result = scenario.run("interns.steps.check_build_config", str(scenario.workspace))
+    result = scenario.run("interns.entrypoint", "check-build-config", str(scenario.workspace))
 
     assert result.outputs == {"configured": "true"}
 
 
 def test_build_config_is_unconfigured_with_no_makefile_at_all(scenario):
-    result = scenario.run("interns.steps.check_build_config", str(scenario.workspace))
+    result = scenario.run("interns.entrypoint", "check-build-config", str(scenario.workspace))
 
     assert result.outputs == {"configured": "false"}
 
@@ -71,7 +71,7 @@ def test_neither_type_label_fails_instead_of_guessing(scenario):
 def test_setup_runs_the_consumer_target(scenario):
     (scenario.workspace / "Makefile").write_text("setup:\n\ttouch installed\n")
 
-    result = scenario.run("interns.steps.run_setup", str(scenario.workspace))
+    result = scenario.run("interns.entrypoint", "run-setup", str(scenario.workspace))
 
     assert result.returncode == 0
     assert (scenario.workspace / "installed").exists()
@@ -80,7 +80,7 @@ def test_setup_runs_the_consumer_target(scenario):
 def test_failing_setup_fails_the_step(scenario):
     (scenario.workspace / "Makefile").write_text("setup:\n\texit 1\n")
 
-    result = scenario.run("interns.steps.run_setup", str(scenario.workspace))
+    result = scenario.run("interns.entrypoint", "run-setup", str(scenario.workspace))
 
     assert result.returncode != 0
 
@@ -88,7 +88,7 @@ def test_failing_setup_fails_the_step(scenario):
 def test_stub_setup_only_warns(scenario):
     (scenario.workspace / "Makefile").write_text('setup:\n\t@echo "INTERNS: not configured"\n')
 
-    result = scenario.run("interns.steps.run_setup", str(scenario.workspace))
+    result = scenario.run("interns.entrypoint", "run-setup", str(scenario.workspace))
 
     assert result.returncode == 0
     assert "::warning::" in result.stdout

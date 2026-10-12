@@ -83,10 +83,8 @@ def flag_failure(repo: str, noun: str, issue: int | None, pr: int | None, fix_ro
         gh.issue_comment(repo, issue, body)
 
 
-def _main(ctx: ActionsCtx, argv: list[str]) -> int:
-    import argparse
-
-    parser = argparse.ArgumentParser(prog="interns.entrypoint flag-failure")
+def main(ctx: ActionsCtx, argv: list[str]) -> int:
+    parser = cli.build_parser("flag-failure")
     parser.add_argument("--noun", default="")
     parser.add_argument("--issue", default="")
     parser.add_argument("--pr", default="")

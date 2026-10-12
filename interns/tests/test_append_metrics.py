@@ -163,7 +163,7 @@ class CliTests(unittest.TestCase):
 
     def test_errors_with_no_arguments(self):
         with self.assertRaises(SystemExit):
-            append_metrics._main(self._ctx(), [])
+            append_metrics.main(self._ctx(), [])
 
     def test_builds_remote_from_ctx_and_reports_success(self):
         with tempfile.TemporaryDirectory() as tmp_s:
@@ -171,7 +171,7 @@ class CliTests(unittest.TestCase):
             record = _record_file(tmp, {"job": "coder"})
             with patch.object(append_metrics, "append_records", return_value=1) as mock_append, \
                  patch("builtins.print") as mock_print:
-                status = append_metrics._main(self._ctx(), [str(record)])
+                status = append_metrics.main(self._ctx(), [str(record)])
 
         self.assertEqual(status, 0)
         _, kwargs = mock_append.call_args
@@ -183,7 +183,7 @@ class CliTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_s:
             record = _record_file(Path(tmp_s), {"job": "coder"})
             with patch.dict(os.environ, clear=True), self.assertRaises(cli.MissingEnvError):
-                append_metrics._main(self._ctx(), [str(record)])
+                append_metrics.main(self._ctx(), [str(record)])
 
     def test_reports_failure_after_exhausted_retries(self):
         with tempfile.TemporaryDirectory() as tmp_s:
@@ -191,7 +191,7 @@ class CliTests(unittest.TestCase):
             record = _record_file(tmp, {"job": "coder"})
             with patch.object(append_metrics, "append_records",
                                side_effect=append_metrics.AppendMetricsError("push to metrics failed after 3 attempts")):
-                status = append_metrics._main(self._ctx(), [str(record)])
+                status = append_metrics.main(self._ctx(), [str(record)])
 
         self.assertEqual(status, 1)
 

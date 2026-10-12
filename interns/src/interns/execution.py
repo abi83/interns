@@ -7,10 +7,9 @@ previously hand-duplicated the same `result`-entry extraction (interns#157).
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
-from . import best_effort, cli
+from . import best_effort
 
 
 def events(exec_file: str) -> list[dict]:
@@ -55,21 +54,6 @@ def permission_denials(entry: dict) -> list[dict]:
     """The run's denied tool calls (`tool_name`, `tool_input`, ...), from the
     result entry's `permission_denials` list."""
     return entry.get("permission_denials") or []
-
-
-def _main(argv: list[str]) -> int:
-    import argparse
-
-    parser = argparse.ArgumentParser(prog="python -m interns.execution")
-    parser.add_argument("exec_file")
-    parser.add_argument("field")
-    args = parser.parse_args(argv)
-    print(result_field(args.exec_file, args.field) or "")
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(cli.run(_main))
 
 
 def format_cost(raw: str | None) -> str:

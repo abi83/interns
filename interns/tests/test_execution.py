@@ -1,6 +1,5 @@
 import json
 import unittest
-from unittest.mock import patch
 
 from interns import execution
 
@@ -60,20 +59,6 @@ class ResultFieldTests(unittest.TestCase):
             {"type": "result", "num_turns": 9},
         ])
         self.assertEqual(execution.result_field(exec_file, "num_turns"), "3")
-
-
-class CliTests(unittest.TestCase):
-    def test_prints_empty_string_when_no_value(self):
-        with patch("interns.execution.result_field", return_value=None), \
-             patch("builtins.print") as mock_print:
-            execution._main(["/no/such/file", "total_cost_usd"])
-        mock_print.assert_called_once_with("")
-
-    def test_prints_the_value(self):
-        with patch("interns.execution.result_field", return_value="0.5"), \
-             patch("builtins.print") as mock_print:
-            execution._main(["exec.json", "total_cost_usd"])
-        mock_print.assert_called_once_with("0.5")
 
 
 if __name__ == "__main__":

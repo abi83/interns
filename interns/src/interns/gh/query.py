@@ -4,6 +4,7 @@ printed for `$(...)` capture or appended to `$GITHUB_OUTPUT`."""
 from __future__ import annotations
 
 from . import ops as gh
+from .. import cli
 from ..ctx import ActionsCtx
 
 
@@ -32,10 +33,8 @@ def pr_for_issue(repo: str, issue: int) -> dict[str, str]:
     return {"pr_number": "", "head_ref": ""}
 
 
-def _main(ctx: ActionsCtx, argv: list[str]) -> int:
-    import argparse
-
-    parser = argparse.ArgumentParser(prog="interns.entrypoint gh-query")
+def main(ctx: ActionsCtx, argv: list[str]) -> int:
+    parser = cli.build_parser("gh-query")
     parser.add_argument("--query", required=True,
                         choices=["head-ref", "head-sha", "closing-issue", "pr-for-issue"])
     parser.add_argument("--number", type=int, required=True)

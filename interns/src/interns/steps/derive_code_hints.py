@@ -11,6 +11,7 @@ the issue-type gate, which guarantees a type:coding-task or type:bug label.
 from __future__ import annotations
 
 import re
+import sys
 
 from .. import cli, gh
 from ..domain import labels
@@ -37,11 +38,8 @@ def derive_code_hints(repo: str, issue: int) -> tuple[str, str]:
     return f"{prefix}:", f"{prefix}/issue-{issue}-{_slug(title)}"
 
 
-def _main(ctx: ActionsCtx, argv: list[str]) -> int:
-    import argparse
-    import sys
-
-    parser = argparse.ArgumentParser(prog="interns.entrypoint derive-code-hints")
+def main(ctx: ActionsCtx, argv: list[str]) -> int:
+    parser = cli.build_parser("derive-code-hints")
     parser.add_argument("--issue", type=int, required=True)
     args = parser.parse_args(argv)
 

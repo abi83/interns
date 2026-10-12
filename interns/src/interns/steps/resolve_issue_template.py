@@ -10,7 +10,6 @@ into the matching block; it never resolves a path itself.
 from __future__ import annotations
 
 import re
-import sys
 from pathlib import Path
 
 from .. import cli
@@ -61,10 +60,8 @@ def build_skeleton(builtin_dir: Path, consumer_dir: Path, types: list[str]) -> s
     return "\n".join(blocks)
 
 
-def _main(argv: list[str]) -> int:
-    import argparse
-
-    parser = argparse.ArgumentParser(prog="python -m interns.steps.resolve_issue_template")
+def main(argv: list[str]) -> int:
+    parser = cli.build_parser("resolve-issue-template")
     parser.add_argument("--builtin-dir", required=True)
     parser.add_argument("--consumer-dir", default=".github/ISSUE_TEMPLATE")
     parser.add_argument("--types", default=" ".join(DEFAULT_TYPES))
@@ -75,6 +72,3 @@ def _main(argv: list[str]) -> int:
     cli.append_output(cli.github_output_block("skeleton", skeleton.encode()))
     return 0
 
-
-if __name__ == "__main__":
-    sys.exit(cli.run(_main))

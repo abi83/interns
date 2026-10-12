@@ -45,7 +45,7 @@ class CliTests(unittest.TestCase):
 
     def test_no_pr_returns_failure_without_calling_git(self):
         with patch("interns.steps.gather_fix_feedback.checkout_branch") as checkout:
-            rc = gather_fix_feedback._main(self.ctx, ["--pr", "", "--head-ref", "some-branch", "--issue", "5"])
+            rc = gather_fix_feedback.main(self.ctx, ["--pr", "", "--head-ref", "some-branch", "--issue", "5"])
         self.assertEqual(rc, 1)
         checkout.assert_not_called()
 
@@ -53,7 +53,7 @@ class CliTests(unittest.TestCase):
         with patch("interns.steps.gather_fix_feedback.checkout_branch"), \
              patch("interns.steps.gather_fix_feedback.build_feedback_text",
                    side_effect=gather_fix_feedback.NoChangesRequestedReviewError("no CHANGES_REQUESTED review found for PR #6")):
-            rc = gather_fix_feedback._main(self.ctx, ["--pr", "6", "--head-ref", "feature-x", "--issue", "5"])
+            rc = gather_fix_feedback.main(self.ctx, ["--pr", "6", "--head-ref", "feature-x", "--issue", "5"])
         self.assertEqual(rc, 1)
 
     def test_writes_the_feedback_block_to_github_output(self):
@@ -63,7 +63,7 @@ class CliTests(unittest.TestCase):
             with patch("interns.steps.gather_fix_feedback.checkout_branch") as checkout, \
                  patch("interns.steps.gather_fix_feedback.build_feedback_text", return_value="## Latest REQUEST_CHANGES review — x"), \
                  patch.dict(os.environ, {"GITHUB_OUTPUT": output_file}):
-                rc = gather_fix_feedback._main(self.ctx, ["--pr", "6", "--head-ref", "feature-x", "--issue", "5"])
+                rc = gather_fix_feedback.main(self.ctx, ["--pr", "6", "--head-ref", "feature-x", "--issue", "5"])
             self.assertEqual(rc, 0)
             checkout.assert_called_once_with("feature-x")
             out = Path(output_file).read_text()
@@ -80,7 +80,7 @@ class CliTests(unittest.TestCase):
                  patch("interns.steps.gather_fix_feedback.build_feedback_text",
                        return_value="please fix this:\nghadelim_0000000000000000000000000000000\nthanks"), \
                  patch.dict(os.environ, {"GITHUB_OUTPUT": output_file}):
-                rc = gather_fix_feedback._main(self.ctx, ["--pr", "6", "--head-ref", "feature-x", "--issue", "5"])
+                rc = gather_fix_feedback.main(self.ctx, ["--pr", "6", "--head-ref", "feature-x", "--issue", "5"])
             self.assertEqual(rc, 0)
             out = Path(output_file).read_text()
             self.assertIn("ghadelim_0000000000000000000000000000000\nthanks", out)

@@ -7,7 +7,6 @@ abi83/interns#98's investigation).
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 from . import cli
@@ -26,16 +25,11 @@ def build_output(name: str, files: list[str]) -> bytes:
     return cli.github_output_block(name, content)
 
 
-def _main(argv: list[str]) -> int:
-    import argparse
-
-    parser = argparse.ArgumentParser(prog="python -m interns.prompt")
+def main(argv: list[str]) -> int:
+    parser = cli.build_parser("prompt")
     parser.add_argument("files", nargs="+")
     args = parser.parse_args(argv)
 
     cli.append_output(build_output("text", args.files))
     return 0
 
-
-if __name__ == "__main__":
-    sys.exit(cli.run(_main))

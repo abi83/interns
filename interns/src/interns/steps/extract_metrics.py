@@ -12,7 +12,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .. import execution
+from .. import cli, execution
 from ..ctx import ActionsCtx
 
 SCHEMA_VERSION = 2
@@ -100,10 +100,8 @@ def _num_or_null(value: str) -> int | None:
     return int(value) if value.isdigit() else None
 
 
-def _main(ctx: ActionsCtx, argv: list[str]) -> int:
-    import argparse
-
-    parser = argparse.ArgumentParser(prog="interns.entrypoint extract-metrics")
+def main(ctx: ActionsCtx, argv: list[str]) -> int:
+    parser = cli.build_parser("extract-metrics")
     parser.add_argument("--exec-file", required=True)
     parser.add_argument("--job", required=True, choices=JOBS)
     parser.add_argument("--ref", required=True)

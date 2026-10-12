@@ -1,9 +1,8 @@
-"""Shared glue for pipeline entrypoints: env access, int args, step outputs."""
+"""Shared glue for entrypoint commands: env access, parsers, int args, step outputs."""
 
+import argparse
 import os
 import secrets
-import sys
-from typing import Callable
 
 
 class MissingEnvError(RuntimeError):
@@ -57,10 +56,6 @@ def write_output(key: str, value: str | bool | bytes) -> None:
     append_output(github_output_block(key, raw) if b"\n" in raw else f"{key}=".encode() + raw + b"\n")
 
 
-def run(main: Callable[[list[str]], int]) -> int:
-    """Runs an entrypoint's `_main` on sys.argv, turning a missing env var into a clean exit."""
-    try:
-        return main(sys.argv[1:])
-    except MissingEnvError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 1
+def build_parser(command: str) -> argparse.ArgumentParser:
+    """The parser for a command registered in `interns.entrypoint`; `prog` is derived from its name."""
+    return argparse.ArgumentParser(prog=f"interns.entrypoint {command}")

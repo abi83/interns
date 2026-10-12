@@ -35,5 +35,5 @@ class GhQueryTests(unittest.TestCase):
         prs = [{"number": 6, "headRefName": "two", "closingIssuesReferences": [{"number": 2}]}]
         out = io.StringIO()
         with patch("interns.gh.query.gh.pr_list", return_value=prs), redirect_stdout(out):
-            gh_query._main(ctx, ["--query", "pr-for-issue", "--number", "2"])
+            gh_query.main(ctx, ["--query", "pr-for-issue", "--number", "2"])
         self.assertEqual(out.getvalue(), "pr_number=6\nhead_ref=two\n")

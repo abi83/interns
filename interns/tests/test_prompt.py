@@ -108,7 +108,7 @@ class CliTests(unittest.TestCase):
             output_file = os.path.join(tmpdir, "output")
             Path(output_file).write_bytes(b"")
             with patch.dict(os.environ, {"GITHUB_OUTPUT": output_file}):
-                prompt._main([prompt_file])
+                prompt.main([prompt_file])
             contents = Path(output_file).read_bytes()
         self.assertIn(b"text<<", contents)
         self.assertIn(b"instructions\n", contents)
@@ -119,7 +119,7 @@ class CliTests(unittest.TestCase):
             output_file = os.path.join(tmpdir, "output")
             Path(output_file).write_bytes(b"existing=value\n")
             with patch.dict(os.environ, {"GITHUB_OUTPUT": output_file}):
-                prompt._main([prompt_file])
+                prompt.main([prompt_file])
             contents = Path(output_file).read_bytes()
         self.assertTrue(contents.startswith(b"existing=value\n"))
 

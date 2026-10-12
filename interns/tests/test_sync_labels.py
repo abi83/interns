@@ -86,7 +86,7 @@ class MainTests(unittest.TestCase):
         return default_ctx(token="x")
 
     def test_fails_on_a_missing_manifest(self):
-        self.assertEqual(sync_labels._main(self._ctx(), ["/no/such/labels.json"]), 1)
+        self.assertEqual(sync_labels.main(self._ctx(), ["/no/such/labels.json"]), 1)
 
 
 if __name__ == "__main__":

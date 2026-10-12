@@ -5,7 +5,7 @@ Only the PR is escalated; the issue keeps its status because the work is in a PR
 
 from __future__ import annotations
 
-from .. import gh
+from .. import cli, gh
 from ..domain import labels
 from ..ctx import ActionsCtx
 
@@ -22,10 +22,8 @@ def route_red_checks(repo: str, pr: int, reason: str, *, run_url: str = "") -> N
     )
 
 
-def _main(ctx: ActionsCtx, argv: list[str]) -> int:
-    import argparse
-
-    parser = argparse.ArgumentParser(prog="interns.entrypoint route-red-checks")
+def main(ctx: ActionsCtx, argv: list[str]) -> int:
+    parser = cli.build_parser("route-red-checks")
     parser.add_argument("--pr", type=int, required=True)
     parser.add_argument("--reason", required=True)
     args = parser.parse_args(argv)

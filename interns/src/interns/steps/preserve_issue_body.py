@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import os
 
-from .. import gh
+from .. import cli, gh
 from ..ctx import ActionsCtx
 
 
@@ -16,10 +16,8 @@ def preserve_issue_body(repo: str, issue: int, body: str) -> None:
     )
 
 
-def _main(ctx: ActionsCtx, argv: list[str]) -> int:
-    import argparse
-
-    parser = argparse.ArgumentParser(prog="interns.entrypoint preserve-issue-body")
+def main(ctx: ActionsCtx, argv: list[str]) -> int:
+    parser = cli.build_parser("preserve-issue-body")
     parser.add_argument("--issue", type=int, required=True)
     args = parser.parse_args(argv)
     # os.environ, not require_env: an empty issue body is valid

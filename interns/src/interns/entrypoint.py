@@ -1,16 +1,21 @@
-"""Single Actions entrypoint: builds ActionsCtx once and dispatches to pipeline commands."""
+"""Single Actions entrypoint: dispatches to commands with one missing-env error path.
+
+Commands take `(ctx, argv)` with an ActionsCtx built once. The exception is
+`_ENV_FREE_COMMANDS`, which take `(argv)` only."""
 
 from __future__ import annotations
 
 import sys
 from collections.abc import Callable
 
-from . import cli, run_summary
+from . import cli, config, prompt, run_summary
+from .ctx import ActionsCtx
 from .gh import query as gh_query
 from .steps import (
     append_metrics,
     apply_verdict,
     auto_proceed,
+    check_build_config,
     check_review_cap,
     derive_code_hints,
     extract_metrics,
@@ -24,62 +29,82 @@ from .steps import (
     labels,
     preserve_issue_body,
     report_run,
+    resolve_issue_template,
     route_red_checks,
+    run_setup,
     save_draft_pr,
     spike_advisory,
     sync_labels,
     verdict,
     wait_for_checks,
 )
-from .ctx import ActionsCtx
 
 _Command = Callable[[ActionsCtx, list[str]], int]
+_EnvFreeCommand = Callable[[list[str]], int]
 
 _COMMANDS: dict[str, _Command] = {
-    "fetch-issue": fetch_issue._main,
-    "report-run": report_run._main,
-    "flag-failure": flag_failure._main,
-    "extract-metrics": extract_metrics._main,
-    "append-metrics": append_metrics._main,
-    "apply-verdict": apply_verdict._main,
-    "auto-proceed": auto_proceed._main,
-    "check-review-cap": check_review_cap._main,
-    "derive-code-hints": derive_code_hints._main,
-    "gate-issue-type": gate_issue_type._main,
-    "gather-fix-feedback": gather_fix_feedback._main,
-    "gh-query": gh_query._main,
-    "handle-giveup": handle_giveup._main,
-    "handle-pr-closed": handle_pr_closed._main,
-    "handoff-to-review": handoff_to_review._main,
-    "labels": labels._main,
-    "run-summary": run_summary._main,
-    "route-red-checks": route_red_checks._main,
-    "save-draft-pr": save_draft_pr._main,
-    "spike-advisory": spike_advisory._main,
-    "sync-labels": sync_labels._main,
-    "wait-for-checks": wait_for_checks._main,
-    "preserve-issue-body": preserve_issue_body._main,
-    "verdict": verdict._main,
+    "fetch-issue": fetch_issue.main,
+    "report-run": report_run.main,
+    "flag-failure": flag_failure.main,
+    "extract-metrics": extract_metrics.main,
+    "append-metrics": append_metrics.main,
+    "apply-verdict": apply_verdict.main,
+    "auto-proceed": auto_proceed.main,
+    "check-review-cap": check_review_cap.main,
+    "derive-code-hints": derive_code_hints.main,
+    "gate-issue-type": gate_issue_type.main,
+    "gather-fix-feedback": gather_fix_feedback.main,
+    "gh-query": gh_query.main,
+    "handle-giveup": handle_giveup.main,
+    "handle-pr-closed": handle_pr_closed.main,
+    "handoff-to-review": handoff_to_review.main,
+    "labels": labels.main,
+    "run-summary": run_summary.main,
+    "route-red-checks": route_red_checks.main,
+    "save-draft-pr": save_draft_pr.main,
+    "spike-advisory": spike_advisory.main,
+    "sync-labels": sync_labels.main,
+    "wait-for-checks": wait_for_checks.main,
+    "preserve-issue-body": preserve_issue_body.main,
+    "verdict": verdict.main,
 }
+
+# Exception to the `(ctx, argv)` signature: these run in workflow steps that
+# carry no GitHub token or repository env, and `ActionsCtx.from_env` requires
+# them, so building a ctx would fail the step.
+_ENV_FREE_COMMANDS: dict[str, _EnvFreeCommand] = {
+    "check-build-config": check_build_config.main,
+    "config": config.main,
+    "prompt": prompt.main,
+    "resolve-issue-template": resolve_issue_template.main,
+    "run-setup": run_setup.main,
+}
+
+
+def _available() -> str:
+    return " ".join(sorted([*_COMMANDS, *_ENV_FREE_COMMANDS]))
+
+
+def _dispatch(command: str, rest: list[str]) -> int:
+    if command in _ENV_FREE_COMMANDS:
+        return _ENV_FREE_COMMANDS[command](rest)
+    return _COMMANDS[command](ActionsCtx.from_env(), rest)
 
 
 def main(argv: list[str]) -> int:
     if not argv:
         print("error: no command given", file=sys.stderr)
-        print(f"available commands: {' '.join(sorted(_COMMANDS))}", file=sys.stderr)
+        print(f"available commands: {_available()}", file=sys.stderr)
         return 2
 
-    command = argv[0]
-    rest = argv[1:]
-
-    if command not in _COMMANDS:
+    command, rest = argv[0], argv[1:]
+    if command not in _COMMANDS and command not in _ENV_FREE_COMMANDS:
         print(f"error: unknown command: {command}", file=sys.stderr)
-        print(f"available commands: {' '.join(sorted(_COMMANDS))}", file=sys.stderr)
+        print(f"available commands: {_available()}", file=sys.stderr)
         return 2
 
     try:
-        ctx = ActionsCtx.from_env()
-        return _COMMANDS[command](ctx, rest)
+        return _dispatch(command, rest)
     except cli.MissingEnvError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

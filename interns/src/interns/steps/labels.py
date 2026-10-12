@@ -5,12 +5,13 @@ from __future__ import annotations
 import argparse
 from collections.abc import Callable
 
+from .. import cli
 from ..ctx import ActionsCtx
 from ..domain import labels
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="interns.entrypoint labels")
+    parser = cli.build_parser("labels")
     sub = parser.add_subparsers(dest="command", required=True)
 
     p = sub.add_parser("issue-labels")
@@ -71,7 +72,7 @@ _SUBCOMMANDS: dict[str, Callable[[ActionsCtx, argparse.Namespace], None]] = {
 }
 
 
-def _main(ctx: ActionsCtx, argv: list[str]) -> int:
+def main(ctx: ActionsCtx, argv: list[str]) -> int:
     args = _parser().parse_args(argv)
     _SUBCOMMANDS[args.command](ctx, args)
     return 0
