@@ -11,6 +11,7 @@ to a plain line instead.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 from . import best_effort, execution, gh, verdict
@@ -192,9 +193,19 @@ def _execution_file_written(exec_file: str | None) -> bool:
 _PHASES = {"Coder", "Review", "Refinement", "Estimation"}
 
 
-def build_summary(repo: str, server_url: str, phase: str, exec_file: str | None, *,
-                   issue: str = "", pr: str = "", round_: str = "", cost_warn: str = "",
-                   reviewer_bot: str = "", run_url: str = "") -> str:
+@dataclass
+class SummaryContext:
+    repo: str
+    server_url: str
+    issue: str = ""
+    pr: str = ""
+    round_: str = ""
+    cost_warn: str = ""
+    reviewer_bot: str = ""
+    run_url: str = ""
+
+
+def build_summary(ctx: SummaryContext, phase: str, exec_file: str | None) -> str:
     if phase not in _PHASES:
         raise ValueError(f"run-summary: unknown phase {phase}")
 
@@ -211,13 +222,13 @@ def build_summary(repo: str, server_url: str, phase: str, exec_file: str | None,
     lines = [f"## {phase} run", ""]
 
     if phase == "Coder":
-        lines += _coder_section(repo, server_url, issue, pr, round_)
+        lines += _coder_section(ctx.repo, ctx.server_url, ctx.issue, ctx.pr, ctx.round_)
     elif phase == "Review":
-        lines += _review_section(repo, server_url, pr, reviewer_bot)
+        lines += _review_section(ctx.repo, ctx.server_url, ctx.pr, ctx.reviewer_bot)
     elif phase == "Refinement":
-        lines += _refinement_section(repo, server_url, issue)
+        lines += _refinement_section(ctx.repo, ctx.server_url, ctx.issue)
     else:
-        lines += _estimation_section(repo, server_url, issue)
+        lines += _estimation_section(ctx.repo, ctx.server_url, ctx.issue)
 
     if not _execution_file_written(exec_file):
         lines += ["", "> _No execution file — the agent step was killed (timed out) before writing results._"]
@@ -227,10 +238,10 @@ def build_summary(repo: str, server_url: str, phase: str, exec_file: str | None,
         cost_line += f" · {num_turns} turns"
     lines.append(cost_line)
 
-    if raw_cost and cost_warn and float(raw_cost) > float(cost_warn):
-        lines += ["", f"⚠️ cost ${report_run.format_cost(raw_cost)} over the ${float(cost_warn):.2f} warn limit"]
+    if raw_cost and ctx.cost_warn and float(raw_cost) > float(ctx.cost_warn):
+        lines += ["", f"⚠️ cost ${report_run.format_cost(raw_cost)} over the ${float(ctx.cost_warn):.2f} warn limit"]
 
-    lines += [f"[Full run log]({run_url})", "", "### Agent's final message", ""]
+    lines += [f"[Full run log]({ctx.run_url})", "", "### Agent's final message", ""]
     lines += _quote_final_message(final_msg)
 
     return "\n".join(lines) + "\n"
@@ -250,11 +261,12 @@ def _main(ctx: ActionsCtx, argv: list[str]) -> int:
 
     summary_path = ctx.step_summary
 
-    summary = build_summary(
-        ctx.repo, ctx.server_url, args.phase, args.exec_file or None,
+    summary_ctx = SummaryContext(
+        ctx.repo, ctx.server_url,
         issue=args.issue, pr=args.pr, round_=args.round_, cost_warn=args.cost_warn,
         reviewer_bot=ctx.reviewer_bot, run_url=ctx.run_url(),
     )
+    summary = build_summary(summary_ctx, args.phase, args.exec_file or None)
     with open(summary_path, "a") as f:
         f.write(summary)
     return 0

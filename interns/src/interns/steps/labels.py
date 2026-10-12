@@ -21,7 +21,7 @@ from .. import best_effort, gh
 
 if TYPE_CHECKING:
     from ..ctx import ActionsCtx
-from ..size import roll_up_size
+from ..size import Estimation
 
 STATUS_NEEDS_REFINEMENT = "status:needs-refinement"
 STATUS_REFINED = "status:refined"
@@ -204,29 +204,23 @@ def apply_refinement(
     return f"Refinement outcome '{outcome}' applied to issue #{issue}"
 
 
-def apply_estimation(
-    repo: str,
-    issue: int,
-    outcome: str,
-    blast_radius: str | None = None,
-    touch: str | None = None,
-    human_involvement: str | None = None,
-    review_overhead: str | None = None,
-) -> str:
+def apply_estimation(repo: str, issue: int, outcome: str, estimation: Estimation | None = None) -> str:
     """Apply the lifecycle label transition after estimation.
 
-    estimated      → rolls the four Low|Mid|High scores into a size:* label.
+    estimated      → rolls the four scores into a size:* label, then posts the
+                     score comment. The transition goes first and is strict, so
+                     a failed transition leaves no comment behind.
     needs-attention → transitions issue to status:needs-attention.
     Raises gh.InvalidInputError for invalid inputs; ValueError for bad scores.
     """
     if outcome == "estimated":
-        if None in (blast_radius, touch, human_involvement, review_overhead):
+        if estimation is None:
             raise gh.InvalidInputError(
                 "blast_radius, touch, human_involvement, and review_overhead are all required when outcome='estimated'"
             )
-        size = roll_up_size(blast_radius, touch, human_involvement, review_overhead)  # type: ignore[arg-type]
-        transition = estimated(size)
-        apply_transition(repo, issue, transition)
+        size = estimation.size()
+        apply_transition(repo, issue, estimated(size))
+        gh.issue_comment(repo, issue, estimation.comment())
         return f"Estimation outcome 'estimated' applied to issue #{issue} ({size_label(size)})"
     if outcome == "needs-attention":
         apply_transition(repo, issue, estimation_needs_attention())

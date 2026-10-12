@@ -13,6 +13,7 @@ import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
 import server
+from interns.size import Estimation, Score
 from interns.steps import fetch_issue
 from server import (
     GhCommandError,
@@ -264,22 +265,17 @@ def test_apply_refinement_outcome_missing_type_label():
 
 
 def test_apply_estimation_outcome_dispatches_to_pipeline():
+    estimation = Estimation(
+        blast_radius=Score("Low", "isolated change in src/ghost.ts"),
+        touch=Score("Mid", "touches player.ts, ghost.ts, render.ts"),
+        human_involvement=Score("Low", "no manual steps"),
+        review_overhead=Score("Low", "single PR, existing patterns"),
+    )
     with patch("server.labels.apply_estimation",
                return_value="Estimation outcome 'estimated' applied to issue #7 (size:S)") as mock_labels:
-        with patch("server.gh.issue_comment") as mock_comment:
-            with patch.object(server, "_REPO", "owner/repo"):
-                result = apply_estimation_outcome(
-                    issue_number=7, outcome="estimated",
-                    blast_radius="Low", blast_radius_reason="isolated change in src/ghost.ts",
-                    touch="Mid", touch_reason="touches player.ts, ghost.ts, render.ts",
-                    human_involvement="Low", human_involvement_reason="no manual steps",
-                    review_overhead="Low", review_overhead_reason="single PR, existing patterns",
-                )
-    mock_labels.assert_called_once_with("owner/repo", 7, "estimated", "Low", "Mid", "Low", "Low")
-    mock_comment.assert_called_once()
-    body = mock_comment.call_args[0][2]
-    assert "BLAST RADIUS: Low" in body
-    assert "isolated change in src/ghost.ts" in body
+        with patch.object(server, "_REPO", "owner/repo"):
+            result = apply_estimation_outcome(issue_number=7, outcome="estimated", estimation=estimation)
+    mock_labels.assert_called_once_with("owner/repo", 7, "estimated", estimation)
     assert "estimated" in result
 
 

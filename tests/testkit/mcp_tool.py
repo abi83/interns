@@ -6,8 +6,10 @@ Prints the tool's return value; an exception exits non-zero with its message.
 import json
 import sys
 
+from pydantic import validate_call
+
 import server
 
 if __name__ == "__main__":
     tool = getattr(server, sys.argv[1])
-    print(tool(**json.loads(sys.argv[2])))
+    print(validate_call(tool)(**json.loads(sys.argv[2])))

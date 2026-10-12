@@ -13,6 +13,7 @@ from typing import Annotated, Literal
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from interns import gh
+from interns.size import Estimation
 from interns.steps import fetch_issue, labels, push
 from interns.gh import GhCommandError, InvalidInputError, PushRefusedError  # noqa: F401 — re-exported for callers
 from pydantic import BaseModel, Field
@@ -253,60 +254,26 @@ def apply_refinement_outcome(
 def apply_estimation_outcome(
     issue_number: Annotated[int, Field(description="Issue number.")],
     outcome: Annotated[Literal["estimated", "needs-attention"], Field(description="Estimation outcome.")],
-    blast_radius: Annotated[
-        Literal["Low", "Mid", "High"],
-        Field(description="Risk of breaking existing functionality. Required when outcome='estimated'."),
-    ] = None,  # type: ignore[assignment]
-    blast_radius_reason: Annotated[
-        str,
-        Field(description="One sentence reasoning for this score."),
-    ] = None,  # type: ignore[assignment]
-    touch: Annotated[
-        Literal["Low", "Mid", "High"],
-        Field(description="Number of files/components touched. Required when outcome='estimated'."),
-    ] = None,  # type: ignore[assignment]
-    touch_reason: Annotated[
-        str,
-        Field(description="One sentence reasoning for this score."),
-    ] = None,  # type: ignore[assignment]
-    human_involvement: Annotated[
-        Literal["Low", "Mid", "High"],
-        Field(description="Expected back-and-forth with the owner. Required when outcome='estimated'."),
-    ] = None,  # type: ignore[assignment]
-    human_involvement_reason: Annotated[
-        str,
-        Field(description="One sentence reasoning for this score."),
-    ] = None,  # type: ignore[assignment]
-    review_overhead: Annotated[
-        Literal["Low", "Mid", "High"],
-        Field(description="Reviewer effort. Required when outcome='estimated'."),
-    ] = None,  # type: ignore[assignment]
-    review_overhead_reason: Annotated[
-        str,
-        Field(description="One sentence reasoning for this score."),
-    ] = None,  # type: ignore[assignment]
+    estimation: Annotated[
+        Estimation | None,
+        Field(
+            description=(
+                "Required when outcome='estimated'. Four scores (blast_radius: risk of breaking existing "
+                "functionality; touch: number of files/components touched; human_involvement: expected "
+                "back-and-forth with the owner; review_overhead: reviewer effort), each with a level "
+                "(Low|Mid|High) and a one-sentence reason."
+            )
+        ),
+    ] = None,
 ) -> str:
     """Submit the final estimation result.
 
-    Call on the normal path after scoring: posts the four-line score comment
-    and advances the issue to status:estimated with a computed size label.
-    Call with outcome='needs-attention' when the issue cannot be sized.
+    Call on the normal path after scoring: advances the issue to
+    status:estimated with a computed size label, then posts the four-line
+    score comment. Call with outcome='needs-attention' when the issue cannot
+    be sized.
     """
-    if outcome == "estimated":
-        if None in (blast_radius, touch, human_involvement, review_overhead):
-            raise gh.InvalidInputError(
-                "blast_radius, touch, human_involvement, and review_overhead are all required when outcome='estimated'"
-            )
-        lines = [
-            f"BLAST RADIUS: {blast_radius} — {blast_radius_reason or ''}",
-            f"TOUCH: {touch} — {touch_reason or ''}",
-            f"HUMAN INVOLVEMENT: {human_involvement} — {human_involvement_reason or ''}",
-            f"REVIEW OVERHEAD: {review_overhead} — {review_overhead_reason or ''}",
-        ]
-        gh.issue_comment(_REPO, issue_number, "\n".join(lines))
-    return labels.apply_estimation(
-        _REPO, issue_number, outcome, blast_radius, touch, human_involvement, review_overhead
-    )
+    return labels.apply_estimation(_REPO, issue_number, outcome, estimation)
 
 
 if __name__ == "__main__":

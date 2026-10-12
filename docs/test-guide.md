@@ -15,7 +15,7 @@ uv run --frozen ruff check .                                               # lin
 
 **Integration** — real entrypoint, real env/argv/`$GITHUB_OUTPUT`, through all real code to the process boundary where `gh` and `git` are fake executables on `$PATH`. Assert on the calls issued, resulting labels and step outputs — not on internal state or intermediate calls.
 
-**Guards** — structural invariants that must hold across the whole codebase: label manifest matches code constants, config schema matches loader, no new error-swallowing sites, import-direction rules.
+**Guards** — structural invariants that must hold across the whole codebase: label manifest matches code constants, no new error-swallowing sites, import-direction rules.
 
 **Contract fixtures** — raw `gh` output captured from the real API; parsing code is tested against it. Re-capture with `tests/contract/capture.py` when the `gh` output shape changes.
 
