@@ -32,7 +32,7 @@ def is_configured(repo_root: str) -> bool:
 def _main(argv: list[str]) -> int:
     import argparse
 
-    parser = argparse.ArgumentParser(prog="python -m pipeline.check_build_config")
+    parser = argparse.ArgumentParser(prog="python -m interns.steps.check_build_config")
     parser.add_argument("repo_root")
     args = parser.parse_args(argv)
 

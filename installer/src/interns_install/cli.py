@@ -1,6 +1,6 @@
 """`interns-install` — the interactive local half of interns setup.
 
-Covers what a headless `install.yml` run cannot: minting the two bot GitHub
+Covers what a headless `install.yml` run cannot: minting the three bot GitHub
 Apps (an interactive browser click), writing repo secrets/variables
 (`secrets: write` is not grantable to `GITHUB_TOKEN`), and the branch
 protection / Pages safety checks (reading or writing either needs admin

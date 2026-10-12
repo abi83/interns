@@ -1,4 +1,4 @@
-"""Unit tests for pipeline.push — push_branch and pr_open_for_issue."""
+"""Unit tests for interns.steps.push — push_branch and pr_open_for_issue."""
 
 from unittest.mock import MagicMock, patch
 

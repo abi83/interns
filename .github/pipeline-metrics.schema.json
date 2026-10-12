@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "pipeline-metrics record",
-  "description": "One record per (run, job) of the agent pipeline, emitted by extract-metrics.sh and appended to metrics.jsonl on the orphan `metrics` branch.",
+  "description": "One record per (run, job) of the agent pipeline, emitted by interns.steps.extract_metrics and appended to metrics.jsonl on the orphan `metrics` branch.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -56,7 +56,7 @@
     },
     "tool_calls": {
       "type": "object",
-      "description": "tool_use blocks in the stream, grouped by label, main agent only (sub-agent inner calls live in a separate sidechain). Bash calls are sub-labelled: Bash:<script>.sh for .sh invocations, Bash:other for everything else. Task count = sub-agents spawned.",
+      "description": "tool_use blocks in the stream, grouped by label, main agent only (sub-agent inner calls live in a separate sidechain). Bash calls are sub-labelled: Bash:<basename>.sh for .sh invocations (basename of the invoked script), Bash:other for everything else. Task count = sub-agents spawned.",
       "additionalProperties": { "type": "integer", "minimum": 1 }
     },
     "permission_denials": {

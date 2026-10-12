@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "label manifest",
-  "description": "The versioned set of labels the agent pipeline's state machine relies on. Synced idempotently into a consumer repo by .github/scripts/install/sync-labels.sh (installer workflow). The sync is additive: labels absent from the manifest are left untouched.",
+  "description": "The versioned set of labels the agent pipeline's state machine relies on. Synced idempotently into a consumer repo by `interns.steps.sync_labels` (installer workflow). The sync is additive: labels absent from the manifest are left untouched.",
   "type": "object",
   "additionalProperties": false,
   "required": ["version", "labels"],

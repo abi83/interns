@@ -2,7 +2,7 @@
 file (schema: .github/interns.schema.json).
 
 Both the agent-config resolution (this module's own `agent-config` CLI
-command) and the reviewer's checks-ignore list (pipeline.wait_for_checks) go
+command) and the reviewer's checks-ignore list (interns.steps.wait_for_checks) go
 through `load_raw` here, so a malformed file fails the same way no matter
 which setting the caller needed.
 """
@@ -313,7 +313,7 @@ def _flag(name: str, tools: list[str]) -> str:
 def _main(argv: list[str]) -> int:
     import argparse
 
-    parser = argparse.ArgumentParser(prog="python -m pipeline.config")
+    parser = argparse.ArgumentParser(prog="python -m interns.config")
     parser.add_argument("--config", default=os.environ.get("INTERNS_CONFIG", ".github/interns.yml"))
     sub = parser.add_subparsers(dest="command", required=True)
 

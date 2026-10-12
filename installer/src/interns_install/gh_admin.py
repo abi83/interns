@@ -1,6 +1,6 @@
 """Admin-scoped `gh` calls used only by the installer: secrets, variables,
 the Git Data API, contents writes, branch protection and Pages. Built on the
-shared transport in `pipeline.gh_transport`."""
+shared transport in `interns.gh.transport`."""
 
 from __future__ import annotations
 

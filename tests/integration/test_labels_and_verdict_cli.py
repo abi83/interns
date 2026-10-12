@@ -1,5 +1,5 @@
-"""Direct CLI entrypoints for `pipeline.labels` and `pipeline.verdict`:
-workflow steps call these subcommands straight from YAML via `pipeline.entrypoint`.
+"""Direct CLI entrypoints for `interns.steps.labels` and `interns.verdict`:
+workflow steps call these subcommands straight from YAML via `interns.entrypoint`.
 """
 
 import pytest
@@ -20,7 +20,7 @@ def review(state: str, commit: str = HEAD, login: str = "reviewer-bot") -> dict:
     return {"id": 1, "user": {"login": login}, "state": state, "commit_id": commit}
 
 
-# --- pipeline.labels ---------------------------------------------------------
+# --- interns.steps.labels ---------------------------------------------------------
 
 def test_labels_issue_labels_prints_a_comma_joined_list(scenario):
     scenario.gh("issue", "view", "labels", stdout=labels_payload("status:ready", "type:bug"))
@@ -86,7 +86,7 @@ def test_labels_escalate_pr_sets_needs_attention(scenario):
     assert scenario.label_edits("pr") == [(PR, {"pr:needs-attention"}, {"pr:coding"})]
 
 
-# --- pipeline.verdict ---------------------------------------------------------
+# --- interns.verdict ---------------------------------------------------------
 
 def test_verdict_verdict_for_head_prints_the_latest_state(scenario):
     scenario.gh(f"repos/{REPO}/pulls/{PR}/reviews", stdout=[[review("APPROVED")]])

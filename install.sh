@@ -5,7 +5,7 @@
 # ensures `uv` is present (via Astral's official installer) and then hands
 # straight over to the Python CLI, which does the real work.
 #
-#   curl -LsSf https://raw.githubusercontent.com/abi83/interns/v0.1.0/install.sh | sh
+#   curl -LsSf https://raw.githubusercontent.com/abi83/interns/v0/install.sh | sh
 #
 # Args after `--` go to interns-install, e.g.
 #   curl -LsSf .../install.sh | sh -s -- --dry-run --repo owner/name

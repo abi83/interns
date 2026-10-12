@@ -1,4 +1,4 @@
-"""`.github/labels.json` and the label constants in `pipeline.labels`/`pipeline.size` must agree."""
+"""`.github/labels.json` and the label constants in `interns.steps.labels`/`interns.size` must agree."""
 
 import json
 import re

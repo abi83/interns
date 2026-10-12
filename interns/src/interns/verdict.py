@@ -1,8 +1,8 @@
 """Reviewer-verdict and CHANGES_REQUESTED-round queries.
 
 Unifies three independently-written "reviewer's last review state against
-current head" queries (pipeline.apply_verdict, pipeline.run_summary,
-pipeline.check_review_cap -- interns#157) into one place.
+current head" queries (interns.steps.apply_verdict, interns.run_summary,
+interns.steps.check_review_cap -- interns#157) into one place.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ class Review:
     login: str
     state: str
     commit_id: str
-    # Only pipeline.gather_fix_feedback needs these; every other caller here
+    # Only interns.steps.gather_fix_feedback needs these; every other caller here
     # only cares about login/state/commit_id. Defaulted rather than split
     # into a second type so there's still exactly one review fetch to keep
     # paginated and in sync (interns#180 review).

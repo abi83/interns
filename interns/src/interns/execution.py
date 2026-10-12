@@ -1,6 +1,6 @@
 """Parsing of the claude-code-action execution-log JSON.
 
-Shared by pipeline.report_run and pipeline.run_summary, which both
+Shared by interns.steps.report_run and interns.run_summary, which both
 previously hand-duplicated the same `result`-entry extraction (interns#157).
 """
 
@@ -60,7 +60,7 @@ def permission_denials(entry: dict) -> list[dict]:
 def _main(argv: list[str]) -> int:
     import argparse
 
-    parser = argparse.ArgumentParser(prog="python -m pipeline.execution")
+    parser = argparse.ArgumentParser(prog="python -m interns.execution")
     parser.add_argument("exec_file")
     parser.add_argument("field")
     args = parser.parse_args(argv)

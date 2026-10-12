@@ -9,7 +9,7 @@ host repo's GitHub Actions — no hosted service, no VMs to manage, no machine o
 own left running. Each issue and PR is its own workflow run, so the work fans out
 concurrently and scales with your Actions runners, not with your attention.
 
-Status: early. Consumed by [`abi83/prepify`](https://github.com/abi83/prepify).
+Status: early.
 Design and roadmap: [#3](https://github.com/abi83/interns/issues/3).
 
 ## What it does
@@ -153,6 +153,10 @@ The script installs [`uv`](https://docs.astral.sh/uv/) if it's missing, then
 runs the `interns-install` CLI. On a fresh repo you merge two small PRs it
 opens (the install wrapper, then the caller stubs) and re-run it once in
 between — see the steps below.
+
+The workflows' config parsing needs the [`yq`](https://github.com/mikefarah/yq)
+binary on `PATH`. GitHub-hosted runners ship it preinstalled; self-hosted
+runners must provide it.
 
 ### What the installer does
 
@@ -360,8 +364,8 @@ lacks the target.
 <details>
 <summary>The manual path, without <code>interns-install</code></summary>
 
-The fully manual path stays supported: create the two Apps with the permissions
-above and install them on the repo, add the secrets and variables, set branch
+The fully manual path stays supported: create the three Apps (coder, reviewer, triage) with the
+permissions above and install them on the repo, add the secrets and variables, set branch
 protection, and commit the caller stubs from
 [`templates/workflows/`](templates/workflows) yourself —
 including the [`install.yml`](templates/workflows/install.yml) wrapper. With

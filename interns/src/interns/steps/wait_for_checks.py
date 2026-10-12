@@ -5,7 +5,7 @@ with no coder retry; workflow_dispatch skips the gate.
 Two things are excluded from the wait: this workflow run's own checks (they
 never finish before the gate does) and anything in `checks.ignore` in
 .github/interns.yml (non-blocking advisory checks), read via
-pipeline.config -- the file's only reader. A malformed config now fails the
+interns.config -- the file's only reader. A malformed config now fails the
 gate loudly instead of silently ignoring nothing.
 """
 
