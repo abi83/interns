@@ -198,23 +198,18 @@ def test_pr_submit_review_includes_inline_comments(scenario):
 
 
 # ---------------------------------------------------------------------------
-# edit_issue_labels_validated
+# set_issue_type
 # ---------------------------------------------------------------------------
 
 
-def test_edit_issue_labels_validated_adds_and_removes(scenario):
-    labels_fixture = json.dumps([[
-        {"name": "type:bug", "color": "d73a4a", "description": ""},
-        {"name": "status:ready", "color": "0e8a16", "description": ""},
-    ]])
-    scenario.gh("api", f"repos/{REPO}/labels?per_page=100", stdout=labels_fixture)
-    scenario.gh("issue", "view", stdout=json.dumps({"labels": [{"name": "type:bug"}]}))
+def test_set_issue_type_swaps_only_type_labels(scenario):
+    scenario.gh("issue", "view", stdout=json.dumps({"labels": [{"name": "type:spike"}, {"name": "status:needs-refinement"}]}))
     # gh issue edit is QUIET
 
-    result = labels.edit_issue_labels_validated(REPO, 7, add=["status:ready"], remove=["type:bug"])
+    result = labels.set_issue_type(REPO, 7, "type:bug")
 
-    assert "Added: status:ready" in result
-    assert "Removed: type:bug" in result
+    assert result == "Issue #7 type set to type:bug"
+    assert scenario.label_edits("issue") == [("7", {"type:bug"}, {"type:spike"})]
 
 
 # ---------------------------------------------------------------------------

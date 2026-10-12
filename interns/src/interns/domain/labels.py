@@ -32,7 +32,8 @@ PR_IN_REVIEW = "pr:in-review"
 PR_NEEDS_ATTENTION = "pr:needs-attention"
 
 TypeLabel = Literal["type:coding-task", "type:bug", "type:spike"]
-TYPE_CODING_TASK, TYPE_BUG, TYPE_SPIKE = get_args(TypeLabel)
+TYPE_LABELS = get_args(TypeLabel)
+TYPE_CODING_TASK, TYPE_BUG, TYPE_SPIKE = TYPE_LABELS
 
 SIZE_PREFIX = "size:"
 
@@ -142,38 +143,16 @@ def escalate_pr(repo: str, pr: int) -> None:
     set_pr_pipeline_label(repo, pr, PR_NEEDS_ATTENTION)
 
 
-def edit_issue_labels_validated(
-    repo: str,
-    issue: int,
-    add: list[str] | None = None,
-    remove: list[str] | None = None,
-) -> str:
-    """Add or remove labels after verifying they exist in the repo.
+def set_issue_type(repo: str, issue: int, type_label: str) -> str:
+    """Make `type_label` the issue's only `type:*` label.
 
-    Raises gh.InvalidInputError for any label not present in the repo.
-    Returns a human-readable summary, or 'Nothing to do' when both lists are empty.
+    The only label write an agent gets besides the outcome tools: it can
+    never touch status:*, pr:* or size:*. Strict: a failed edit raises.
     """
-    add = add or []
-    remove = remove or []
-    if not add and not remove:
-        return "Nothing to do"
-    valid = set(gh.label_names(repo))
-    unknown_add = [lbl for lbl in add if lbl not in valid]
-    unknown_remove = [lbl for lbl in remove if lbl not in valid]
-    if unknown_add or unknown_remove:
-        msgs = []
-        if unknown_add:
-            msgs.append(f"Labels don't exist, not added: {', '.join(unknown_add)}")
-        if unknown_remove:
-            msgs.append(f"Labels don't exist, not removed: {', '.join(unknown_remove)}")
-        raise gh.InvalidInputError("\n".join(msgs))
-    edit_issue_labels_strict(repo, issue, add=add, remove=remove)
-    parts = []
-    if add:
-        parts.append(f"Added: {', '.join(add)}")
-    if remove:
-        parts.append(f"Removed: {', '.join(remove)}")
-    return "\n".join(parts)
+    if type_label not in TYPE_LABELS:
+        raise gh.InvalidInputError(f"type_label must be one of: {', '.join(TYPE_LABELS)}")
+    edit_issue_labels_strict(repo, issue, add=[type_label], remove=[t for t in TYPE_LABELS if t != type_label])
+    return f"Issue #{issue} type set to {type_label}"
 
 
 def apply_refinement(

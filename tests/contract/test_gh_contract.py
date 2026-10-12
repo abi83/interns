@@ -101,4 +101,3 @@ def test_label_list_reads_name_color_and_description(scenario):
 
     assert listed
     assert all({"name", "color", "description"} == set(entry) for entry in listed)
-    assert gh.label_names(REPO) == [entry["name"] for entry in listed]
