@@ -25,14 +25,12 @@ class ConvertManifestTests(unittest.TestCase):
         self.assertEqual(kwargs["method"], "POST")
 
     def test_raises_when_pem_missing(self):
-        with mock.patch.object(gh_admin.gh_transport, "api", return_value={"id": 1}):
-            with self.assertRaises(gh.GhError):
-                convert_manifest("abc123")
+        with mock.patch.object(gh_admin.gh_transport, "api", return_value={"id": 1}), self.assertRaises(gh.GhError):
+            convert_manifest("abc123")
 
     def test_raises_on_non_dict_response(self):
-        with mock.patch.object(gh_admin.gh_transport, "api", return_value=None):
-            with self.assertRaises(gh.GhError):
-                convert_manifest("abc123")
+        with mock.patch.object(gh_admin.gh_transport, "api", return_value=None), self.assertRaises(gh.GhError):
+            convert_manifest("abc123")
 
 
 class ManifestTests(unittest.TestCase):
@@ -97,8 +95,8 @@ class ReuseAppTests(unittest.TestCase):
         entirely instead of reaching the reuse question) and, on yes, is
         prompted for the Client ID via use_existing_app's own fallback."""
         con = Console(assume_yes=False)
-        con.confirm = _confirm_sequence(True)  # "already have it?"
-        con.prompt = lambda q: "Iv1.existing"
+        self.enterContext(mock.patch.object(con, "confirm", _confirm_sequence(True)))  # "already have it?"
+        self.enterContext(mock.patch.object(con, "prompt", lambda q: "Iv1.existing"))
         with mock.patch.object(apps, "ManifestServer") as server, \
              mock.patch.object(apps.webbrowser, "open"), \
              mock.patch.multiple(apps.gh_admin, set_variable=mock.DEFAULT, set_secret=mock.DEFAULT) as m:
@@ -108,13 +106,13 @@ class ReuseAppTests(unittest.TestCase):
 
     def test_provision_mints_when_operator_says_no_existing_app(self):
         con = Console(assume_yes=False, dry_run=True)
-        con.confirm = _confirm_sequence(False, True)  # "already have it?" then "create new?"
+        self.enterContext(mock.patch.object(con, "confirm", _confirm_sequence(False, True)))  # "already have it?" then "create new?"
         provision_app(con, _repo(), CODER, None, existing_secrets=[])
         self.assertTrue(any("via manifest" in p for p in con.planned))
 
     def test_provision_records_manual_todo_when_operator_declines_both(self):
         con = Console(assume_yes=False, dry_run=True)
-        con.confirm = _confirm_sequence(False, False)  # "already have it?" then "create new?"
+        self.enterContext(mock.patch.object(con, "confirm", _confirm_sequence(False, False)))  # "already have it?" then "create new?"
         provision_app(con, _repo(), CODER, None, existing_secrets=[])
         self.assertFalse(any("via manifest" in p for p in con.planned))
         self.assertTrue(any(CODER.client_id_var in n for n in con.manual))
@@ -156,7 +154,7 @@ class MintFlowTests(unittest.TestCase):
 
     def test_interactive_mint_opens_install_page_after_creation(self):
         con = Console(assume_yes=False)
-        con.confirm = _confirm_sequence(False, True)
+        self.enterContext(mock.patch.object(con, "confirm", _confirm_sequence(False, True)))
         _, opener = self._mint(con, None)
         self.assertEqual(opener.call_count, 2)
         opener.assert_called_with("https://github.com/apps/interns-coder-acme/installations/new")
@@ -184,7 +182,7 @@ class ReuseAppPromptTests(unittest.TestCase):
 
     def test_prompted_client_id_blank_skips(self):
         con = Console(assume_yes=False)
-        con.prompt = lambda q: ""
+        self.enterContext(mock.patch.object(con, "prompt", lambda q: ""))
         with mock.patch.multiple(apps.gh_admin, set_variable=mock.DEFAULT) as m:
             use_existing_app(con, _repo(), CODER, None, "interns-coder", existing_secrets=[])
         m["set_variable"].assert_not_called()

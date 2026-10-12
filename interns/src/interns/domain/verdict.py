@@ -7,6 +7,7 @@ interns.steps.check_review_cap -- interns#157) into one place.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from .. import gh
@@ -55,7 +56,7 @@ def reviews_by(repo: str, pr: int, login: str) -> list[FullReview]:
     return [r for r in all_reviews(repo, pr) if r.login == login]
 
 
-def verdict_for_head(reviews: list[Review], head_sha: str) -> str | None:
+def verdict_for_head(reviews: Sequence[Review], head_sha: str) -> str | None:
     """The reviewer's verdict for `head_sha`: the state of their latest
     review, or None when that review targets an earlier commit -- a stale
     review left over from a round a later push already addressed."""
@@ -65,7 +66,7 @@ def verdict_for_head(reviews: list[Review], head_sha: str) -> str | None:
     return last.state if last.commit_id == head_sha else None
 
 
-def rounds_requested(reviews: list[Review], *, exclude_commit: str | None = None) -> int:
+def rounds_requested(reviews: Sequence[Review], *, exclude_commit: str | None = None) -> int:
     """How many CHANGES_REQUESTED reviews there have been, optionally
     excluding ones against `exclude_commit` (e.g. this run's own verdict,
     already posted against the PR's current head)."""

@@ -6,13 +6,16 @@ pipeline/tests/ and tests/contract/test_mcp_contract.py.
 """
 
 import asyncio
+import importlib.util
 import json
+import pathlib
 from unittest.mock import patch
 
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
 import server
+from interns.cli import MissingEnvError
 from interns.domain.size import Estimation, Score
 from interns.domain import issues
 from server import (
@@ -33,31 +36,34 @@ from server import (
     view_issue,
 )
 
+@pytest.fixture(autouse=True)
+def github_env(monkeypatch):
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+    monkeypatch.setenv("GITHUB_WORKSPACE", "/workspace")
+
+
 # ---------------------------------------------------------------------------
 # _load_label_names
 # ---------------------------------------------------------------------------
 
 
 def test_load_label_names_missing_file(tmp_path):
-    with patch.object(server, "_LABELS_JSON", tmp_path / "does-not-exist.json"):
-        with pytest.raises(OSError):
-            _load_label_names()
+    with patch.object(server, "_LABELS_JSON", tmp_path / "does-not-exist.json"), pytest.raises(OSError):
+        _load_label_names()
 
 
 def test_load_label_names_corrupt_json(tmp_path):
     bad_file = tmp_path / "labels.json"
     bad_file.write_text("{not valid json")
-    with patch.object(server, "_LABELS_JSON", bad_file):
-        with pytest.raises(json.JSONDecodeError):
-            _load_label_names()
+    with patch.object(server, "_LABELS_JSON", bad_file), pytest.raises(json.JSONDecodeError):
+        _load_label_names()
 
 
 def test_load_label_names_missing_name_key(tmp_path):
     bad_file = tmp_path / "labels.json"
     bad_file.write_text(json.dumps({"labels": [{"color": "fff"}]}))
-    with patch.object(server, "_LABELS_JSON", bad_file):
-        with pytest.raises(KeyError):
-            _load_label_names()
+    with patch.object(server, "_LABELS_JSON", bad_file), pytest.raises(KeyError):
+        _load_label_names()
 
 
 def test_load_label_names_valid_file(tmp_path):
@@ -67,13 +73,47 @@ def test_load_label_names_valid_file(tmp_path):
         assert _load_label_names() == ["bug", "type:bug"]
 
 
-def test_known_labels_are_loaded_once_at_import_time(tmp_path):
-    original = list(server._KNOWN_LABELS)
-    good_file = tmp_path / "labels.json"
-    good_file.write_text(json.dumps({"labels": [{"name": "brand-new-label"}]}))
-    with patch.object(server, "_LABELS_JSON", good_file):
-        assert _load_label_names() == ["brand-new-label"]
-        assert server._KNOWN_LABELS == original
+def test_importing_server_has_no_side_effects(monkeypatch):
+    monkeypatch.delenv("GITHUB_REPOSITORY")
+    monkeypatch.delenv("GITHUB_WORKSPACE")
+    spec = importlib.util.spec_from_file_location("server_fresh", server.__file__)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    with patch.object(pathlib.Path, "read_text", side_effect=AssertionError("labels manifest read at import")):
+        spec.loader.exec_module(module)
+
+
+def test_list_issues_advertises_manifest_labels(tmp_path):
+    manifest = tmp_path / "labels.json"
+    manifest.write_text(json.dumps({"labels": [{"name": "brand-new-label"}]}))
+    with patch.object(server, "_LABELS_JSON", manifest):
+        tools = asyncio.run(build_server(["list_issues"]).list_tools())
+    description = tools[0].input_schema["properties"]["label"]["description"]
+    assert "brand-new-label" in description
+
+
+# ---------------------------------------------------------------------------
+# environment is read lazily and required
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("missing", ["GITHUB_REPOSITORY", "GITHUB_WORKSPACE"])
+def test_build_server_requires_github_env(monkeypatch, missing):
+    monkeypatch.delenv(missing)
+    with pytest.raises(MissingEnvError, match=missing):
+        build_server(["view_issue"])
+
+
+def test_tool_invocation_requires_repository(monkeypatch):
+    monkeypatch.delenv("GITHUB_REPOSITORY")
+    with pytest.raises(MissingEnvError, match="GITHUB_REPOSITORY"):
+        view_issue(issue_number=1)
+
+
+def test_tool_invocation_requires_workspace(monkeypatch):
+    monkeypatch.delenv("GITHUB_WORKSPACE")
+    with pytest.raises(MissingEnvError, match="GITHUB_WORKSPACE"):
+        push_branch()
 
 
 # ---------------------------------------------------------------------------
@@ -110,7 +150,7 @@ def test_view_issue_excludes_pipeline_comments():
         "parent": None,
         "subIssues": {"nodes": []}, "blockedBy": {"nodes": []}, "blocking": {"nodes": []},
     }
-    with patch("interns.domain.issues.gh.issue_with_relations", return_value=response), patch.object(server, "_REPO", "owner/repo"):
+    with patch("interns.domain.issues.gh.issue_with_relations", return_value=response):
         data = json.loads(view_issue(issue_number=1))
 
     assert [c["body"] for c in data["comments"]] == ["Human"]
@@ -123,16 +163,14 @@ def test_view_issue_excludes_pipeline_comments():
 
 def test_edit_issue_dispatches_to_pipeline():
     with patch("server.gh.issue_edit_validated", return_value="Updated body on issue #5") as mock:
-        with patch.object(server, "_REPO", "owner/repo"):
-            result = edit_issue(issue_number=5, body="New body here", title="New title")
+        result = edit_issue(issue_number=5, body="New body here", title="New title")
     mock.assert_called_once_with("owner/repo", 5, body="New body here", title="New title")
     assert result == "Updated body on issue #5"
 
 
 def test_edit_issue_rejects_multiline_title():
-    with patch("server.gh.issue_edit_validated", side_effect=InvalidInputError("Title must be a single line")):
-        with pytest.raises(InvalidInputError, match="single line"):
-            edit_issue(issue_number=5, body="Some body content here", title="Line one\nLine two")
+    with patch("server.gh.issue_edit_validated", side_effect=InvalidInputError("Title must be a single line")), pytest.raises(InvalidInputError, match="single line"):
+        edit_issue(issue_number=5, body="Some body content here", title="Line one\nLine two")
 
 
 # ---------------------------------------------------------------------------
@@ -142,25 +180,25 @@ def test_edit_issue_rejects_multiline_title():
 
 def test_edit_issue_labels_dispatches_to_pipeline():
     with patch("server.labels.edit_issue_labels_validated", return_value="Added: bug") as mock:
-        with patch.object(server, "_REPO", "owner/repo"):
-            result = edit_issue_labels(issue_number=7, add_labels=["bug"])
+        result = edit_issue_labels(issue_number=7, add_labels=["bug"])
     mock.assert_called_once_with("owner/repo", 7, add=["bug"], remove=None)
     assert result == "Added: bug"
 
 
 def test_edit_issue_labels_noop():
     with patch("server.labels.edit_issue_labels_validated", return_value="Nothing to do") as mock:
-        with patch.object(server, "_REPO", "owner/repo"):
-            result = edit_issue_labels(issue_number=7)
+        result = edit_issue_labels(issue_number=7)
     mock.assert_called_once_with("owner/repo", 7, add=None, remove=None)
     assert result == "Nothing to do"
 
 
 def test_edit_issue_labels_rejects_unknown():
-    with patch("server.labels.edit_issue_labels_validated",
-               side_effect=InvalidInputError("Labels don't exist, not added: no-such-label")):
-        with pytest.raises(InvalidInputError, match="don't exist"):
-            edit_issue_labels(issue_number=7, add_labels=["no-such-label"])
+    with (
+        patch("server.labels.edit_issue_labels_validated",
+                   side_effect=InvalidInputError("Labels don't exist, not added: no-such-label")),
+        pytest.raises(InvalidInputError, match="don't exist"),
+    ):
+        edit_issue_labels(issue_number=7, add_labels=["no-such-label"])
 
 
 # ---------------------------------------------------------------------------
@@ -170,18 +208,18 @@ def test_edit_issue_labels_rejects_unknown():
 
 def test_open_pr_dispatches_to_pipeline():
     with patch("server.push.pr_open_for_issue", return_value="https://github.com/owner/repo/pull/1") as mock:
-        with patch.object(server, "_REPO", "owner/repo"):
-            with patch.object(server, "_WORKSPACE", "/workspace"):
-                result = open_pr(issue_number=42, title="feat: add thing", body="Implements the thing")
+        result = open_pr(issue_number=42, title="feat: add thing", body="Implements the thing")
     mock.assert_called_once_with("owner/repo", "/workspace", 42, "feat: add thing", "Implements the thing")
     assert result == "https://github.com/owner/repo/pull/1"
 
 
 def test_open_pr_rejects_detached_head():
-    with patch("server.push.pr_open_for_issue",
-               side_effect=GhCommandError("Cannot open a PR from a detached HEAD; check out a branch first")):
-        with pytest.raises(GhCommandError, match="detached HEAD"):
-            open_pr(issue_number=42, title="feat: add thing", body="Implements the thing")
+    with (
+        patch("server.push.pr_open_for_issue",
+                   side_effect=GhCommandError("Cannot open a PR from a detached HEAD; check out a branch first")),
+        pytest.raises(GhCommandError, match="detached HEAD"),
+    ):
+        open_pr(issue_number=42, title="feat: add thing", body="Implements the thing")
 
 
 # ---------------------------------------------------------------------------
@@ -191,30 +229,30 @@ def test_open_pr_rejects_detached_head():
 
 def test_submit_pr_review_approve():
     with patch("server.gh.pr_submit_review", return_value={"id": 1}) as mock:
-        with patch.object(server, "_REPO", "owner/repo"):
-            result = submit_pr_review(pr_number=10, event="APPROVE", body="Looks good")
+        result = submit_pr_review(pr_number=10, event="APPROVE", body="Looks good")
     mock.assert_called_once_with("owner/repo", 10, "APPROVE", "Looks good", [])
     assert json.loads(result) == {"id": 1}
 
 
 def test_submit_pr_review_request_changes_with_comments():
     with patch("server.gh.pr_submit_review", return_value={"id": 2}) as mock:
-        with patch.object(server, "_REPO", "owner/repo"):
-            submit_pr_review(
-                pr_number=10,
-                event="REQUEST_CHANGES",
-                body="Needs work here",
-                comments=[InlineComment(path="foo.py", line=5, body="Fix this")],
-            )
+        submit_pr_review(
+            pr_number=10,
+            event="REQUEST_CHANGES",
+            body="Needs work here",
+            comments=[InlineComment(path="foo.py", line=5, body="Fix this")],
+        )
     _, _, _, _, comments_arg = mock.call_args[0]
     assert comments_arg == [{"path": "foo.py", "line": 5, "body": "Fix this"}]
 
 
 def test_submit_pr_review_rejects_bad_event():
-    with patch("server.gh.pr_submit_review",
-               side_effect=InvalidInputError("event must be APPROVE or REQUEST_CHANGES")):
-        with pytest.raises(InvalidInputError, match="APPROVE or REQUEST_CHANGES"):
-            submit_pr_review(pr_number=10, event="COMMENT", body="hi")  # type: ignore[arg-type]
+    with (
+        patch("server.gh.pr_submit_review",
+                   side_effect=InvalidInputError("event must be APPROVE or REQUEST_CHANGES")),
+        pytest.raises(InvalidInputError, match="APPROVE or REQUEST_CHANGES"),
+    ):
+        submit_pr_review(pr_number=10, event="COMMENT", body="hi")  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------
@@ -224,17 +262,14 @@ def test_submit_pr_review_rejects_bad_event():
 
 def test_push_branch_dispatches_to_pipeline():
     with patch("server.push.push_branch", return_value="Branch 'feat/x' squashed and pushed to origin") as mock:
-        with patch.object(server, "_REPO", "owner/repo"):
-            with patch.object(server, "_WORKSPACE", "/workspace"):
-                result = push_branch()
+        result = push_branch()
     mock.assert_called_once_with("owner/repo", "/workspace")
     assert "feat/x" in result
 
 
 def test_push_branch_raises_push_refused():
-    with patch("server.push.push_branch", side_effect=PushRefusedError("Refusing to push main directly")):
-        with pytest.raises(PushRefusedError, match="Refusing"):
-            push_branch()
+    with patch("server.push.push_branch", side_effect=PushRefusedError("Refusing to push main directly")), pytest.raises(PushRefusedError, match="Refusing"):
+        push_branch()
 
 
 # ---------------------------------------------------------------------------
@@ -244,19 +279,20 @@ def test_push_branch_raises_push_refused():
 
 def test_apply_refinement_outcome_dispatches_to_pipeline():
     with patch("server.labels.apply_refinement", return_value="Refinement outcome 'refined' applied to issue #5") as mock:
-        with patch.object(server, "_REPO", "owner/repo"):
-            result = apply_refinement_outcome(
-                issue_number=5, outcome="refined", type_label="type:coding-task"
-            )
+        result = apply_refinement_outcome(
+            issue_number=5, outcome="refined", type_label="type:coding-task"
+        )
     mock.assert_called_once_with("owner/repo", 5, "refined", "type:coding-task")
     assert "refined" in result
 
 
 def test_apply_refinement_outcome_missing_type_label():
-    with patch("server.labels.apply_refinement",
-               side_effect=InvalidInputError("type_label is required when outcome='refined'")):
-        with pytest.raises(InvalidInputError, match="type_label is required"):
-            apply_refinement_outcome(issue_number=5, outcome="refined")
+    with (
+        patch("server.labels.apply_refinement",
+                   side_effect=InvalidInputError("type_label is required when outcome='refined'")),
+        pytest.raises(InvalidInputError, match="type_label is required"),
+    ):
+        apply_refinement_outcome(issue_number=5, outcome="refined")
 
 
 # ---------------------------------------------------------------------------
@@ -273,8 +309,7 @@ def test_apply_estimation_outcome_dispatches_to_pipeline():
     )
     with patch("server.labels.apply_estimation",
                return_value="Estimation outcome 'estimated' applied to issue #7 (size:S)") as mock_labels:
-        with patch.object(server, "_REPO", "owner/repo"):
-            result = apply_estimation_outcome(issue_number=7, outcome="estimated", estimation=estimation)
+        result = apply_estimation_outcome(issue_number=7, outcome="estimated", estimation=estimation)
     mock_labels.assert_called_once_with("owner/repo", 7, "estimated", estimation)
     assert "estimated" in result
 
@@ -322,13 +357,11 @@ def _call(tool_name, arguments=None):
 
 @pytest.mark.parametrize("error_cls", [InvalidInputError, GhCommandError, PushRefusedError])
 def test_anticipated_errors_surface_their_message(error_cls):
-    with patch.object(server.push, "push_branch", side_effect=error_cls("actionable detail")):
-        with pytest.raises(ToolError, match="actionable detail"):
-            _call("push_branch")
+    with patch.object(server.push, "push_branch", side_effect=error_cls("actionable detail")), pytest.raises(ToolError, match="actionable detail"):
+        _call("push_branch")
 
 
 def test_unexpected_errors_stay_opaque():
-    with patch.object(server.push, "push_branch", side_effect=RuntimeError("internal secret")):
-        with pytest.raises(ToolError) as exc_info:
-            _call("push_branch")
+    with patch.object(server.push, "push_branch", side_effect=RuntimeError("internal secret")), pytest.raises(ToolError) as exc_info:
+        _call("push_branch")
     assert "internal secret" not in str(exc_info.value)

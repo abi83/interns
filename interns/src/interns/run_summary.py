@@ -11,6 +11,7 @@ to a plain line instead.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -56,7 +57,7 @@ def _coder_fix_state(repo: str, pr: str) -> tuple[str, str]:
     return str(len(changes_requested)), last_sha
 
 
-def _reviewer_reviews(repo: str, pr: str, reviewer_bot: str) -> list[verdict.Review] | None:
+def _reviewer_reviews(repo: str, pr: str, reviewer_bot: str) -> Sequence[verdict.Review] | None:
     return best_effort.call(
         "reviewer reviews lookup",
         gh.GhCommandError,

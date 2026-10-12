@@ -9,12 +9,9 @@ from __future__ import annotations
 
 import sys
 from collections.abc import Callable
-from typing import TypeVar
-
-T = TypeVar("T")
 
 
-def call(reason: str, exc_type: type[BaseException], fn: Callable[..., T], /, *args, **kwargs) -> T | None:
+def call[T](reason: str, exc_type: type[BaseException], fn: Callable[..., T], /, *args, **kwargs) -> T | None:
     """Run fn(*args, **kwargs) as best-effort.
 
     Returns the real value, or None with a warning when fn raises exc_type.

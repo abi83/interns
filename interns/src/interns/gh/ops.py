@@ -285,8 +285,8 @@ def dispatch_workflow(repo: str, workflow: str, ref: str | None, inputs: dict[st
 
 def label_list(repo: str) -> list[dict]:
     return [
-        {"name": l["name"], "color": l["color"], "description": l["description"]}
-        for l in api_all_pages(f"repos/{repo}/labels?per_page=100")
+        {"name": lbl["name"], "color": lbl["color"], "description": lbl["description"]}
+        for lbl in api_all_pages(f"repos/{repo}/labels?per_page=100")
     ]
 
 

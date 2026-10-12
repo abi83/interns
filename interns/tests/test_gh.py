@@ -13,15 +13,13 @@ def _proc(stdout: str = "", stderr: str = "", returncode: int = 0) -> subprocess
 
 class RunTests(unittest.TestCase):
     def test_gh_not_installed(self):
-        with patch("interns.gh.transport.subprocess.run", side_effect=FileNotFoundError()):
-            with self.assertRaises(gh.GhNotInstalledError):
-                gh_transport.run(["auth", "status"])
+        with patch("interns.gh.transport.subprocess.run", side_effect=FileNotFoundError()), self.assertRaises(gh.GhNotInstalledError):
+            gh_transport.run(["auth", "status"])
 
     def test_command_failure_raises_with_stderr(self):
         exc = subprocess.CalledProcessError(1, ["gh", "issue", "view", "1"], output="", stderr="not found")
-        with patch("interns.gh.transport.subprocess.run", side_effect=exc):
-            with self.assertRaisesRegex(gh.GhCommandError, "not found"):
-                gh_transport.run(["issue", "view", "1"])
+        with patch("interns.gh.transport.subprocess.run", side_effect=exc), self.assertRaisesRegex(gh.GhCommandError, "not found"):
+            gh_transport.run(["issue", "view", "1"])
 
     def test_success_returns_completed_process(self):
         with patch("interns.gh.transport.subprocess.run", return_value=_proc(stdout="ok")) as mock_run:
@@ -52,9 +50,8 @@ class ApiTests(unittest.TestCase):
 
     def test_failure_raises_gh_command_error(self):
         exc = subprocess.CalledProcessError(1, ["gh"], output="", stderr="HTTP 404: Not Found")
-        with patch("interns.gh.transport.subprocess.run", side_effect=exc):
-            with self.assertRaises(gh.GhCommandError):
-                gh_transport.api("repos/acme/missing")
+        with patch("interns.gh.transport.subprocess.run", side_effect=exc), self.assertRaises(gh.GhCommandError):
+            gh_transport.api("repos/acme/missing")
 
 
 class ApiStatusTests(unittest.TestCase):
@@ -74,9 +71,8 @@ class ApiStatusTests(unittest.TestCase):
 
     def test_other_errors_raise(self):
         exc = subprocess.CalledProcessError(1, ["gh"], output="", stderr="dial tcp: connection refused")
-        with patch("interns.gh.transport.subprocess.run", side_effect=exc):
-            with self.assertRaises(gh.GhCommandError):
-                gh_transport.api_status("repos/acme/widgets")
+        with patch("interns.gh.transport.subprocess.run", side_effect=exc), self.assertRaises(gh.GhCommandError):
+            gh_transport.api_status("repos/acme/widgets")
 
 
 class IssueWithRelationsTests(unittest.TestCase):
@@ -91,9 +87,8 @@ class IssueWithRelationsTests(unittest.TestCase):
 
     def test_non_issue_number_raises_clear_error(self):
         body = '{"data": {"repository": {"issue": null}}}'
-        with patch.object(gh_transport.subprocess, "run", return_value=_proc(body)):
-            with self.assertRaisesRegex(gh.InvalidInputError, "#250 is not an issue.*pull request"):
-                gh.issue_with_relations("o/r", 250)
+        with patch.object(gh_transport.subprocess, "run", return_value=_proc(body)), self.assertRaisesRegex(gh.InvalidInputError, "#250 is not an issue.*pull request"):
+            gh.issue_with_relations("o/r", 250)
 
 
 class PaginatedReadTests(unittest.TestCase):
@@ -137,9 +132,8 @@ class IssueViewEditTests(unittest.TestCase):
 
     def test_edit_failure_raises_gh_command_error(self):
         exc = subprocess.CalledProcessError(1, ["gh"], output="", stderr="label not found")
-        with patch("interns.gh.transport.subprocess.run", side_effect=exc):
-            with self.assertRaises(gh.GhCommandError):
-                gh.issue_edit("acme/widgets", 42, add_labels=["bogus"])
+        with patch("interns.gh.transport.subprocess.run", side_effect=exc), self.assertRaises(gh.GhCommandError):
+            gh.issue_edit("acme/widgets", 42, add_labels=["bogus"])
 
 
 class PrViewEditCreateTests(unittest.TestCase):
@@ -161,9 +155,8 @@ class PrViewEditCreateTests(unittest.TestCase):
 
     def test_list_raises_when_truncated(self):
         prs = json.dumps([{"number": n} for n in range(1000)])
-        with patch("interns.gh.transport.subprocess.run", return_value=_proc(stdout=prs)):
-            with self.assertRaises(gh.GhError):
-                gh.pr_list("acme/widgets", ["number"])
+        with patch("interns.gh.transport.subprocess.run", return_value=_proc(stdout=prs)), self.assertRaises(gh.GhError):
+            gh.pr_list("acme/widgets", ["number"])
 
     def test_edit_is_noop_with_nothing_to_change(self):
         with patch("interns.gh.transport.subprocess.run") as mock_run:
@@ -240,19 +233,16 @@ class PrChecksTests(unittest.TestCase):
             self.assertEqual(gh.pr_checks("acme/widgets", 5), [])
 
     def test_raises_on_other_failure(self):
-        with patch("interns.gh.transport.subprocess.run", return_value=_proc(stdout="", returncode=1, stderr="HTTP 502")):
-            with self.assertRaises(gh.GhCommandError):
-                gh.pr_checks("acme/widgets", 5)
+        with patch("interns.gh.transport.subprocess.run", return_value=_proc(stdout="", returncode=1, stderr="HTTP 502")), self.assertRaises(gh.GhCommandError):
+            gh.pr_checks("acme/widgets", 5)
 
     def test_raises_on_malformed_output(self):
-        with patch("interns.gh.transport.subprocess.run", return_value=_proc(stdout="not json")):
-            with self.assertRaises(gh.GhCommandError):
-                gh.pr_checks("acme/widgets", 5)
+        with patch("interns.gh.transport.subprocess.run", return_value=_proc(stdout="not json")), self.assertRaises(gh.GhCommandError):
+            gh.pr_checks("acme/widgets", 5)
 
     def test_raises_on_a_non_array_body(self):
-        with patch("interns.gh.transport.subprocess.run", return_value=_proc(stdout='{"a": 1}')):
-            with self.assertRaises(gh.GhCommandError):
-                gh.pr_checks("acme/widgets", 5)
+        with patch("interns.gh.transport.subprocess.run", return_value=_proc(stdout='{"a": 1}')), self.assertRaises(gh.GhCommandError):
+            gh.pr_checks("acme/widgets", 5)
 
 
 class ApiAllPagesTests(unittest.TestCase):
@@ -290,9 +280,8 @@ class ListSecretNamesTests(unittest.TestCase):
 
     def test_raises_when_scope_blind(self):
         exc = subprocess.CalledProcessError(1, ["gh"], output="", stderr="HTTP 403: Forbidden")
-        with patch("interns.gh.transport.subprocess.run", side_effect=exc):
-            with self.assertRaises(gh.GhCommandError):
-                gh.list_secret_names("acme/widgets")
+        with patch("interns.gh.transport.subprocess.run", side_effect=exc), self.assertRaises(gh.GhCommandError):
+            gh.list_secret_names("acme/widgets")
 
 
 class ListVariableNamesTests(unittest.TestCase):
@@ -302,9 +291,8 @@ class ListVariableNamesTests(unittest.TestCase):
 
     def test_raises_when_scope_blind(self):
         exc = subprocess.CalledProcessError(1, ["gh"], output="", stderr="HTTP 403: Forbidden")
-        with patch("interns.gh.transport.subprocess.run", side_effect=exc):
-            with self.assertRaises(gh.GhCommandError):
-                gh.list_variable_names("acme/widgets")
+        with patch("interns.gh.transport.subprocess.run", side_effect=exc), self.assertRaises(gh.GhCommandError):
+            gh.list_variable_names("acme/widgets")
 
 
 class DefaultBranchTests(unittest.TestCase):
@@ -313,14 +301,12 @@ class DefaultBranchTests(unittest.TestCase):
             self.assertEqual(gh.default_branch("acme/widgets"), "trunk")
 
     def test_raises_on_unexpected_shape(self):
-        with patch("interns.gh.transport.subprocess.run", return_value=_proc(stdout="")):
-            with self.assertRaises(gh.GhCommandError):
-                gh.default_branch("acme/widgets")
+        with patch("interns.gh.transport.subprocess.run", return_value=_proc(stdout="")), self.assertRaises(gh.GhCommandError):
+            gh.default_branch("acme/widgets")
 
     def test_raises_when_key_missing(self):
-        with patch("interns.gh.transport.subprocess.run", return_value=_proc(stdout="{}")):
-            with self.assertRaises(gh.GhCommandError):
-                gh.default_branch("acme/widgets")
+        with patch("interns.gh.transport.subprocess.run", return_value=_proc(stdout="{}")), self.assertRaises(gh.GhCommandError):
+            gh.default_branch("acme/widgets")
 
 
 class PrCreateTests(unittest.TestCase):
@@ -337,17 +323,15 @@ class PrCreateTests(unittest.TestCase):
 
     def test_nonzero_exit_raises_gh_error(self):
         err = subprocess.CalledProcessError(1, ["gh", "pr", "create"], output="", stderr="no commits between main and feat/x")
-        with patch.object(gh_transport.subprocess, "run", side_effect=err):
-            with self.assertRaises(gh.GhError):
-                gh.pr_create("acme/widgets", "feat/x", "main", "Title", "Body")
+        with patch.object(gh_transport.subprocess, "run", side_effect=err), self.assertRaises(gh.GhError):
+            gh.pr_create("acme/widgets", "feat/x", "main", "Title", "Body")
 
 
 class SharedClientAdditionsTests(unittest.TestCase):
     def test_error_names_the_subcommand_without_echoing_the_body(self):
         err = subprocess.CalledProcessError(1, ["gh"], stderr="boom")
-        with patch.object(gh_transport.subprocess, "run", side_effect=err):
-            with self.assertRaises(gh.GhCommandError) as ctx:
-                gh.issue_comment("o/r", 5, "SECRET-BODY")
+        with patch.object(gh_transport.subprocess, "run", side_effect=err), self.assertRaises(gh.GhCommandError) as ctx:
+            gh.issue_comment("o/r", 5, "SECRET-BODY")
         self.assertIn("issue comment 5", str(ctx.exception))
         self.assertIn("boom", str(ctx.exception))
         self.assertNotIn("SECRET-BODY", str(ctx.exception))
@@ -384,7 +368,7 @@ class SharedClientAdditionsTests(unittest.TestCase):
         pages = json.dumps([[{"name": "a", "color": "fff", "description": "", "id": 1}], [{"name": "b", "color": "000", "description": "d"}]])
         with patch.object(gh_transport.subprocess, "run", return_value=_proc(pages)) as run:
             result = gh.label_list("o/r")
-        self.assertEqual([l["name"] for l in result], ["a", "b"])
+        self.assertEqual([entry["name"] for entry in result], ["a", "b"])
         self.assertNotIn("id", result[0])
         self.assertIn("--paginate", run.call_args[0][0])
 
@@ -426,9 +410,8 @@ class PrSubmitReviewTests(unittest.TestCase):
             gh.pr_submit_review("o/r", 7, "COMMENT", "hi")
 
     def test_non_dict_response_raises_gh_command_error(self):
-        with patch.object(gh_transport.subprocess, "run", return_value=_proc("null")):
-            with self.assertRaises(gh.GhCommandError):
-                gh.pr_submit_review("o/r", 7, "APPROVE", "LGTM")
+        with patch.object(gh_transport.subprocess, "run", return_value=_proc("null")), self.assertRaises(gh.GhCommandError):
+            gh.pr_submit_review("o/r", 7, "APPROVE", "LGTM")
 
 
 if __name__ == "__main__":

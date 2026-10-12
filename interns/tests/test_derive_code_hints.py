@@ -30,9 +30,8 @@ class DeriveCodeHintsTests(unittest.TestCase):
         self.assertEqual(branch, "feat/issue-42-refine-the-refiner-stop")
 
     def test_raises_when_no_implementable_type_label_is_present(self):
-        with patch("interns.steps.derive_code_hints.labels.issue_labels", return_value=["type:spike"]):
-            with self.assertRaisesRegex(ValueError, "neither type:bug nor type:coding-task"):
-                derive_code_hints.derive_code_hints("acme/widgets", 42)
+        with patch("interns.steps.derive_code_hints.labels.issue_labels", return_value=["type:spike"]), self.assertRaisesRegex(ValueError, "neither type:bug nor type:coding-task"):
+            derive_code_hints.derive_code_hints("acme/widgets", 42)
 
 
 class CliTests(unittest.TestCase):

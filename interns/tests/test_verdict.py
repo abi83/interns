@@ -30,15 +30,13 @@ class AllReviewsTests(unittest.TestCase):
         ])
 
     def test_unexpected_payload_raises(self):
-        with patch("interns.gh.pr_reviews", return_value={"not": "a list"}):
-            with self.assertRaises(gh.GhCommandError):
-                verdict.all_reviews("o/r", 12)
+        with patch("interns.gh.pr_reviews", return_value={"not": "a list"}), self.assertRaises(gh.GhCommandError):
+            verdict.all_reviews("o/r", 12)
 
     def test_payload_missing_a_required_key_raises(self):
         payload = [{"user": {"login": "somedev"}, "state": "COMMENTED", "id": 1, "submitted_at": "t", "body": ""}]
-        with patch("interns.gh.pr_reviews", return_value=payload):
-            with self.assertRaises(KeyError):
-                verdict.all_reviews("o/r", 12)
+        with patch("interns.gh.pr_reviews", return_value=payload), self.assertRaises(KeyError):
+            verdict.all_reviews("o/r", 12)
 
 
 class ReviewsByTests(unittest.TestCase):
@@ -56,9 +54,8 @@ class ReviewsByTests(unittest.TestCase):
             self.assertEqual(verdict.reviews_by("o/r", 12, "reviewer[bot]"), [])
 
     def test_unexpected_payload_raises(self):
-        with patch("interns.gh.pr_reviews", return_value={"not": "a list"}):
-            with self.assertRaises(gh.GhCommandError):
-                verdict.reviews_by("o/r", 12, "reviewer[bot]")
+        with patch("interns.gh.pr_reviews", return_value={"not": "a list"}), self.assertRaises(gh.GhCommandError):
+            verdict.reviews_by("o/r", 12, "reviewer[bot]")
 
 
 class VerdictForHeadTests(unittest.TestCase):

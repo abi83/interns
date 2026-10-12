@@ -47,19 +47,16 @@ class FromEnvTests(unittest.TestCase):
             self.assertEqual(ActionsCtx.from_env().event_name, "")
 
     def test_missing_repo_raises(self):
-        with patch.dict(os.environ, {"GH_TOKEN": "x", "GITHUB_SERVER_URL": "https://github.com"}, clear=True):
-            with self.assertRaises(cli.MissingEnvError):
-                ActionsCtx.from_env()
+        with patch.dict(os.environ, {"GH_TOKEN": "x", "GITHUB_SERVER_URL": "https://github.com"}, clear=True), self.assertRaises(cli.MissingEnvError):
+            ActionsCtx.from_env()
 
     def test_missing_token_raises(self):
-        with patch.dict(os.environ, {"GITHUB_REPOSITORY": "acme/widgets", "GITHUB_SERVER_URL": "https://github.com"}, clear=True):
-            with self.assertRaises(cli.MissingEnvError):
-                ActionsCtx.from_env()
+        with patch.dict(os.environ, {"GITHUB_REPOSITORY": "acme/widgets", "GITHUB_SERVER_URL": "https://github.com"}, clear=True), self.assertRaises(cli.MissingEnvError):
+            ActionsCtx.from_env()
 
     def test_missing_server_url_raises(self):
-        with patch.dict(os.environ, {"GITHUB_REPOSITORY": "acme/widgets", "GH_TOKEN": "x"}, clear=True):
-            with self.assertRaises(cli.MissingEnvError):
-                ActionsCtx.from_env()
+        with patch.dict(os.environ, {"GITHUB_REPOSITORY": "acme/widgets", "GH_TOKEN": "x"}, clear=True), self.assertRaises(cli.MissingEnvError):
+            ActionsCtx.from_env()
 
 
 class UrlMethodTests(unittest.TestCase):

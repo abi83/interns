@@ -17,7 +17,17 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 
+class _CallbackServer(HTTPServer):
+    def __init__(self, handler: type[BaseHTTPRequestHandler], state: str):
+        super().__init__(("127.0.0.1", 0), handler)
+        self.state = state
+        self.code: str | None = None
+        self.done = threading.Event()
+        self.form_page = ""
+
+
 class _Handler(BaseHTTPRequestHandler):
+    server: _CallbackServer
     server_version = "interns-install/0.1"
 
     def log_message(self, *args):  # noqa: D401 - silence stdlib request logging
@@ -60,10 +70,7 @@ class ManifestServer:
         """make_manifest(redirect_url) -> manifest dict. Called once the
         callback port is known."""
         self.state = secrets.token_urlsafe(24)
-        self._httpd = HTTPServer(("127.0.0.1", 0), _Handler)
-        self._httpd.state = self.state
-        self._httpd.code = None
-        self._httpd.done = threading.Event()
+        self._httpd = _CallbackServer(_Handler, self.state)
         redirect_url = f"http://127.0.0.1:{self.port}/callback"
         self.manifest = make_manifest(redirect_url)
         self._httpd.form_page = self._render_form(action_url, self.manifest)
@@ -96,6 +103,8 @@ class ManifestServer:
     def wait_for_code(self, timeout: float = 600.0) -> str:
         if not self._httpd.done.wait(timeout):
             raise TimeoutError("timed out waiting for the GitHub App creation callback")
+        if self._httpd.code is None:
+            raise RuntimeError("callback signalled done without a code")
         return self._httpd.code
 
     def __exit__(self, *exc):

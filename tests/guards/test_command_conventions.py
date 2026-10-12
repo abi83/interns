@@ -27,9 +27,9 @@ def local_argparse_imports(source: str) -> list[int]:
         if not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
         for node in ast.walk(function):
-            imports_argparse = isinstance(node, ast.Import) and any(a.name == "argparse" for a in node.names)
-            from_argparse = isinstance(node, ast.ImportFrom) and node.module == "argparse"
-            if imports_argparse or from_argparse:
+            if isinstance(node, ast.Import) and any(a.name == "argparse" for a in node.names):
+                found.append(node.lineno)
+            if isinstance(node, ast.ImportFrom) and node.module == "argparse":
                 found.append(node.lineno)
     return found
 
@@ -45,7 +45,7 @@ def hand_built_parsers(source: str) -> list[int]:
 
 def build_parser_names(source: str) -> list[str]:
     return [
-        node.args[0].value
+        str(node.args[0].value)
         for node in ast.walk(ast.parse(source))
         if isinstance(node, ast.Call)
         and getattr(node.func, "attr", None) == "build_parser"
@@ -72,7 +72,8 @@ def registered_commands() -> set[str]:
     names: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.AnnAssign) and getattr(node.target, "id", "") in {"_COMMANDS", "_ENV_FREE_COMMANDS"}:
-            names |= {key.value for key in node.value.keys}
+            assert isinstance(node.value, ast.Dict)
+            names |= {str(key.value) for key in node.value.keys if isinstance(key, ast.Constant)}
     return names
 
 

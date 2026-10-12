@@ -35,9 +35,8 @@ class GetFileTests(unittest.TestCase):
             self.assertEqual(gh_admin.get_file("acme/widgets", "README.md", "main"), "hello")
 
     def test_raises_on_missing_content(self):
-        with patch("interns.gh.transport.subprocess.run", return_value=_proc(stdout="{}")):
-            with self.assertRaises(gh_transport.GhCommandError):
-                gh_admin.get_file("acme/widgets", "README.md", "main")
+        with patch("interns.gh.transport.subprocess.run", return_value=_proc(stdout="{}")), self.assertRaises(gh_transport.GhCommandError):
+            gh_admin.get_file("acme/widgets", "README.md", "main")
 
 
 class PathExistsTests(unittest.TestCase):
@@ -52,16 +51,14 @@ class PathExistsTests(unittest.TestCase):
 
     def test_raises_when_blocked(self):
         exc = subprocess.CalledProcessError(1, ["gh"], output="", stderr="HTTP 403: Forbidden")
-        with patch("interns.gh.transport.subprocess.run", side_effect=exc):
-            with self.assertRaises(gh_transport.GhCommandError):
-                gh_admin.path_exists("acme/widgets", "README.md", "main")
+        with patch("interns.gh.transport.subprocess.run", side_effect=exc), self.assertRaises(gh_transport.GhCommandError):
+            gh_admin.path_exists("acme/widgets", "README.md", "main")
 
 
 class EnsureAvailableTests(unittest.TestCase):
     def test_raises_when_gh_missing_from_path(self):
-        with patch("interns_install.gh_admin.shutil.which", return_value=None):
-            with self.assertRaises(gh_transport.GhNotInstalledError):
-                gh_admin.ensure_available()
+        with patch("interns_install.gh_admin.shutil.which", return_value=None), self.assertRaises(gh_transport.GhNotInstalledError):
+            gh_admin.ensure_available()
 
     def test_checks_auth_status_when_gh_present(self):
         with patch("interns_install.gh_admin.shutil.which", return_value="/usr/bin/gh"), \
@@ -109,9 +106,8 @@ class ListDirTests(unittest.TestCase):
             self.assertEqual(gh_admin.list_dir("acme/widgets", "src", "main"), ["a.py", "b.py"])
 
     def test_raises_when_not_a_directory(self):
-        with patch.object(gh_transport, "api", return_value={"content": "..."}):
-            with self.assertRaises(gh_transport.GhError):
-                gh_admin.list_dir("acme/widgets", "src/main.py", "main")
+        with patch.object(gh_transport, "api", return_value={"content": "..."}), self.assertRaises(gh_transport.GhError):
+            gh_admin.list_dir("acme/widgets", "src/main.py", "main")
 
 
 class BranchHeadShaTests(unittest.TestCase):
@@ -120,9 +116,8 @@ class BranchHeadShaTests(unittest.TestCase):
             self.assertEqual(gh_admin.branch_head_sha("acme/widgets", "main"), "abc123")
 
     def test_raises_on_non_dict_response(self):
-        with patch.object(gh_transport, "api", return_value=None):
-            with self.assertRaises(gh_transport.GhError):
-                gh_admin.branch_head_sha("acme/widgets", "main")
+        with patch.object(gh_transport, "api", return_value=None), self.assertRaises(gh_transport.GhError):
+            gh_admin.branch_head_sha("acme/widgets", "main")
 
 
 class RefExistsTests(unittest.TestCase):
@@ -135,9 +130,8 @@ class RefExistsTests(unittest.TestCase):
             self.assertFalse(gh_admin.ref_exists("acme/widgets", "metrics"))
 
     def test_raises_when_blocked(self):
-        with patch.object(gh_transport, "api_status", return_value=("blocked", None)):
-            with self.assertRaises(gh_transport.GhError):
-                gh_admin.ref_exists("acme/widgets", "metrics")
+        with patch.object(gh_transport, "api_status", return_value=("blocked", None)), self.assertRaises(gh_transport.GhError):
+            gh_admin.ref_exists("acme/widgets", "metrics")
 
 
 class CreateBranchTests(unittest.TestCase):
@@ -155,9 +149,8 @@ class CreateBlobTests(unittest.TestCase):
             self.assertEqual(gh_admin.create_blob("acme/widgets", "content"), "blob-sha")
 
     def test_raises_on_non_dict_response(self):
-        with patch.object(gh_transport, "api", return_value=None):
-            with self.assertRaises(gh_transport.GhError):
-                gh_admin.create_blob("acme/widgets", "content")
+        with patch.object(gh_transport, "api", return_value=None), self.assertRaises(gh_transport.GhError):
+            gh_admin.create_blob("acme/widgets", "content")
 
 
 class CreateTreeTests(unittest.TestCase):
@@ -169,9 +162,8 @@ class CreateTreeTests(unittest.TestCase):
         self.assertEqual(json.loads(kwargs["input_json"])["tree"][0]["path"], "a")
 
     def test_raises_on_non_dict_response(self):
-        with patch.object(gh_transport, "api", return_value=None):
-            with self.assertRaises(gh_transport.GhError):
-                gh_admin.create_tree("acme/widgets", [])
+        with patch.object(gh_transport, "api", return_value=None), self.assertRaises(gh_transport.GhError):
+            gh_admin.create_tree("acme/widgets", [])
 
 
 class CreateCommitTests(unittest.TestCase):
@@ -184,9 +176,8 @@ class CreateCommitTests(unittest.TestCase):
         self.assertEqual(payload, {"message": "msg", "tree": "tree-sha", "parents": ["parent-sha"]})
 
     def test_raises_on_non_dict_response(self):
-        with patch.object(gh_transport, "api", return_value=None):
-            with self.assertRaises(gh_transport.GhError):
-                gh_admin.create_commit("acme/widgets", "msg", "tree-sha", [])
+        with patch.object(gh_transport, "api", return_value=None), self.assertRaises(gh_transport.GhError):
+            gh_admin.create_commit("acme/widgets", "msg", "tree-sha", [])
 
 
 class GetExistingFileTests(unittest.TestCase):
@@ -202,14 +193,12 @@ class GetExistingFileTests(unittest.TestCase):
             self.assertIsNone(gh_admin.get_existing_file("acme/widgets", "a.txt", "main"))
 
     def test_raises_when_blocked(self):
-        with patch.object(gh_transport, "api_status", return_value=("blocked", None)):
-            with self.assertRaises(gh_transport.GhError):
-                gh_admin.get_existing_file("acme/widgets", "a.txt", "main")
+        with patch.object(gh_transport, "api_status", return_value=("blocked", None)), self.assertRaises(gh_transport.GhError):
+            gh_admin.get_existing_file("acme/widgets", "a.txt", "main")
 
     def test_raises_when_ok_but_content_missing(self):
-        with patch.object(gh_transport, "api_status", return_value=("ok", {"sha": "x"})):
-            with self.assertRaises(gh_transport.GhError):
-                gh_admin.get_existing_file("acme/widgets", "a.txt", "main")
+        with patch.object(gh_transport, "api_status", return_value=("ok", {"sha": "x"})), self.assertRaises(gh_transport.GhError):
+            gh_admin.get_existing_file("acme/widgets", "a.txt", "main")
 
 
 class PutFileTests(unittest.TestCase):
@@ -245,7 +234,6 @@ class SetVariableTests(unittest.TestCase):
 
     def test_raises_on_other_delete_failure(self):
         denied = gh_transport.GhCommandError("`gh variable delete` failed: HTTP 403: Forbidden")
-        with patch.object(gh_transport, "run", side_effect=denied) as run:
-            with self.assertRaises(gh_transport.GhCommandError):
-                gh_admin.set_variable("acme/widgets", "V", "1")
+        with patch.object(gh_transport, "run", side_effect=denied) as run, self.assertRaises(gh_transport.GhCommandError):
+            gh_admin.set_variable("acme/widgets", "V", "1")
         run.assert_called_once()

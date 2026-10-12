@@ -63,10 +63,9 @@ class ReportTests(unittest.TestCase):
         self.assertIn("cost: $unknown", comment.call_args[0][2])
 
     def test_errors_when_given_neither_an_issue_nor_a_pr(self):
-        with patch("interns.steps.report_run.execution.result_field", return_value=None):
-            with self.assertRaises(ValueError):
-                report_run.report("acme/widgets", "Coder", "exec.json", None, None, None,
-                                   run_url="https://x/runs/1")
+        with patch("interns.steps.report_run.execution.result_field", return_value=None), self.assertRaises(ValueError):
+            report_run.report("acme/widgets", "Coder", "exec.json", None, None, None,
+                               run_url="https://x/runs/1")
 
     def test_warn_appends_a_warning_line_to_the_same_comment(self):
         with patch("interns.steps.report_run.execution.result_field", return_value="0.42"), \

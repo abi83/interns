@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from pathlib import Path
 
 from .. import cli, execution
@@ -76,7 +76,7 @@ def build_record(exec_file: str, *, job: str, issue: int | None, pr: int | None,
 
     return {
         "schema_version": SCHEMA_VERSION,
-        "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "timestamp": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "repo": repo,
         "run_id": run_id,
         "run_attempt": run_attempt,

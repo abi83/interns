@@ -108,7 +108,7 @@ def check_branch_protection(con: Console, repo: gh_admin.Repo, default_branch: s
     state, body = gh_admin.branch_protection_state(repo.slug, default_branch)
 
     if state == "ok":
-        violation = _protection_violation(body or {}, bots)
+        violation = _protection_violation(body if isinstance(body, dict) else {}, bots)
         if violation:
             raise SafetyCheckError(f"branch '{default_branch}' is protected but {violation}")
     if state == "missing" and handled_externally:

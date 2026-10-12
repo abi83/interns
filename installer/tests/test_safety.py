@@ -26,6 +26,7 @@ class ProtectionViolationTests(unittest.TestCase):
     def test_flags_missing_review_requirement(self):
         body = {"required_pull_request_reviews": None, "restrictions": None}
         violation = _protection_violation(body, ["github-actions[bot]"])
+        assert violation is not None
         self.assertIn("does not require a pull request review", violation)
 
     def test_flags_bot_on_user_allowlist(self):
@@ -34,6 +35,7 @@ class ProtectionViolationTests(unittest.TestCase):
             "restrictions": {"users": [{"login": "github-actions[bot]"}], "teams": [], "apps": []},
         }
         violation = _protection_violation(body, ["github-actions[bot]"])
+        assert violation is not None
         self.assertIn("github-actions[bot]", violation)
 
     def test_flags_app_on_allowlist(self):
@@ -42,6 +44,7 @@ class ProtectionViolationTests(unittest.TestCase):
             "restrictions": {"users": [], "teams": [], "apps": [{"slug": "interns-coder"}]},
         }
         violation = _protection_violation(body, ["interns-coder[bot]"])
+        assert violation is not None
         self.assertIn("interns-coder[bot]", violation)
 
 
@@ -86,10 +89,8 @@ class CheckMetricsBranchTests(unittest.TestCase):
 
     def test_blocked_protection_read_raises(self):
         con = Console(assume_yes=True)
-        with mock.patch.object(gh_admin, "ref_exists", return_value=True), \
-             mock.patch.object(gh_admin.gh_transport, "api_status", return_value=("blocked", None)):
-            with self.assertRaises(safety.SafetyCheckError):
-                check_metrics_branch(con, _repo())
+        with mock.patch.object(gh_admin, "ref_exists", return_value=True), mock.patch.object(gh_admin.gh_transport, "api_status", return_value=("blocked", None)), self.assertRaises(safety.SafetyCheckError):
+            check_metrics_branch(con, _repo())
 
     def test_dry_run_makes_no_mutating_calls(self):
         con = Console(assume_yes=True, dry_run=True)
@@ -208,18 +209,13 @@ class CheckPagesTests(unittest.TestCase):
 class CreateMetricsBranchFailureTests(unittest.TestCase):
     def test_creation_failure_is_wrapped(self):
         con = Console(assume_yes=True)
-        with mock.patch.object(gh_admin, "ref_exists", return_value=False), \
-             mock.patch.object(gh_admin, "create_blob", side_effect=gh.GhError("boom")):
-            with self.assertRaisesRegex(safety.SafetyCheckError, "could not create"):
-                check_metrics_branch(con, _repo())
+        with mock.patch.object(gh_admin, "ref_exists", return_value=False), mock.patch.object(gh_admin, "create_blob", side_effect=gh.GhError("boom")), self.assertRaisesRegex(safety.SafetyCheckError, "could not create"):
+            check_metrics_branch(con, _repo())
 
     def test_protection_put_failure_is_wrapped(self):
         con = Console(assume_yes=True)
-        with mock.patch.object(gh_admin, "ref_exists", return_value=True), \
-             mock.patch.object(gh_admin, "branch_protection_state", return_value=("missing", None)), \
-             mock.patch.object(gh_admin, "set_branch_protection", side_effect=gh.GhError("boom")):
-            with self.assertRaisesRegex(safety.SafetyCheckError, "could not be protected: boom"):
-                check_metrics_branch(con, _repo())
+        with mock.patch.object(gh_admin, "ref_exists", return_value=True), mock.patch.object(gh_admin, "branch_protection_state", return_value=("missing", None)), mock.patch.object(gh_admin, "set_branch_protection", side_effect=gh.GhError("boom")), self.assertRaisesRegex(safety.SafetyCheckError, "could not be protected: boom"):
+            check_metrics_branch(con, _repo())
 
 
 if __name__ == "__main__":

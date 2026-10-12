@@ -14,9 +14,8 @@ class RequireEnvTests(unittest.TestCase):
 
     def test_unset_and_empty_raise_clear_error(self):
         for env in ({}, {"X": ""}):
-            with patch.dict(os.environ, env, clear=True):
-                with self.assertRaisesRegex(cli.MissingEnvError, "X unset"):
-                    cli.require_env("X")
+            with patch.dict(os.environ, env, clear=True), self.assertRaisesRegex(cli.MissingEnvError, "X unset"):
+                cli.require_env("X")
 
 
 class OptionalIntTests(unittest.TestCase):
@@ -50,9 +49,8 @@ class WriteOutputTests(unittest.TestCase):
         self.assertEqual(cli.build_parser("labels").prog, "interns.entrypoint labels")
 
     def test_requires_github_output(self):
-        with patch.dict(os.environ, {}, clear=True):
-            with self.assertRaisesRegex(cli.MissingEnvError, "GITHUB_OUTPUT unset"):
-                cli.write_output("a", True)
+        with patch.dict(os.environ, {}, clear=True), self.assertRaisesRegex(cli.MissingEnvError, "GITHUB_OUTPUT unset"):
+            cli.write_output("a", True)
 
 
 if __name__ == "__main__":

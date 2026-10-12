@@ -60,41 +60,36 @@ def test_push_branch_uses_repos_default_branch(_):
 
 @patch("interns.domain.push.default_branch", return_value="main")
 def test_push_branch_rejects_main(_):
-    with patch("interns.domain.push.subprocess.run", return_value=_proc("main")):
-        with pytest.raises(PushRefusedError, match="Refusing"):
-            push_branch(REPO, WORKSPACE)
+    with patch("interns.domain.push.subprocess.run", return_value=_proc("main")), pytest.raises(PushRefusedError, match="Refusing"):
+        push_branch(REPO, WORKSPACE)
 
 
 @patch("interns.domain.push.default_branch", return_value="main")
 def test_push_branch_rejects_master(_):
-    with patch("interns.domain.push.subprocess.run", return_value=_proc("master")):
-        with pytest.raises(PushRefusedError, match="Refusing"):
-            push_branch(REPO, WORKSPACE)
+    with patch("interns.domain.push.subprocess.run", return_value=_proc("master")), pytest.raises(PushRefusedError, match="Refusing"):
+        push_branch(REPO, WORKSPACE)
 
 
 @patch("interns.domain.push.default_branch", return_value="main")
 def test_push_branch_rejects_no_commits(_):
     seq = _git_seq("my-branch", "", "abc123", "abc123")
-    with patch("interns.domain.push.subprocess.run", side_effect=seq):
-        with pytest.raises(PushRefusedError, match="nothing to push"):
-            push_branch(REPO, WORKSPACE)
+    with patch("interns.domain.push.subprocess.run", side_effect=seq), pytest.raises(PushRefusedError, match="nothing to push"):
+        push_branch(REPO, WORKSPACE)
 
 
 @patch("interns.domain.push.default_branch", return_value="main")
 def test_push_branch_rejects_protected_workflow_path(_):
     # Sequence includes the rollback reset that undoes the squash before raising.
     seq = _git_seq("my-branch", "", "abc123", "def456", "fix: update", "", "", ".github/workflows/ci.yml", "")
-    with patch("interns.domain.push.subprocess.run", side_effect=seq):
-        with pytest.raises(PushRefusedError, match="protected paths"):
-            push_branch(REPO, WORKSPACE)
+    with patch("interns.domain.push.subprocess.run", side_effect=seq), pytest.raises(PushRefusedError, match="protected paths"):
+        push_branch(REPO, WORKSPACE)
 
 
 @patch("interns.domain.push.default_branch", return_value="main")
 def test_push_branch_rejects_protected_scripts_path(_):
     seq = _git_seq("my-branch", "", "abc123", "def456", "chore: update", "", "", ".github/scripts/foo.py", "")
-    with patch("interns.domain.push.subprocess.run", side_effect=seq):
-        with pytest.raises(PushRefusedError, match="protected paths"):
-            push_branch(REPO, WORKSPACE)
+    with patch("interns.domain.push.subprocess.run", side_effect=seq), pytest.raises(PushRefusedError, match="protected paths"):
+        push_branch(REPO, WORKSPACE)
 
 
 @patch("interns.domain.push.default_branch", return_value="main")
@@ -103,9 +98,8 @@ def test_push_branch_surfaces_git_error(_):
         _proc("my-branch"),
         _proc(returncode=1, stderr="fatal: unable to access origin"),
     ]
-    with patch("interns.domain.push.subprocess.run", side_effect=seq):
-        with pytest.raises(GhCommandError, match="unable to access origin"):
-            push_branch(REPO, WORKSPACE)
+    with patch("interns.domain.push.subprocess.run", side_effect=seq), pytest.raises(GhCommandError, match="unable to access origin"):
+        push_branch(REPO, WORKSPACE)
 
 
 @patch("interns.domain.push.default_branch", return_value="main")
@@ -149,9 +143,8 @@ def test_pr_open_for_issue_uses_correct_head_and_base(mock_create, _, __):
 
 
 def test_pr_open_for_issue_rejects_detached_head():
-    with patch("interns.domain.push.subprocess.run", return_value=_proc("HEAD")):
-        with pytest.raises(GhCommandError, match="detached HEAD"):
-            pr_open_for_issue(REPO, WORKSPACE, 42, "feat: add thing", "Body text here")
+    with patch("interns.domain.push.subprocess.run", return_value=_proc("HEAD")), pytest.raises(GhCommandError, match="detached HEAD"):
+        pr_open_for_issue(REPO, WORKSPACE, 42, "feat: add thing", "Body text here")
 
 
 def test_pr_open_for_issue_rejects_multiline_title():

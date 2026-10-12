@@ -19,7 +19,9 @@ def job_if(job: str) -> str:
 
 
 def test_draft_step_runs_only_when_the_initial_claude_step_failed():
-    condition = re.search(r"if: (.*)", step("Save unfinished work as draft PR")).group(1)
+    match = re.search(r"if: (.*)", step("Save unfinished work as draft PR"))
+    assert match
+    condition = match.group(1)
     assert "failure()" in condition
     assert "steps.claude_initial.outcome == 'failure'" in condition
 

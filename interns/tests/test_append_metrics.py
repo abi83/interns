@@ -36,7 +36,7 @@ def _seed_metrics_branch(bare: Path, tmp: Path, lines: list[str]) -> None:
         _git(["checkout", "-q", "-b", branch, "FETCH_HEAD"], work)
     else:
         _git(["checkout", "-q", "--orphan", branch], work)
-    (Path(work) / "metrics.jsonl").write_text("".join(l + "\n" for l in lines))
+    (Path(work) / "metrics.jsonl").write_text("".join(line + "\n" for line in lines))
     _git(["add", "metrics.jsonl"], work)
     _git(["commit", "-q", "-m", "seed"], work)
     _git(["push", "-q", "origin", f"HEAD:{branch}"], work)
@@ -143,12 +143,11 @@ class RetryPathTests(unittest.TestCase):
             tmp = Path(tmp_s)
             record = _record_file(tmp, {"job": "coder"})
             sleeps = []
-            with patch.object(append_metrics, "_run_git", return_value=subprocess.CompletedProcess([], 1)):
-                with self.assertRaises(append_metrics.AppendMetricsError):
-                    append_metrics.append_records(
-                        [str(record)], remote="/no/such/remote", run_id="1",
-                        retries=3, sleep=sleeps.append,
-                    )
+            with patch.object(append_metrics, "_run_git", return_value=subprocess.CompletedProcess([], 1)), self.assertRaises(append_metrics.AppendMetricsError):
+                append_metrics.append_records(
+                    [str(record)], remote="/no/such/remote", run_id="1",
+                    retries=3, sleep=sleeps.append,
+                )
             self.assertEqual(sleeps, [3, 6])
 
 

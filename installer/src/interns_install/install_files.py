@@ -6,6 +6,8 @@ from __future__ import annotations
 import os
 import re
 
+from interns import gh
+
 from . import gh_admin
 
 WORKFLOW = "install.yml"
@@ -129,7 +131,10 @@ def collect_missing_files(repo: gh_admin.Repo, base: str,
             continue
         if dest != MAKEFILE:
             continue
-        content, sha = gh_admin.get_existing_file(repo.slug, dest, base)
+        existing = gh_admin.get_existing_file(repo.slug, dest, base)
+        if existing is None:
+            raise gh.GhCommandError(f"{dest} disappeared from {repo.slug}@{base} mid-install")
+        content, sha = existing
         with_setup = _with_setup_stub(content, sha)
         if with_setup is not None:
             wanted[dest] = with_setup

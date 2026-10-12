@@ -45,9 +45,8 @@ class WriteGithubOutputTests(unittest.TestCase):
 
     def test_without_github_output_raises(self):
         env = {k: v for k, v in os.environ.items() if k != "GITHUB_OUTPUT"}
-        with patch.dict(os.environ, env, clear=True):
-            with self.assertRaises(cli.MissingEnvError):
-                fetch_issue.write_github_output(_issue())
+        with patch.dict(os.environ, env, clear=True), self.assertRaises(cli.MissingEnvError):
+            fetch_issue.write_github_output(_issue())
 
 
 if __name__ == "__main__":

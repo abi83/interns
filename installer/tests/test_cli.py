@@ -53,9 +53,9 @@ class SecretsScopeTests(unittest.TestCase):
 
     def test_unlistable_secrets_follow_the_confirmation(self):
         con = Console(assume_yes=False)
-        con.confirm = lambda q, default=False: False
+        self.enterContext(mock.patch.object(con, "confirm", lambda q, default=False: False))
         self.assertFalse(cli._secrets_scope_ok(con, None))
-        con.confirm = lambda q, default=False: True
+        self.enterContext(mock.patch.object(con, "confirm", lambda q, default=False: True))
         self.assertTrue(cli._secrets_scope_ok(con, None))
 
 
@@ -202,7 +202,7 @@ class HandoffTests(unittest.TestCase):
 
     def test_declined_dispatch_records_manual_command(self):
         con = Console(assume_yes=False)
-        con.confirm = lambda q, default=False: False
+        self.enterContext(mock.patch.object(con, "confirm", lambda q, default=False: False))
         dispatch = self._run(con)
         dispatch.assert_not_called()
         self.assertTrue(any("gh workflow run" in n for n in con.manual))
@@ -215,7 +215,7 @@ class HandoffTests(unittest.TestCase):
 class StageDeclineTests(unittest.TestCase):
     def test_declined_pr_records_manual_step(self):
         con = Console(assume_yes=False)
-        con.confirm = lambda q, default=False: False
+        self.enterContext(mock.patch.object(con, "confirm", lambda q, default=False: False))
         with mock.patch.object(install_files, "collect_missing_files",
                                return_value={"a.yml": ("x", None), "b.yml": ("y", "sha")}), \
              mock.patch.object(cli.gh, "pr_create") as pr_create:
