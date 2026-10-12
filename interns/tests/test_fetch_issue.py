@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from interns import gh
+from interns import cli, gh
 from interns.steps import fetch_issue
 from interns.steps.fetch_issue import Comment, Issue
 
@@ -110,10 +110,11 @@ class WriteGithubOutputTests(unittest.TestCase):
         end = lines.index(header.removeprefix("body<<"), start + 1)
         self.assertEqual("\n".join(lines[start + 1 : end]), body)
 
-    def test_without_github_output_prints(self):
+    def test_without_github_output_raises(self):
         env = {k: v for k, v in os.environ.items() if k != "GITHUB_OUTPUT"}
         with patch.dict(os.environ, env, clear=True):
-            fetch_issue.write_github_output(_issue())
+            with self.assertRaises(cli.MissingEnvError):
+                fetch_issue.write_github_output(_issue())
 
 
 if __name__ == "__main__":

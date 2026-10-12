@@ -12,7 +12,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .. import cli, execution
+from .. import execution
 from ..ctx import ActionsCtx
 
 SCHEMA_VERSION = 2
@@ -114,9 +114,6 @@ def _main(ctx: ActionsCtx, argv: list[str]) -> int:
     if not Path(args.exec_file).is_file():
         print(f"extract-metrics: execution file not found: {args.exec_file}", file=sys.stderr)
         return 1
-
-    if not ctx.run_id:
-        raise cli.MissingEnvError("GITHUB_RUN_ID unset")
 
     try:
         record = build_record(

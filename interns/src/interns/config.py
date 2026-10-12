@@ -242,6 +242,14 @@ def resolve_agent_config(data: dict, agent: str, path: str) -> AgentConfig:
     )
 
 
+def _section_value(consumer: dict, builtin: dict, section: str, key: str):
+    """Consumer file, then the shipped defaults; absent from both is a bug in the defaults."""
+    for block in (consumer, builtin):
+        if key in block:
+            return block[key]
+    raise ConfigError(f"{section}.{key} is set neither in the config nor in the shipped defaults")
+
+
 def checks_config(data: dict, path: str) -> ChecksConfig:
     checks = data.get("checks") or {}
     ignore = checks.get("ignore", [])
@@ -249,9 +257,9 @@ def checks_config(data: dict, path: str) -> ChecksConfig:
         raise ConfigError(f"checks.ignore must be a YAML list of check names in {path}")
 
     builtin_checks = _builtin_data().get("checks") or {}
-    timeout = checks.get("timeout_seconds", builtin_checks.get("timeout_seconds", 1200))
-    poll = checks.get("poll_seconds", builtin_checks.get("poll_seconds", 20))
-    settle = checks.get("settle_seconds", builtin_checks.get("settle_seconds", 30))
+    timeout = _section_value(checks, builtin_checks, "checks", "timeout_seconds")
+    poll = _section_value(checks, builtin_checks, "checks", "poll_seconds")
+    settle = _section_value(checks, builtin_checks, "checks", "settle_seconds")
 
     if not _is_num_gt0(timeout):
         raise ConfigError(f"checks.timeout_seconds must be a positive number (got '{timeout}') in {path}")
@@ -271,8 +279,8 @@ def checks_config(data: dict, path: str) -> ChecksConfig:
 def review_loop_config(data: dict, path: str) -> ReviewLoopConfig:
     rl = data.get("review_loop") or {}
     builtin_rl = _builtin_data().get("review_loop") or {}
-    max_fix_rounds = rl.get("max_fix_rounds", builtin_rl.get("max_fix_rounds", 1))
-    max_automatic_reviews = rl.get("max_automatic_reviews", builtin_rl.get("max_automatic_reviews", 5))
+    max_fix_rounds = _section_value(rl, builtin_rl, "review_loop", "max_fix_rounds")
+    max_automatic_reviews = _section_value(rl, builtin_rl, "review_loop", "max_automatic_reviews")
 
     if not _is_int_ge(max_fix_rounds, 1):
         raise ConfigError(f"review_loop.max_fix_rounds must be a positive integer (got '{max_fix_rounds}') in {path}")
@@ -328,7 +336,7 @@ def _main(argv: list[str]) -> int:
         data = load_raw(args.config)
         if args.command == "agent-config":
             cfg = resolve_agent_config(data, args.agent, args.config)
-            wiki_path = wiki_dir(cfg.wiki_repo, os.environ["GITHUB_WORKSPACE"]) if cfg.wiki_enabled else ""
+            wiki_path = wiki_dir(cfg.wiki_repo, cli.require_env("GITHUB_WORKSPACE")) if cfg.wiki_enabled else ""
             add_dir_arg = f"--add-dir {wiki_path}" if wiki_path else ""
             for line in (
                 f"model={cfg.model}",

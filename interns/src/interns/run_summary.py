@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from . import best_effort, cli, execution, gh, verdict
+from . import best_effort, execution, gh, verdict
 from .steps import labels, report_run
 from .ctx import ActionsCtx
 
@@ -248,8 +248,6 @@ def _main(ctx: ActionsCtx, argv: list[str]) -> int:
     parser.add_argument("--cost-warn", dest="cost_warn", default="")
     args = parser.parse_args(argv)
 
-    if not ctx.step_summary:
-        raise cli.MissingEnvError("GITHUB_STEP_SUMMARY unset")
     summary_path = ctx.step_summary
 
     summary = build_summary(

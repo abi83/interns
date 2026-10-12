@@ -23,7 +23,7 @@ def checkout_branch(head_ref: str) -> None:
     subprocess.run(["git", "checkout", head_ref], check=True)
 
 
-def _latest_changes_requested_review(repo: str, pr: int) -> verdict.Review:
+def _latest_changes_requested_review(repo: str, pr: int) -> verdict.FullReview:
     # Any reviewer's CHANGES_REQUESTED counts here, not just REVIEWER_BOT's --
     # unlike apply_verdict/check_review_cap, which only ever act on the bot's
     # own verdict. Routed through verdict.all_reviews rather than a second,

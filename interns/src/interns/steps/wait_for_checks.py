@@ -39,7 +39,7 @@ def _classify(checks: list[dict], run_id: str, ignore: list[str]) -> CheckSummar
 
 def wait_for_checks(
     repo: str, pr: int, run_id: str, ignore: list[str], *,
-    timeout: float = 1200, poll: float = 20, settle: float = 30,
+    timeout: float, poll: float, settle: float,
     sleep=time.sleep, monotonic=time.monotonic,
 ) -> tuple[bool, str]:
     start = monotonic()

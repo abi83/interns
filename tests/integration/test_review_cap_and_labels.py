@@ -17,7 +17,7 @@ def scenario(tmp_path) -> Scenario:
 
 
 def review(login: str = "reviewer-bot") -> dict:
-    return {"id": 1, "user": {"login": login}, "state": "CHANGES_REQUESTED", "commit_id": "sha"}
+    return {"id": 1, "user": {"login": login}, "state": "CHANGES_REQUESTED", "commit_id": "sha", "submitted_at": "2026-01-01T00:00:00Z", "body": ""}
 
 
 def test_review_cap_is_a_noop_below_the_limit(scenario):

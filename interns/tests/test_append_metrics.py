@@ -1,10 +1,12 @@
 import json
+import os
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from interns import cli
 from interns.steps import append_metrics
 from interns.ctx import ActionsCtx
 
@@ -151,9 +153,13 @@ class RetryPathTests(unittest.TestCase):
 
 
 class CliTests(unittest.TestCase):
-    def _ctx(self, token="tok123", repo="owner/repo", server_url="https://github.com", run_id="42"):
-        return ActionsCtx(repo=repo, token=token, server_url=server_url, run_id=run_id,
-                          run_attempt=1, workspace=".", event_name="", reviewer_bot="", step_summary="")
+    def setUp(self):
+        env = patch.dict(os.environ, {"GITHUB_RUN_ID": "42"})
+        env.start()
+        self.addCleanup(env.stop)
+
+    def _ctx(self):
+        return ActionsCtx(repo="owner/repo", token="tok123", server_url="https://github.com")
 
     def test_errors_with_no_arguments(self):
         with self.assertRaises(SystemExit):
@@ -172,6 +178,12 @@ class CliTests(unittest.TestCase):
         self.assertEqual(kwargs["remote"], "https://x-access-token:tok123@github.com/owner/repo.git")
         self.assertEqual(kwargs["run_id"], "42")
         mock_print.assert_called_once()
+
+    def test_missing_run_id_raises(self):
+        with tempfile.TemporaryDirectory() as tmp_s:
+            record = _record_file(Path(tmp_s), {"job": "coder"})
+            with patch.dict(os.environ, clear=True), self.assertRaises(cli.MissingEnvError):
+                append_metrics._main(self._ctx(), [str(record)])
 
     def test_reports_failure_after_exhausted_retries(self):
         with tempfile.TemporaryDirectory() as tmp_s:

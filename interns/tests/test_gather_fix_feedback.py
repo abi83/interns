@@ -6,12 +6,12 @@ from unittest.mock import patch
 
 from interns.steps import gather_fix_feedback
 from interns.ctx import ActionsCtx
-from interns.verdict import Review
+from interns.verdict import FullReview
 
 
 class BuildFeedbackTextTests(unittest.TestCase):
     def test_builds_the_review_comments_and_conversation_block(self):
-        review = Review(login="somedev", state="CHANGES_REQUESTED", commit_id="sha1",
+        review = FullReview(login="somedev", state="CHANGES_REQUESTED", commit_id="sha1",
                          id=123, submitted_at="2026-01-02T03:04:05Z", body="do the thing")
         comments = [{"pull_request_review_id": 123, "path": "a.py", "line": 10, "body": "fix this", "created_at": "2026-01-02T03:05:00Z"}]
         conversation = [{"created_at": "2026-01-02T04:00:00Z", "user": {"login": "somedev"}, "body": "looks good otherwise"}]
@@ -31,7 +31,7 @@ class BuildFeedbackTextTests(unittest.TestCase):
 
     def test_only_changes_requested_reviews_are_considered(self):
         reviews = [
-            Review(login="somedev", state="APPROVED", commit_id="sha1", id=1, submitted_at="t1", body="lgtm"),
+            FullReview(login="somedev", state="APPROVED", commit_id="sha1", id=1, submitted_at="t1", body="lgtm"),
         ]
         with patch("interns.steps.gather_fix_feedback.verdict.all_reviews", return_value=reviews):
             with self.assertRaises(gather_fix_feedback.NoChangesRequestedReviewError):
@@ -45,9 +45,7 @@ class BuildFeedbackTextTests(unittest.TestCase):
 
 class CliTests(unittest.TestCase):
     def setUp(self):
-        self.ctx = ActionsCtx(repo="acme/widgets", token="", server_url="", run_id="",
-                               run_attempt=1, workspace=".", event_name="",
-                               reviewer_bot="", step_summary="")
+        self.ctx = ActionsCtx(repo="acme/widgets", token="", server_url="")
 
     def test_no_pr_returns_failure_without_calling_git(self):
         with patch("interns.steps.gather_fix_feedback.checkout_branch") as checkout:
