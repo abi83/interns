@@ -73,7 +73,7 @@ class CliTests(unittest.TestCase):
             output_file.write_text("")
 
             with patch.dict(os.environ, {"GITHUB_OUTPUT": str(output_file)}):
-                resolve_issue_template._main(
+                resolve_issue_template.main(
                     ["--builtin-dir", str(builtin), "--consumer-dir", str(Path(tmp) / "consumer"),
                      "--types", "spike"])
 
@@ -84,7 +84,7 @@ class CliTests(unittest.TestCase):
     def test_defaults_types_and_consumer_dir(self):
         with patch("interns.steps.resolve_issue_template.build_skeleton", return_value="") as build, \
              patch.dict(os.environ, {"GITHUB_OUTPUT": "/dev/null"}):
-            resolve_issue_template._main(["--builtin-dir", "/tmp/builtin"])
+            resolve_issue_template.main(["--builtin-dir", "/tmp/builtin"])
         args = build.call_args[0]
         self.assertEqual(str(args[1]), ".github/ISSUE_TEMPLATE")
         self.assertEqual(args[2], ["coding-task", "bug", "spike"])

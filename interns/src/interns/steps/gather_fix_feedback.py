@@ -65,10 +65,8 @@ def build_feedback_text(repo: str, pr: int) -> str:
     return "\n".join(lines)
 
 
-def _main(ctx: ActionsCtx, argv: list[str]) -> int:
-    import argparse
-
-    parser = argparse.ArgumentParser(prog="interns.entrypoint gather-fix-feedback")
+def main(ctx: ActionsCtx, argv: list[str]) -> int:
+    parser = cli.build_parser("gather-fix-feedback")
     parser.add_argument("--pr", required=True)
     parser.add_argument("--head-ref", required=True)
     parser.add_argument("--issue", required=True)

@@ -25,7 +25,7 @@ uv run --frozen ruff check .                                               # lin
 
 ```python
 scenario.gh("pr", "view", "labels", stdout={"labels": [{"name": "pr:coding"}]})
-result = scenario.run("interns.steps.handoff_to_review", "7", "12")
+result = scenario.run("interns.entrypoint", "handoff-to-review", "--issue", "7", "--pr", "12")
 assert scenario.label_edits("pr") == [("12", {"pr:in-review"}, {"pr:coding"})]
 ```
 

@@ -488,7 +488,12 @@ Python under `interns/src/interns`, with imports flowing one way
   `entrypoint` or `mcp`.
 - `steps/` — one module per workflow command, a thin wrapper over `domain/`.
   A step never imports another step.
-- `entrypoint.py` — builds `ActionsCtx` and dispatches to the steps.
+- `entrypoint.py` — the one command entry (`python3 -m interns.entrypoint <command>`):
+  builds `ActionsCtx` and dispatches to the steps, with a single missing-env
+  error path. Commands take `(ctx, argv)` and build their parser with
+  `cli.build_parser(<command>)`. Exception: `check-build-config`, `config`,
+  `prompt`, `resolve-issue-template` and `run-setup` take `(argv)` only, because
+  their workflow steps carry no GitHub token or repository env for the ctx.
 - `mcp/server.py` — the agent-facing MCP tools, built on `domain/`.
 
 ## License

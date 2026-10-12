@@ -46,12 +46,8 @@ class WriteOutputTests(unittest.TestCase):
             self.assertTrue(text.startswith("reason<<ghadelim_"))
             self.assertEqual(len(text.splitlines()), 4)
 
-    def test_run_turns_missing_env_into_exit_code_1(self):
-        def main(argv):
-            cli.require_env("NOPE_X")
-
-        with patch.dict(os.environ, {}, clear=True):
-            self.assertEqual(cli.run(main), 1)
+    def test_build_parser_derives_prog_from_the_command_name(self):
+        self.assertEqual(cli.build_parser("labels").prog, "interns.entrypoint labels")
 
     def test_requires_github_output(self):
         with patch.dict(os.environ, {}, clear=True):

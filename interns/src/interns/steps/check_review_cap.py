@@ -39,14 +39,11 @@ def check_cap(repo: str, pr: int, reviewer_bot: str, max_reviews: int, *, count:
     return True
 
 
-def _main(ctx: ActionsCtx, argv: list[str]) -> int:
-    import argparse
-    import os
-
-    config_path = os.environ.get("INTERNS_CONFIG", ".github/interns.yml")
+def main(ctx: ActionsCtx, argv: list[str]) -> int:
+    config_path = ctx.config_path
     rl = config.review_loop_config(config.load_raw(config_path), config_path)
 
-    parser = argparse.ArgumentParser(prog="interns.entrypoint check-review-cap")
+    parser = cli.build_parser("check-review-cap")
     parser.add_argument("--pr", type=int, required=True)
     parser.add_argument("--count", type=int, default=None,
                         help="skip the review-count fetch and use this instead")

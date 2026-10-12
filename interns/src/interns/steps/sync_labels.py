@@ -54,7 +54,7 @@ def sync_labels(repo: str, manifest_path: str) -> str:
             f"{created} created, {updated} updated, {unchanged} unchanged")
 
 
-def _main(ctx: ActionsCtx, argv: list[str]) -> int:
+def main(ctx: ActionsCtx, argv: list[str]) -> int:
     manifest_path = argv[0] if argv else ".github/labels.json"
 
     try:

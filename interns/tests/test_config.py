@@ -239,7 +239,7 @@ class AgentConfigOutputTests(unittest.TestCase):
         builtin_p = patch("interns.config._builtin_data", return_value=_BUILTIN_FIXTURE)
         out = io.StringIO()
         with isfile_p, yaml_p, builtin_p, contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
-            self.assertEqual(config._main(["--config", "interns.yml", "agent-config", agent]), 0)
+            self.assertEqual(config.main(["--config", "interns.yml", "agent-config", agent]), 0)
         return dict(line.split("=", 1) for line in out.getvalue().splitlines())
 
     def test_no_tool_lists_emit_empty_suffixes_and_no_deny_flag(self):
@@ -437,7 +437,7 @@ class CliTests(unittest.TestCase):
         # No --config mock here: a nonexistent consumer file falls through to
         # the real shipped template via _builtin_data().
         with patch("builtins.print") as mock_print:
-            config._main(["--config", "/nonexistent/interns.yml", "agent-config", "coder"])
+            config.main(["--config", "/nonexistent/interns.yml", "agent-config", "coder"])
         printed = [call.args[0] for call in mock_print.call_args_list]
         self.assertIn("model=claude-sonnet-5-5", printed)
 
@@ -446,12 +446,12 @@ class CliTests(unittest.TestCase):
         with patch("interns.config.load_raw", return_value=data), \
              patch("interns.config._builtin_data", return_value=_BUILTIN_FIXTURE), \
              patch("builtins.print") as mock_print:
-            config._main(["checks-ignore"])
+            config.main(["checks-ignore"])
         mock_print.assert_any_call('["preview-deploy"]')
 
     def test_config_error_exits_non_zero(self):
         with patch("interns.config.load_raw", side_effect=config.ConfigError("boom")):
-            self.assertEqual(config._main(["agent-config", "tester"]), 1)
+            self.assertEqual(config.main(["agent-config", "tester"]), 1)
 
 
 if __name__ == "__main__":

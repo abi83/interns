@@ -305,11 +305,62 @@ def _flag(name: str, tools: list[str]) -> str:
     return f'{name} "{",".join(tools)}"' if tools else ""
 
 
-def _main(argv: list[str]) -> int:
-    import argparse
+def _bool(value: bool) -> str:
+    return "true" if value else "false"
 
-    parser = argparse.ArgumentParser(prog="python -m interns.config")
-    parser.add_argument("--config", default=os.environ.get("INTERNS_CONFIG", ".github/interns.yml"))
+
+@dataclass(frozen=True)
+class _Field:
+    """One resolved agent setting: its `key=value` stdout line and, when it
+    appears in the stderr summary, that summary's own key and value."""
+
+    key: str
+    value: str
+    summary: tuple[str, str] | None
+
+
+def _plain(key: str, value: str) -> _Field:
+    return _Field(key, value, (key, value))
+
+
+def _agent_fields(cfg: AgentConfig, wiki_path: str) -> list[_Field]:
+    return [
+        _plain("model", cfg.model),
+        _plain("max_turns", str(cfg.max_turns)),
+        _plain("timeout_minutes", str(cfg.timeout_minutes)),
+        _plain("max_output_tokens", str(cfg.max_output_tokens)),
+        _plain("cost_warn_usd", str(cfg.cost_warn_usd)),
+        _Field("tools_suffix", _suffix(builtin_tool_names(cfg.allowed_tools)), None),
+        _Field("allowed_tools_suffix", _suffix(cfg.allowed_tools), ("allowed_tools", ",".join(cfg.allowed_tools))),
+        _Field(
+            "disallowed_tools_arg",
+            _flag("--disallowedTools", cfg.disallowed_tools),
+            ("disallowed_tools", ",".join(cfg.disallowed_tools)),
+        ),
+        _plain("wiki_enabled", _bool(cfg.wiki_enabled)),
+        _Field("wiki_repo", cfg.wiki_repo, None),
+        _Field("wiki_dir", wiki_path, None),
+        _Field("add_dir_arg", f"--add-dir {wiki_path}" if wiki_path else "", None),
+        _plain("debug", _bool(cfg.debug)),
+    ]
+
+
+def _print_agent_config(cfg: AgentConfig, agent: str) -> None:
+    wiki_path = wiki_dir(cfg.wiki_repo, cli.require_env("GITHUB_WORKSPACE")) if cfg.wiki_enabled else ""
+    fields = _agent_fields(cfg, wiki_path)
+    for field in fields:
+        print(f"{field.key}={field.value}")
+    summary = " ".join(f"{key}={value}" for key, value in (f.summary for f in fields if f.summary))
+    print(f"agent-config[{agent}]: {summary}", file=sys.stderr)
+
+
+def config_path() -> str:
+    return os.environ.get("INTERNS_CONFIG", ".github/interns.yml")
+
+
+def main(argv: list[str]) -> int:
+    parser = cli.build_parser("config")
+    parser.add_argument("--config", default=config_path())
     sub = parser.add_subparsers(dest="command", required=True)
 
     p = sub.add_parser("agent-config")
@@ -322,41 +373,10 @@ def _main(argv: list[str]) -> int:
     try:
         data = load_raw(args.config)
         if args.command == "agent-config":
-            cfg = resolve_agent_config(data, args.agent, args.config)
-            wiki_path = wiki_dir(cfg.wiki_repo, cli.require_env("GITHUB_WORKSPACE")) if cfg.wiki_enabled else ""
-            add_dir_arg = f"--add-dir {wiki_path}" if wiki_path else ""
-            for line in (
-                f"model={cfg.model}",
-                f"max_turns={cfg.max_turns}",
-                f"timeout_minutes={cfg.timeout_minutes}",
-                f"max_output_tokens={cfg.max_output_tokens}",
-                f"cost_warn_usd={cfg.cost_warn_usd}",
-                f"tools_suffix={_suffix(builtin_tool_names(cfg.allowed_tools))}",
-                f"allowed_tools_suffix={_suffix(cfg.allowed_tools)}",
-                f"disallowed_tools_arg={_flag('--disallowedTools', cfg.disallowed_tools)}",
-                f"wiki_enabled={'true' if cfg.wiki_enabled else 'false'}",
-                f"wiki_repo={cfg.wiki_repo}",
-                f"wiki_dir={wiki_path}",
-                f"add_dir_arg={add_dir_arg}",
-                f"debug={'true' if cfg.debug else 'false'}",
-            ):
-                print(line)
-            print(
-                f"agent-config[{args.agent}]: model={cfg.model} max_turns={cfg.max_turns} "
-                f"timeout_minutes={cfg.timeout_minutes} max_output_tokens={cfg.max_output_tokens} "
-                f"cost_warn_usd={cfg.cost_warn_usd} allowed_tools={','.join(cfg.allowed_tools)} "
-                f"disallowed_tools={','.join(cfg.disallowed_tools)} "
-                f"wiki_enabled={'true' if cfg.wiki_enabled else 'false'} "
-                f"debug={'true' if cfg.debug else 'false'}",
-                file=sys.stderr,
-            )
+            _print_agent_config(resolve_agent_config(data, args.agent, args.config), args.agent)
         elif args.command == "checks-ignore":
             print(json.dumps(checks_config(data, args.config).ignore))
     except ConfigError as exc:
         print(f"config: {exc}", file=sys.stderr)
         return 1
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(cli.run(_main))

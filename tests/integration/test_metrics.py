@@ -234,7 +234,7 @@ def test_append_records_retries_on_a_losing_push_race(scenario, monkeypatch):
 
 def test_append_metrics_main_reports_the_exhausted_retry_error(scenario, monkeypatch, capsys):
     """Same exhausted-retries path as test_append_records_retries_on_a_losing_push_race,
-    but through `_main` -- proving the CLI surfaces the library's error message
+    but through `main` -- proving the CLI surfaces the library's error message
     and exit code. Patches time.sleep instead of going through subprocess, so
     this doesn't block on real backoff delays."""
     from interns.steps import append_metrics
@@ -251,7 +251,7 @@ def test_append_metrics_main_reports_the_exhausted_retry_error(scenario, monkeyp
     monkeypatch.setenv("GITHUB_RUN_ID", "4242")
     ctx = ActionsCtx(repo=REPO, token="tok", server_url="https://github.example")
 
-    exit_code = append_metrics._main(ctx, [str(record)])
+    exit_code = append_metrics.main(ctx, [str(record)])
 
     assert exit_code == 1
     err = capsys.readouterr().err

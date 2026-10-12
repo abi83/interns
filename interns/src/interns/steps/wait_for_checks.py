@@ -66,11 +66,8 @@ def wait_for_checks(
     return False, f"timed out waiting for checks to finish: {', '.join(last_pending) or 'unknown'}"
 
 
-def _main(ctx: ActionsCtx, argv: list[str]) -> int:
-    import argparse
-    import os
-
-    parser = argparse.ArgumentParser(prog="interns.entrypoint wait-for-checks")
+def main(ctx: ActionsCtx, argv: list[str]) -> int:
+    parser = cli.build_parser("wait-for-checks")
     parser.add_argument("--pr", type=int, required=True)
     args = parser.parse_args(argv)
 
@@ -79,7 +76,7 @@ def _main(ctx: ActionsCtx, argv: list[str]) -> int:
         cli.write_output("ok", True)
         return 0
 
-    config_path = os.environ.get("INTERNS_CONFIG", ".github/interns.yml")
+    config_path = ctx.config_path
     cfg = config.checks_config(config.load_raw(config_path), config_path)
 
     ok, reason = wait_for_checks(

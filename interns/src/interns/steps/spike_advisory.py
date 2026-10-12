@@ -9,7 +9,7 @@ No-op on any other issue type, or a spike not yet estimated.
 
 from __future__ import annotations
 
-from .. import gh
+from .. import cli, gh
 from ..domain import labels
 from ..ctx import ActionsCtx
 
@@ -31,10 +31,8 @@ def post_advisory(repo: str, issue: int) -> str | None:
     return ADVISORY
 
 
-def _main(ctx: ActionsCtx, argv: list[str]) -> int:
-    import argparse
-
-    parser = argparse.ArgumentParser(prog="interns.entrypoint spike-advisory")
+def main(ctx: ActionsCtx, argv: list[str]) -> int:
+    parser = cli.build_parser("spike-advisory")
     parser.add_argument("--issue", type=int, required=True)
     args = parser.parse_args(argv)
 

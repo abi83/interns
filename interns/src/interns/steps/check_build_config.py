@@ -8,15 +8,13 @@ greps the Makefile on disk, it doesn't trust the agent's word for it.
 
 from __future__ import annotations
 
-import argparse
-import sys
 
 from .. import cli
 from ..domain import build_config
 
 
-def _main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(prog="python -m interns.steps.check_build_config")
+def main(argv: list[str]) -> int:
+    parser = cli.build_parser("check-build-config")
     parser.add_argument("repo_root")
     args = parser.parse_args(argv)
 
@@ -24,6 +22,3 @@ def _main(argv: list[str]) -> int:
     cli.write_output("configured", configured)
     return 0
 
-
-if __name__ == "__main__":
-    sys.exit(cli.run(_main))

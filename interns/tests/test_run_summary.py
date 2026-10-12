@@ -290,7 +290,7 @@ class CliTests(unittest.TestCase):
             env = {"GITHUB_RUN_ID": "42", "REVIEWER_BOT": "reviewer[bot]", "GITHUB_STEP_SUMMARY": summary_path}
             patches = _patch(issue_labels=lambda repo, issue: ["status:needs-attention"])
             with patch.dict(os.environ, env), patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
-                run_summary._main(ctx, ["--phase", "Refinement", "--issue", "7"])
+                run_summary.main(ctx, ["--phase", "Refinement", "--issue", "7"])
             content = open(summary_path).read()
         self.assertIn("## Refinement run", content)
         self.assertIn("Stopped for clarification", content)

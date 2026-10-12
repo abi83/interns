@@ -15,6 +15,7 @@ import tempfile
 import time
 from pathlib import Path
 
+from .. import cli
 from ..ctx import ActionsCtx
 
 BRANCH = "interns-metrics"
@@ -111,10 +112,8 @@ def append_records(files: list[str], *, remote: str, run_id: str,
     raise AppendMetricsError(f"push to {BRANCH} failed after {retries} attempts")
 
 
-def _main(ctx: ActionsCtx, argv: list[str]) -> int:
-    import argparse
-
-    parser = argparse.ArgumentParser(prog="interns.entrypoint append-metrics")
+def main(ctx: ActionsCtx, argv: list[str]) -> int:
+    parser = cli.build_parser("append-metrics")
     parser.add_argument("files", nargs="+")
     args = parser.parse_args(argv)
 

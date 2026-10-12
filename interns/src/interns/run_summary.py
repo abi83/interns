@@ -14,7 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import best_effort, execution, gh
+from . import best_effort, cli, execution, gh
 from .ctx import ActionsCtx
 from .domain import labels, verdict
 
@@ -247,10 +247,8 @@ def build_summary(ctx: SummaryContext, phase: str, exec_file: str | None) -> str
     return "\n".join(lines) + "\n"
 
 
-def _main(ctx: ActionsCtx, argv: list[str]) -> int:
-    import argparse
-
-    parser = argparse.ArgumentParser(prog="interns.entrypoint run-summary")
+def main(ctx: ActionsCtx, argv: list[str]) -> int:
+    parser = cli.build_parser("run-summary")
     parser.add_argument("--phase", required=True)
     parser.add_argument("--exec-file", default="")
     parser.add_argument("--issue", default="")

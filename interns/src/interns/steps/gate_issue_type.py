@@ -27,10 +27,8 @@ def gate(repo: str, issue: int, accepted: list[str], remove_status: str, reject_
     return False
 
 
-def _main(ctx: ActionsCtx, argv: list[str]) -> int:
-    import argparse
-
-    parser = argparse.ArgumentParser(prog="interns.entrypoint gate-issue-type")
+def main(ctx: ActionsCtx, argv: list[str]) -> int:
+    parser = cli.build_parser("gate-issue-type")
     parser.add_argument("--issue", type=int, required=True)
     parser.add_argument("--accepted", required=True,
                         help="comma-separated type:* labels the calling job can handle")

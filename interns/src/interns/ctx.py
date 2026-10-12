@@ -7,7 +7,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
-from . import cli
+from . import cli, config
 
 
 @dataclass
@@ -39,6 +39,10 @@ class ActionsCtx:
     @property
     def event_name(self) -> str:
         return os.environ.get("GITHUB_EVENT_NAME", "")
+
+    @property
+    def config_path(self) -> str:
+        return config.config_path()
 
     def run_url(self) -> str:
         return f"{self.server_url}/{self.repo}/actions/runs/{self.run_id}"

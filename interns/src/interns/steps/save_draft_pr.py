@@ -59,10 +59,8 @@ def save_draft_pr(repo: str, workspace: str, issue: int, title: str, run_url: st
     return gh.pr_create(repo, branch, default, title, draft_body(issue, run_url), draft=True)
 
 
-def _main(ctx: ActionsCtx, argv: list[str]) -> int:
-    import argparse
-
-    parser = argparse.ArgumentParser(prog="interns.entrypoint save-draft-pr")
+def main(ctx: ActionsCtx, argv: list[str]) -> int:
+    parser = cli.build_parser("save-draft-pr")
     parser.add_argument("--issue", type=int, required=True)
     parser.add_argument("--issue-title", required=True)
     parser.add_argument("--commit-type-hint", required=True)

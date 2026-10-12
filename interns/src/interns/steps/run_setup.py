@@ -42,16 +42,11 @@ def run_setup(repo_root: str) -> bool:
     return True
 
 
-def _main(argv: list[str]) -> int:
-    import argparse
-
-    parser = argparse.ArgumentParser(prog="python -m interns.steps.run_setup")
+def main(argv: list[str]) -> int:
+    parser = cli.build_parser("run-setup")
     parser.add_argument("repo_root")
     args = parser.parse_args(argv)
 
     run_setup(args.repo_root)
     return 0
 
-
-if __name__ == "__main__":
-    sys.exit(cli.run(_main))

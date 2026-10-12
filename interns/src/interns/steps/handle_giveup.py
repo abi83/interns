@@ -46,10 +46,8 @@ def handle_giveup(repo: str, issue: int, pr: int | None, workspace: str, *, run_
     return True
 
 
-def _main(ctx: ActionsCtx, argv: list[str]) -> int:
-    import argparse
-
-    parser = argparse.ArgumentParser(prog="interns.entrypoint handle-giveup")
+def main(ctx: ActionsCtx, argv: list[str]) -> int:
+    parser = cli.build_parser("handle-giveup")
     parser.add_argument("--issue", type=int, required=True)
     parser.add_argument("--pr", default="")
     args = parser.parse_args(argv)

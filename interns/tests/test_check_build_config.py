@@ -14,7 +14,7 @@ class CliTests(unittest.TestCase):
             output_file = os.path.join(tmpdir, "output")
             Path(output_file).write_text("")
             with patch.dict(os.environ, {"GITHUB_OUTPUT": output_file}):
-                check_build_config._main([tmpdir])
+                check_build_config.main([tmpdir])
             self.assertEqual(Path(output_file).read_text(), "configured=true\n")
 
     def test_writes_configured_false(self):
@@ -22,7 +22,7 @@ class CliTests(unittest.TestCase):
             output_file = os.path.join(tmpdir, "output")
             Path(output_file).write_text("")
             with patch.dict(os.environ, {"GITHUB_OUTPUT": output_file}):
-                check_build_config._main([tmpdir])
+                check_build_config.main([tmpdir])
             self.assertEqual(Path(output_file).read_text(), "configured=false\n")
 
 

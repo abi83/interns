@@ -302,7 +302,7 @@ jobs:
       - name: Load coder instructions
         id: instructions
         if: steps.guard.outputs.skip != 'true' && steps.mode.outputs.fix_round != 'true'
-        run: python3 -m interns.prompt .interns/.github/prompts/_shared.md .interns/.github/prompts/_shared-coder.md .interns/.github/prompts/code.md
+        run: python3 -m interns.entrypoint prompt .interns/.github/prompts/_shared.md .interns/.github/prompts/_shared-coder.md .interns/.github/prompts/code.md
 
       - name: Set up gh-issues MCP server
         if: steps.guard.outputs.skip != 'true'
@@ -316,7 +316,7 @@ jobs:
       # the job before any Claude tokens are spent.
       - name: Install dependencies (make setup)
         if: steps.guard.outputs.skip != 'true'
-        run: python3 -m interns.steps.run_setup "$GITHUB_WORKSPACE"
+        run: python3 -m interns.entrypoint run-setup "$GITHUB_WORKSPACE"
 
       - name: Run Claude coder (initial implementation)
         id: claude_initial
@@ -384,7 +384,7 @@ jobs:
       - name: Load coder fix-round instructions
         id: fix_instructions
         if: steps.guard.outputs.skip != 'true' && steps.mode.outputs.fix_round == 'true'
-        run: python3 -m interns.prompt .interns/.github/prompts/_shared.md .interns/.github/prompts/_shared-coder.md .interns/.github/prompts/code-fix.md
+        run: python3 -m interns.entrypoint prompt .interns/.github/prompts/_shared.md .interns/.github/prompts/_shared-coder.md .interns/.github/prompts/code-fix.md
 
       - name: Run Claude coder (fix round)
         id: claude_fix
@@ -439,7 +439,7 @@ jobs:
       - name: Check test/build configuration
         id: build_config
         if: steps.guard.outputs.skip != 'true' && always()
-        run: python3 -m interns.steps.check_build_config "$GITHUB_WORKSPACE"
+        run: python3 -m interns.entrypoint check-build-config "$GITHUB_WORKSPACE"
 
       - name: Report run cost
         if: steps.guard.outputs.skip != 'true' && always() && (steps.claude_initial.outputs.execution_file != '' || steps.claude_fix.outputs.execution_file != '')
@@ -736,7 +736,7 @@ jobs:
       - name: Load reviewer instructions
         id: instructions
         if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.cap.outputs.capped != 'true'
-        run: python3 -m interns.prompt .interns/.github/prompts/_shared.md .interns/.github/prompts/review.md
+        run: python3 -m interns.entrypoint prompt .interns/.github/prompts/_shared.md .interns/.github/prompts/review.md
 
       - name: Set up gh-issues MCP server
         if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.cap.outputs.capped != 'true'
