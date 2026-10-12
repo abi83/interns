@@ -263,10 +263,11 @@ jobs:
         if: steps.guard.outputs.skip != 'true' && steps.mode.outputs.fix_round == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ steps.pr.outputs.head_ref }}
         run: >
           python3 -m interns.entrypoint gather-fix-feedback
           --pr "${{ steps.pr.outputs.pr_number }}"
-          --head-ref "${{ steps.pr.outputs.head_ref }}"
+          --head-ref "$HEAD_REF"
           --issue "${{ steps.issue.outputs.number }}"
 
       # Both the Conventional Commit prefix and the branch name are derivable
@@ -637,16 +638,19 @@ jobs:
         id: checks
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 -m interns.entrypoint wait-for-checks --pr "${{ github.event.pull_request.number }}"
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+        run: python3 -m interns.entrypoint wait-for-checks --pr "$PR_NUMBER"
 
       - name: Route red checks to a human
         if: steps.checks.outputs.ok == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+          REASON: ${{ steps.checks.outputs.reason }}
         run: >
           python3 -m interns.entrypoint route-red-checks
-          --pr "${{ github.event.pull_request.number }}"
-          --reason "${{ steps.checks.outputs.reason }}"
+          --pr "$PR_NUMBER"
+          --reason "$REASON"
 
       # The reviewer runs under its own GitHub App identity, distinct from the
       # coder's, so it can actually submit an APPROVE review — GitHub forbids
