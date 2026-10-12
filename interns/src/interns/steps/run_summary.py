@@ -15,9 +15,9 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import best_effort, cli, execution, gh
-from .ctx import ActionsCtx
-from .domain import labels, verdict
+from .. import best_effort, cli, execution, gh
+from ..ctx import ActionsCtx
+from ..domain import labels, verdict
 
 
 def _issue_title(repo: str, issue: str) -> str | None:

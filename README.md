@@ -490,7 +490,13 @@ Python under `interns/src/interns`, with imports flowing one way
   `verdict`, `size`, `build_config`). Imports nothing from `steps`,
   `entrypoint` or `mcp`.
 - `steps/` — one module per workflow command, a thin wrapper over `domain/`.
-  A step never imports another step.
+  Every command's `main` lives here, with no exceptions (guarded by
+  `tests/guards/test_command_locations.py`). A step module never shares a
+  basename with a `domain/` module (e.g. `edit_labels` wraps `domain.labels`,
+  `query_verdict` wraps `domain.verdict`, `show_config` wraps `config`). A step
+  never imports another step.
+- Top-level `config.py`, `execution.py`, `cli.py`, `ctx.py` — shared library
+  modules, not commands.
 - `entrypoint.py` — the one command entry (`python3 -m interns.entrypoint <command>`):
   builds `ActionsCtx` and dispatches to the steps, with a single missing-env
   error path. Commands take `(ctx, argv)` and build their parser with

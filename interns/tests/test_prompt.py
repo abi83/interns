@@ -4,7 +4,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from interns import cli, prompt
+from interns import cli
+from interns.steps import prompt
 
 
 def _write(tmp_path: Path, name: str, content: bytes) -> str:

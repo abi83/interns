@@ -3,7 +3,7 @@ printed for `$(...)` capture or appended to `$GITHUB_OUTPUT`."""
 
 from __future__ import annotations
 
-from . import ops as gh
+from ..gh import ops as gh
 from .. import cli
 from ..ctx import ActionsCtx
 

@@ -1,8 +1,8 @@
 """interns.yml loader and validator -- the only reader of the pipeline config
 file (schema: .github/interns.schema.json).
 
-Both the agent-config resolution (this module's own `agent-config` CLI
-command) and the reviewer's checks-ignore list (interns.steps.wait_for_checks) go
+Both the agent-config resolution (interns.steps.show_config) and the
+reviewer's checks-ignore list (interns.steps.wait_for_checks) go
 through `load_raw` here, so a malformed file fails the same way no matter
 which setting the caller needed.
 """
@@ -13,13 +13,11 @@ import functools
 import json
 import os
 import subprocess
-import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from . import cli
 
 _SCHEMA_PATH = Path(__file__).resolve().parents[3] / ".github" / "interns.schema.json"
 _SCHEMA = json.loads(_SCHEMA_PATH.read_text())
@@ -295,91 +293,10 @@ def auto_proceed_config(data: dict, path: str) -> dict[str, bool]:
     return resolved
 
 
-def _suffix(tools: list[str]) -> str:
-    return "".join(f",{tool}" for tool in tools)
-
-
 def wiki_dir(wiki_repo: str, workspace: str) -> str:
     """Next to the repo checkout, where agents look for it."""
     return str(Path(workspace).parent / wiki_repo.rsplit("/", 1)[-1])
 
 
-def _flag(name: str, tools: list[str]) -> str:
-    return f'{name} "{",".join(tools)}"' if tools else ""
-
-
-def _bool(value: bool) -> str:
-    return "true" if value else "false"
-
-
-@dataclass(frozen=True)
-class _Field:
-    """One resolved agent setting: its `key=value` stdout line and, when it
-    appears in the stderr summary, that summary's own key and value."""
-
-    key: str
-    value: str
-    summary: tuple[str, str] | None
-
-
-def _plain(key: str, value: str) -> _Field:
-    return _Field(key, value, (key, value))
-
-
-def _agent_fields(cfg: AgentConfig, wiki_path: str) -> list[_Field]:
-    return [
-        _plain("model", cfg.model),
-        _plain("max_turns", str(cfg.max_turns)),
-        _plain("timeout_minutes", str(cfg.timeout_minutes)),
-        _plain("max_output_tokens", str(cfg.max_output_tokens)),
-        _plain("cost_warn_usd", str(cfg.cost_warn_usd)),
-        _Field("tools_suffix", _suffix(builtin_tool_names(cfg.allowed_tools)), None),
-        _Field("allowed_tools_suffix", _suffix(cfg.allowed_tools), ("allowed_tools", ",".join(cfg.allowed_tools))),
-        _Field(
-            "disallowed_tools_arg",
-            _flag("--disallowedTools", cfg.disallowed_tools),
-            ("disallowed_tools", ",".join(cfg.disallowed_tools)),
-        ),
-        _plain("wiki_enabled", _bool(cfg.wiki_enabled)),
-        _Field("wiki_repo", cfg.wiki_repo, None),
-        _Field("wiki_dir", wiki_path, None),
-        _Field("add_dir_arg", f"--add-dir {wiki_path}" if wiki_path else "", None),
-        _plain("debug", _bool(cfg.debug)),
-    ]
-
-
-def _print_agent_config(cfg: AgentConfig, agent: str) -> None:
-    wiki_path = wiki_dir(cfg.wiki_repo, cli.require_env("GITHUB_WORKSPACE")) if cfg.wiki_enabled else ""
-    fields = _agent_fields(cfg, wiki_path)
-    for field in fields:
-        print(f"{field.key}={field.value}")
-    summary = " ".join(f"{key}={value}" for key, value in (f.summary for f in fields if f.summary))
-    print(f"agent-config[{agent}]: {summary}", file=sys.stderr)
-
-
 def config_path() -> str:
     return os.environ.get("INTERNS_CONFIG", ".github/interns.yml")
-
-
-def main(argv: list[str]) -> int:
-    parser = cli.build_parser("config")
-    parser.add_argument("--config", default=config_path())
-    sub = parser.add_subparsers(dest="command", required=True)
-
-    p = sub.add_parser("agent-config")
-    p.add_argument("agent")
-
-    sub.add_parser("checks-ignore")
-
-    args = parser.parse_args(argv)
-
-    try:
-        data = load_raw(args.config)
-        if args.command == "agent-config":
-            _print_agent_config(resolve_agent_config(data, args.agent, args.config), args.agent)
-        elif args.command == "checks-ignore":
-            print(json.dumps(checks_config(data, args.config).ignore))
-    except ConfigError as exc:
-        print(f"config: {exc}", file=sys.stderr)
-        return 1
-    return 0
