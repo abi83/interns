@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from . import cli
+from .. import cli
 
 
 def build_output(name: str, files: list[str]) -> bytes:

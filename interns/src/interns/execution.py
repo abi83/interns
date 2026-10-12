@@ -1,6 +1,6 @@
 """Parsing of the claude-code-action execution-log JSON.
 
-Shared by interns.steps.report_run and interns.run_summary, which both
+Shared by interns.steps.report_run and interns.steps.run_summary, which both
 previously hand-duplicated the same `result`-entry extraction (interns#157).
 """
 

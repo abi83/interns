@@ -3,7 +3,8 @@ import os
 import unittest
 from unittest.mock import patch
 
-from interns import gh, run_summary
+from interns import gh
+from interns.steps import run_summary
 from interns.ctx import ActionsCtx
 from interns.domain.verdict import Review
 
@@ -25,12 +26,12 @@ def _patch(**overrides):
     )
     defaults.update(overrides)
     return (
-        patch("interns.run_summary.gh.issue_view", side_effect=defaults["issue_view"]),
-        patch("interns.run_summary.gh.pr_view", side_effect=defaults["pr_view"]),
-        patch("interns.run_summary.gh.pr_diff_names", side_effect=defaults["pr_diff_names"]),
-        patch("interns.run_summary.labels.issue_labels", side_effect=defaults["issue_labels"]),
-        patch("interns.run_summary.verdict.all_reviews", side_effect=defaults["all_reviews"]),
-        patch("interns.run_summary.verdict.reviews_by", side_effect=defaults["reviews_by"]),
+        patch("interns.steps.run_summary.gh.issue_view", side_effect=defaults["issue_view"]),
+        patch("interns.steps.run_summary.gh.pr_view", side_effect=defaults["pr_view"]),
+        patch("interns.steps.run_summary.gh.pr_diff_names", side_effect=defaults["pr_diff_names"]),
+        patch("interns.steps.run_summary.labels.issue_labels", side_effect=defaults["issue_labels"]),
+        patch("interns.steps.run_summary.verdict.all_reviews", side_effect=defaults["all_reviews"]),
+        patch("interns.steps.run_summary.verdict.reviews_by", side_effect=defaults["reviews_by"]),
     )
 
 
