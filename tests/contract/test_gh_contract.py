@@ -12,7 +12,7 @@ import pytest
 from interns_install import gh_admin
 from interns import gh
 from interns.domain import verdict
-from interns.gh import query as gh_query
+from interns.steps import gh_query
 from interns.domain import labels
 from interns.steps import wait_for_checks
 

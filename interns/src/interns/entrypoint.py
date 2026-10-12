@@ -1,6 +1,7 @@
 """Single Actions entrypoint: dispatches to commands with one missing-env error path.
 
-Commands take `(ctx, argv)` with an ActionsCtx built once. The exception is
+Every registered command's `main` lives in a module under `steps/`. Commands
+take `(ctx, argv)` with an ActionsCtx built once. The exception is
 `_ENV_FREE_COMMANDS`, which take `(argv)` only."""
 
 from __future__ import annotations
@@ -8,9 +9,8 @@ from __future__ import annotations
 import sys
 from collections.abc import Callable
 
-from . import cli, config, prompt, run_summary
+from . import cli
 from .ctx import ActionsCtx
-from .gh import query as gh_query
 from .steps import (
     append_metrics,
     apply_verdict,
@@ -18,24 +18,28 @@ from .steps import (
     check_build_config,
     check_review_cap,
     derive_code_hints,
+    edit_labels,
     extract_metrics,
     fetch_issue,
     flag_failure,
     gather_fix_feedback,
     gate_issue_type,
+    gh_query,
     handle_giveup,
     handle_pr_closed,
     handoff_to_review,
-    labels,
     preserve_issue_body,
+    prompt,
+    query_verdict,
     report_run,
     resolve_issue_template,
     route_red_checks,
     run_setup,
+    run_summary,
     save_draft_pr,
+    show_config,
     spike_advisory,
     sync_labels,
-    verdict,
     wait_for_checks,
 )
 
@@ -58,7 +62,7 @@ _COMMANDS: dict[str, _Command] = {
     "handle-giveup": handle_giveup.main,
     "handle-pr-closed": handle_pr_closed.main,
     "handoff-to-review": handoff_to_review.main,
-    "labels": labels.main,
+    "labels": edit_labels.main,
     "run-summary": run_summary.main,
     "route-red-checks": route_red_checks.main,
     "save-draft-pr": save_draft_pr.main,
@@ -66,7 +70,7 @@ _COMMANDS: dict[str, _Command] = {
     "sync-labels": sync_labels.main,
     "wait-for-checks": wait_for_checks.main,
     "preserve-issue-body": preserve_issue_body.main,
-    "verdict": verdict.main,
+    "verdict": query_verdict.main,
 }
 
 # Exception to the `(ctx, argv)` signature: these run in workflow steps that
@@ -74,7 +78,7 @@ _COMMANDS: dict[str, _Command] = {
 # them, so building a ctx would fail the step.
 _ENV_FREE_COMMANDS: dict[str, _EnvFreeCommand] = {
     "check-build-config": check_build_config.main,
-    "config": config.main,
+    "config": show_config.main,
     "prompt": prompt.main,
     "resolve-issue-template": resolve_issue_template.main,
     "run-setup": run_setup.main,

@@ -11,10 +11,10 @@ Rules:
   2. interns.gh imports nothing from domain, steps or entrypoint.
   3. interns.domain imports nothing from steps, entrypoint, ctx or mcp.
   4. A step imports no other step, and neither entrypoint nor mcp.
-  5. Shared top-level modules (run_summary, execution, config, ...) import
+  5. Shared top-level modules (execution, config, ...) import
      neither steps nor entrypoint.
   6. The MCP server imports nothing from steps, entrypoint or ctx.
-  7. Domain, steps, run_summary and the MCP server use `interns.gh` ops only --
+  7. Domain, steps and the MCP server use `interns.gh` ops only --
      they never import `interns.gh.transport`, and `interns.gh` exposes no
      transport primitive.
 """
@@ -136,8 +136,7 @@ def test_ops_only_callers_never_import_transport() -> None:
     modules = [
         *((p, "interns.domain") for p in _modules("domain")),
         *((p, "interns.steps") for p in _modules("steps")),
-        (INTERNS_SRC / "run_summary.py", "interns"),
-        (MCP_SERVER, ""),
+                (MCP_SERVER, ""),
     ]
     violations: list[str] = []
     for path, package in modules:
