@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from . import cli, gh
+from . import gh
 from .ctx import ActionsCtx
 
 
@@ -18,16 +18,19 @@ class Review:
     login: str
     state: str
     commit_id: str
-    # Only interns.steps.gather_fix_feedback needs these; every other caller here
-    # only cares about login/state/commit_id. Defaulted rather than split
-    # into a second type so there's still exactly one review fetch to keep
-    # paginated and in sync (interns#180 review).
-    id: int = 0
-    submitted_at: str = ""
-    body: str = ""
 
 
-def all_reviews(repo: str, pr: int) -> list[Review]:
+@dataclass(frozen=True)
+class FullReview(Review):
+    """What `all_reviews` fetches. Only gather_fix_feedback reads the extra
+    fields; callers that need just the verdict take the narrower `Review`."""
+
+    id: int
+    submitted_at: str
+    body: str
+
+
+def all_reviews(repo: str, pr: int) -> list[FullReview]:
     """Every review on `pr`, across every page, regardless of author, oldest
     first (GitHub's own order) -- e.g. for run-summary's coder-phase fix-round
     count, which counts CHANGES_REQUESTED from any reviewer, not just
@@ -36,19 +39,19 @@ def all_reviews(repo: str, pr: int) -> list[Review]:
     if not isinstance(data, list):
         raise gh.GhCommandError(f"unexpected reviews payload for {repo}#{pr}")
     return [
-        Review(
-            login=r.get("user", {}).get("login", ""),
+        FullReview(
+            login=r["user"]["login"],
             state=r["state"],
-            commit_id=r.get("commit_id", ""),
-            id=r.get("id", 0),
-            submitted_at=r.get("submitted_at") or "",
-            body=r.get("body") or "",
+            commit_id=r["commit_id"],
+            id=r["id"],
+            submitted_at=r["submitted_at"],
+            body=r["body"] or "",
         )
         for r in data
     ]
 
 
-def reviews_by(repo: str, pr: int, login: str) -> list[Review]:
+def reviews_by(repo: str, pr: int, login: str) -> list[FullReview]:
     """`login`'s reviews on `pr`, oldest first (GitHub's own order)."""
     return [r for r in all_reviews(repo, pr) if r.login == login]
 
@@ -98,8 +101,6 @@ def _main(ctx: ActionsCtx, argv: list[str]) -> int:
 
     args = parser.parse_args(argv)
     login = args.login or ctx.reviewer_bot
-    if not login:
-        raise cli.MissingEnvError("REVIEWER_BOT")
     reviews = reviews_by(ctx.repo, args.pr, login)
 
     if args.command == "verdict-for-head":

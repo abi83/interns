@@ -31,9 +31,7 @@ class GhQueryTests(unittest.TestCase):
             self.assertEqual(gh_query.pr_for_issue("a/b", 3), {"pr_number": "", "head_ref": ""})
 
     def test_main_prints_output_lines(self):
-        ctx = ActionsCtx(repo="a/b", token="", server_url="", run_id="",
-                         run_attempt=1, workspace=".", event_name="",
-                         reviewer_bot="", step_summary="")
+        ctx = ActionsCtx(repo="a/b", token="", server_url="")
         prs = [{"number": 6, "headRefName": "two", "closingIssuesReferences": [{"number": 2}]}]
         out = io.StringIO()
         with patch("interns.gh.query.gh.pr_list", return_value=prs), redirect_stdout(out):

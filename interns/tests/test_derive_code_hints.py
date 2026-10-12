@@ -40,9 +40,7 @@ class CliTests(unittest.TestCase):
         self._tmpdir = tempfile.TemporaryDirectory()
         self.output_file = Path(self._tmpdir.name) / "output"
         self.output_file.write_text("")
-        self.ctx = ActionsCtx(repo="acme/widgets", token="", server_url="", run_id="",
-                               run_attempt=1, workspace=".", event_name="",
-                               reviewer_bot="", step_summary="")
+        self.ctx = ActionsCtx(repo="acme/widgets", token="", server_url="")
 
     def tearDown(self):
         self._tmpdir.cleanup()

@@ -167,8 +167,9 @@ def test_main_writes_the_draft_url_output_only_when_a_draft_was_opened(work, tmp
     monkeypatch.setenv("GITHUB_OUTPUT", str(output))
     if change:
         write(work, change)
-    ctx = ActionsCtx(repo=REPO, token="t", server_url="https://github.com", run_id="5", run_attempt=1,
-                     workspace=str(work), event_name="issues", reviewer_bot="", step_summary="")
+    monkeypatch.setenv("GITHUB_RUN_ID", "5")
+    monkeypatch.setenv("GITHUB_WORKSPACE", str(work))
+    ctx = ActionsCtx(repo=REPO, token="t", server_url="https://github.com")
 
     assert save_draft_pr._main(ctx, ["--issue", "7", "--issue-title", "do it", "--commit-type-hint", "feat:"]) == 0
 

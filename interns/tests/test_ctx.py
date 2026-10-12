@@ -16,23 +16,35 @@ class FromEnvTests(unittest.TestCase):
         }, clear=True)
 
     def test_builds_from_standard_actions_env(self):
-        with self._env(GITHUB_RUN_ID="123", REVIEWER_BOT="reviewer[bot]"):
+        with self._env():
             ctx = ActionsCtx.from_env()
         self.assertEqual(ctx.repo, "acme/widgets")
         self.assertEqual(ctx.token, "tok")
         self.assertEqual(ctx.server_url, "https://github.com")
-        self.assertEqual(ctx.run_id, "123")
-        self.assertEqual(ctx.reviewer_bot, "reviewer[bot]")
 
-    def test_optional_fields_default_when_absent(self):
+    def test_run_scoped_values_are_read_lazily_from_env(self):
+        extra = dict(GITHUB_RUN_ATTEMPT="2", GITHUB_WORKSPACE="/w", GITHUB_STEP_SUMMARY="/s", GITHUB_EVENT_NAME="push")
+        with self._env(GITHUB_RUN_ID="9", REVIEWER_BOT="bot", **extra):
+            ctx = ActionsCtx.from_env()
+            self.assertEqual(
+                (ctx.run_id, ctx.run_attempt, ctx.workspace, ctx.step_summary, ctx.reviewer_bot, ctx.event_name),
+                ("9", 2, "/w", "/s", "bot", "push"),
+            )
+
+    def test_construction_does_not_require_run_scoped_env(self):
+        with self._env():
+            ActionsCtx.from_env()
+
+    def test_each_required_accessor_raises_when_unset(self):
         with self._env():
             ctx = ActionsCtx.from_env()
-        self.assertEqual(ctx.run_id, "")
-        self.assertEqual(ctx.run_attempt, 1)
-        self.assertEqual(ctx.workspace, ".")
-        self.assertEqual(ctx.event_name, "")
-        self.assertEqual(ctx.reviewer_bot, "")
-        self.assertEqual(ctx.step_summary, "")
+            for name in ("run_id", "run_attempt", "workspace", "reviewer_bot", "step_summary", "run_url"):
+                with self.subTest(name=name), self.assertRaises(cli.MissingEnvError):
+                    getattr(ctx, name) if name != "run_url" else ctx.run_url()
+
+    def test_event_name_is_optional(self):
+        with self._env():
+            self.assertEqual(ActionsCtx.from_env().event_name, "")
 
     def test_missing_repo_raises(self):
         with patch.dict(os.environ, {"GH_TOKEN": "x", "GITHUB_SERVER_URL": "https://github.com"}, clear=True):
@@ -52,17 +64,16 @@ class FromEnvTests(unittest.TestCase):
 
 class UrlMethodTests(unittest.TestCase):
     def _ctx(self, **kw):
-        defaults = dict(repo="acme/widgets", token="", server_url="https://github.com",
-                        run_id="42", run_attempt=1, workspace=".", event_name="",
-                        reviewer_bot="", step_summary="")
+        defaults = dict(repo="acme/widgets", token="", server_url="https://github.com")
         defaults.update(kw)
         return ActionsCtx(**defaults)
 
     def test_run_url(self):
-        self.assertEqual(
-            self._ctx().run_url(),
-            "https://github.com/acme/widgets/actions/runs/42",
-        )
+        with patch.dict(os.environ, {"GITHUB_RUN_ID": "42"}):
+            self.assertEqual(
+                self._ctx().run_url(),
+                "https://github.com/acme/widgets/actions/runs/42",
+            )
 
     def test_pr_url(self):
         self.assertEqual(

@@ -12,50 +12,56 @@ def chk(name, bucket, run="99"):
     return {"name": name, "bucket": bucket, "link": f"https://github.com/owner/repo/actions/runs/{run}/job/1"}
 
 
+def _wait(repo, pr, run_id, ignore, **kwargs):
+    return wait_for_checks.wait_for_checks(
+        repo, pr, run_id, ignore, **{"timeout": 1200, "poll": 20, "settle": 30, **kwargs},
+    )
+
+
 class WaitForChecksTests(unittest.TestCase):
     def test_every_check_green_is_ok(self):
         checks = [chk("test", "pass"), chk("build", "pass"), chk("lint", "pass"), chk("coverage", "skipping")]
         with patch("interns.steps.wait_for_checks.gh.pr_checks", return_value=checks):
-            ok, reason = wait_for_checks.wait_for_checks("acme/widgets", 5, "42", [], settle=0, sleep=lambda s: None)
+            ok, reason = _wait("acme/widgets", 5, "42", [], settle=0, sleep=lambda s: None)
         self.assertTrue(ok)
         self.assertEqual(reason, "")
 
     def test_one_red_check_fails_with_a_reason_naming_it(self):
         checks = [chk("test", "pass"), chk("lint", "fail"), chk("typecheck", "pass")]
         with patch("interns.steps.wait_for_checks.gh.pr_checks", return_value=checks):
-            ok, reason = wait_for_checks.wait_for_checks("acme/widgets", 5, "42", [], settle=0, sleep=lambda s: None)
+            ok, reason = _wait("acme/widgets", 5, "42", [], settle=0, sleep=lambda s: None)
         self.assertFalse(ok)
         self.assertEqual(reason, "red checks: lint=fail")
 
     def test_a_cancelled_check_counts_as_red(self):
         checks = [chk("test", "pass"), chk("build", "cancel")]
         with patch("interns.steps.wait_for_checks.gh.pr_checks", return_value=checks):
-            ok, reason = wait_for_checks.wait_for_checks("acme/widgets", 5, "42", [], settle=0, sleep=lambda s: None)
+            ok, reason = _wait("acme/widgets", 5, "42", [], settle=0, sleep=lambda s: None)
         self.assertFalse(ok)
         self.assertIn("build=cancel", reason)
 
     def test_a_pending_check_that_later_passes_resolves_ok(self):
         seq = iter([[chk("test", "pending")], [chk("test", "pass")]])
         with patch("interns.steps.wait_for_checks.gh.pr_checks", side_effect=lambda repo, pr: next(seq)):
-            ok, _ = wait_for_checks.wait_for_checks("acme/widgets", 5, "42", [], settle=0, sleep=lambda s: None)
+            ok, _ = _wait("acme/widgets", 5, "42", [], settle=0, sleep=lambda s: None)
         self.assertTrue(ok)
 
     def test_the_runs_own_checks_are_excluded(self):
         checks = [chk("pipeline / reviewer", "pending", run="42")]
         with patch("interns.steps.wait_for_checks.gh.pr_checks", return_value=checks):
-            ok, _ = wait_for_checks.wait_for_checks("acme/widgets", 5, "42", [], settle=0, sleep=lambda s: None)
+            ok, _ = _wait("acme/widgets", 5, "42", [], settle=0, sleep=lambda s: None)
         self.assertTrue(ok)
 
     def test_ignored_checks_are_dropped(self):
         checks = [chk("test", "pass"), chk("preview-deploy", "fail")]
         with patch("interns.steps.wait_for_checks.gh.pr_checks", return_value=checks):
-            ok, _ = wait_for_checks.wait_for_checks("acme/widgets", 5, "42", ["preview-deploy"], settle=0, sleep=lambda s: None)
+            ok, _ = _wait("acme/widgets", 5, "42", ["preview-deploy"], settle=0, sleep=lambda s: None)
         self.assertTrue(ok)
 
     def test_no_checks_at_all_is_ok_after_the_settle_window(self):
         with patch("interns.steps.wait_for_checks.gh.pr_checks", return_value=[]):
             times = iter([0, 5])
-            ok, _ = wait_for_checks.wait_for_checks(
+            ok, _ = _wait(
                 "acme/widgets", 5, "42", [], settle=1, sleep=lambda s: None, monotonic=lambda: next(times),
             )
         self.assertTrue(ok)
@@ -63,7 +69,7 @@ class WaitForChecksTests(unittest.TestCase):
     def test_times_out_when_a_check_never_resolves(self):
         checks = [chk("test", "pending"), chk("build", "pass")]
         with patch("interns.steps.wait_for_checks.gh.pr_checks", return_value=checks):
-            ok, reason = wait_for_checks.wait_for_checks(
+            ok, reason = _wait(
                 "acme/widgets", 5, "42", [], timeout=0, settle=0, sleep=lambda s: None,
             )
         self.assertFalse(ok)
@@ -71,16 +77,16 @@ class WaitForChecksTests(unittest.TestCase):
 
 
 class CliTests(unittest.TestCase):
-    def _ctx(self, event_name=""):
-        return default_ctx(run_id="42", event_name=event_name)
+    def _ctx(self):
+        return default_ctx()
 
     def test_workflow_dispatch_skips_the_gate(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             output_file = os.path.join(tmpdir, "output")
             Path(output_file).write_text("")
-            with patch.dict(os.environ, {"GITHUB_OUTPUT": output_file}), \
+            with patch.dict(os.environ, {"GITHUB_OUTPUT": output_file, "GITHUB_EVENT_NAME": "workflow_dispatch"}), \
                  patch("interns.steps.wait_for_checks.wait_for_checks") as fn:
-                wait_for_checks._main(self._ctx(event_name="workflow_dispatch"), ["--pr", "5"])
+                wait_for_checks._main(self._ctx(), ["--pr", "5"])
             fn.assert_not_called()
             self.assertEqual(Path(output_file).read_text(), "ok=true\n")
 
@@ -89,7 +95,7 @@ class CliTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             output_file = os.path.join(tmpdir, "output")
             Path(output_file).write_text("")
-            with patch.dict(os.environ, {"GITHUB_OUTPUT": output_file}), \
+            with patch.dict(os.environ, {"GITHUB_OUTPUT": output_file, "GITHUB_RUN_ID": "42"}), \
                  patch("interns.steps.wait_for_checks.config.load_raw", return_value={}), \
                  patch("interns.steps.wait_for_checks.config.checks_config",
                        return_value=ChecksConfig(ignore=[], timeout_seconds=1200, poll_seconds=20, settle_seconds=30)), \

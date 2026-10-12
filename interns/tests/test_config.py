@@ -7,7 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from interns import config
+from interns import cli, config
 from interns_install.install_files import render_consumer_config
 
 
@@ -269,7 +269,7 @@ class AgentConfigOutputTests(unittest.TestCase):
 
     def test_wiki_enabled_without_a_workspace_fails(self):
         data = {"wiki": {"enabled": True, "url": "owner/repo.wiki"}}
-        with patch.dict(os.environ, clear=True), self.assertRaises(KeyError):
+        with patch.dict(os.environ, clear=True), self.assertRaises(cli.MissingEnvError):
             self._outputs(data, "coder")
 
 
@@ -306,6 +306,41 @@ class BuiltinDefaultsIntegrationTests(unittest.TestCase):
         self.assertEqual(cfg.max_turns, 75)
         self.assertEqual(cfg.timeout_minutes, 30)
         self.assertEqual(cfg.disallowed_tools, [])
+
+
+class DefaultsCoverLoaderKeysTests(unittest.TestCase):
+    """Every key a loader reads must exist in the shipped defaults."""
+
+    def setUp(self):
+        config._builtin_data.cache_clear()
+        self.addCleanup(config._builtin_data.cache_clear)
+
+    def test_checks_keys_are_in_the_shipped_defaults(self):
+        self.assertEqual(set(config._builtin_data()["checks"]), set(config.KNOWN_CHECKS_KEYS))
+
+    def test_review_loop_keys_are_in_the_shipped_defaults(self):
+        self.assertEqual(set(config._builtin_data()["review_loop"]), set(config.KNOWN_REVIEW_LOOP_KEYS))
+
+    def test_loaders_resolve_from_the_shipped_defaults_alone(self):
+        config.checks_config({}, "interns.yml")
+        config.review_loop_config({}, "interns.yml")
+
+
+class MissingDefaultKeyTests(unittest.TestCase):
+    def test_checks_key_absent_everywhere_raises_naming_it(self):
+        with patch("interns.config._builtin_data", return_value={"checks": {"poll_seconds": 20, "settle_seconds": 30}}):
+            with self.assertRaisesRegex(config.ConfigError, "checks.timeout_seconds"):
+                config.checks_config({}, "interns.yml")
+
+    def test_review_loop_key_absent_everywhere_raises_naming_it(self):
+        with patch("interns.config._builtin_data", return_value={"review_loop": {"max_fix_rounds": 1}}):
+            with self.assertRaisesRegex(config.ConfigError, "review_loop.max_automatic_reviews"):
+                config.review_loop_config({}, "interns.yml")
+
+    def test_consumer_value_does_not_need_a_default(self):
+        with patch("interns.config._builtin_data", return_value={}):
+            cfg = config.checks_config({"checks": {"timeout_seconds": 1, "poll_seconds": 1, "settle_seconds": 1}}, "i.yml")
+        self.assertEqual(cfg.timeout_seconds, 1)
 
 
 class ChecksConfigTests(unittest.TestCase):

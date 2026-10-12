@@ -55,17 +55,16 @@ class CliTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             output_file = os.path.join(tmpdir, "output")
             Path(output_file).write_text("")
-            ctx = ActionsCtx(repo="acme/widgets", token="", server_url="", run_id="",
-                             run_attempt=1, workspace=".", event_name="",
-                             reviewer_bot="reviewer[bot]", step_summary="")
-            with patch.dict(os.environ, {"GITHUB_OUTPUT": output_file}), \
+            ctx = ActionsCtx(repo="acme/widgets", token="", server_url="https://github.com")
+            env = {"GITHUB_OUTPUT": output_file, "REVIEWER_BOT": "reviewer[bot]", "GITHUB_RUN_ID": "7"}
+            with patch.dict(os.environ, env), \
                  patch("interns.steps.check_review_cap.config.load_raw", return_value={}), \
                  patch("interns.steps.check_review_cap.config.review_loop_config",
                        return_value=ReviewLoopConfig(max_fix_rounds=1, max_automatic_reviews=5)), \
                  patch("interns.steps.check_review_cap.check_cap", return_value=True) as fn:
                 check_review_cap._main(ctx, ["--pr", "12"])
             fn.assert_called_once_with("acme/widgets", 12, "reviewer[bot]", 5, count=None,
-                                        run_url=ctx.run_url())
+                                        run_url="https://github.com/acme/widgets/actions/runs/7")
             self.assertEqual(Path(output_file).read_text(), "capped=true\n")
 
 
