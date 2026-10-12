@@ -107,7 +107,7 @@ def settings_app_url(repo_owner: str, is_org: bool, slug: str) -> str:
 def convert_manifest(code: str) -> dict:
     # Plural "app-manifests", not "app-manifest" -- the singular path 404s on
     # every call. Root cause of interns#70 (interns#94).
-    data = gh.api(f"app-manifests/{code}/conversions", method="POST")
+    data = gh_admin.convert_app_manifest(code)
     if not isinstance(data, dict) or "pem" not in data:
         raise gh.GhError("manifest conversion did not return a private key")
     return data

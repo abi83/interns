@@ -39,12 +39,12 @@ def build_feedback_text(repo: str, pr: int) -> str:
     review = _latest_changes_requested_review(repo, pr)
 
     comments = sorted(
-        (c for c in gh.api_all_pages(f"repos/{repo}/pulls/{pr}/comments")
+        (c for c in gh.pr_review_comments(repo, pr)
          if str(c.get("pull_request_review_id")) == str(review.id)),
         key=lambda c: c["created_at"],
     )
     conversation = sorted(
-        (c for c in gh.api_all_pages(f"repos/{repo}/issues/{pr}/comments") if c["created_at"] > review.submitted_at),
+        (c for c in gh.issue_comments_all(repo, pr) if c["created_at"] > review.submitted_at),
         key=lambda c: c["created_at"],
     )
 

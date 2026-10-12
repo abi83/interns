@@ -16,13 +16,9 @@ class BuildFeedbackTextTests(unittest.TestCase):
         comments = [{"pull_request_review_id": 123, "path": "a.py", "line": 10, "body": "fix this", "created_at": "2026-01-02T03:05:00Z"}]
         conversation = [{"created_at": "2026-01-02T04:00:00Z", "user": {"login": "somedev"}, "body": "looks good otherwise"}]
 
-        def fake_pages(path):
-            if "pulls" in path and "comments" in path:
-                return comments
-            return conversation
-
         with patch("interns.steps.gather_fix_feedback.verdict.all_reviews", return_value=[review]), \
-             patch("interns.steps.gather_fix_feedback.gh.api_all_pages", side_effect=fake_pages):
+             patch("interns.steps.gather_fix_feedback.gh.pr_review_comments", return_value=comments), \
+             patch("interns.steps.gather_fix_feedback.gh.issue_comments_all", return_value=conversation):
             text = gather_fix_feedback.build_feedback_text("acme/widgets", 6)
         self.assertIn("Latest REQUEST_CHANGES review — 2026-01-02T03:04:05Z", text)
         self.assertIn("do the thing", text)

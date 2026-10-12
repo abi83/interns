@@ -10,28 +10,6 @@ from dataclasses import dataclass, field
 from .. import cli, gh
 from ..ctx import ActionsCtx
 
-_VIEW_QUERY = """
-query($owner: String!, $repo: String!, $number: Int!) {
-  repository(owner: $owner, name: $repo) {
-    issue(number: $number) {
-      number
-      title
-      body
-      state
-      labels(first: 20) { nodes { name } }
-      comments(first: 50) {
-        nodes { author { login } createdAt body }
-      }
-      parent          { number title state }
-      subIssues(first: 20) { nodes { number title state } }
-      blockedBy(first: 20) { nodes { number title state } }
-      blocking(first: 20)  { nodes { number title state } }
-    }
-  }
-}
-"""
-
-
 PIPELINE_AUTHOR = "github-actions"
 
 
@@ -64,11 +42,7 @@ class Issue:
 
 
 def fetch_issue(repo: str, number: int) -> Issue:
-    """Run the GraphQL query and parse the response into an Issue."""
-    owner, name = repo.split("/", 1)
-    raw = gh.graphql(_VIEW_QUERY, owner=owner, repo=name, number=number)["data"]["repository"]["issue"]
-    if raw is None:
-        raise gh.InvalidInputError(f"#{number} is not an issue (it is a pull request or does not exist)")
+    raw = gh.issue_with_relations(repo, number)
     return Issue(
         number=raw["number"],
         title=raw["title"],

@@ -12,6 +12,11 @@ from dataclasses import dataclass
 from interns.gh import transport as gh_transport
 
 
+def convert_app_manifest(code: str) -> object:
+    """Exchange a manifest-flow `code` for the minted App's credentials."""
+    return gh_transport.api(f"app-manifests/{code}/conversions", method="POST")
+
+
 def ensure_available() -> None:
     if shutil.which("gh") is None:
         raise gh_transport.GhNotInstalledError("the `gh` CLI is not installed or not on PATH")

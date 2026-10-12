@@ -19,8 +19,7 @@ from .transport import (
     GhNotInstalledError,
     api,
     api_all_pages,
-    api_status,  # noqa: F401 — callers migrate to gh_transport.* in later PRs
-    graphql,     # noqa: F401 — callers migrate to gh_transport.* in later PRs
+    graphql,
     run,
 )
 
@@ -31,7 +30,8 @@ __all__ = [
     # Ops
     "issue_view", "issue_edit", "issue_edit_validated", "issue_list", "issue_comment",
     "pr_view", "pr_list", "pr_edit", "pr_comment", "pr_diff_names", "pr_checks", "pr_create",
-    "pr_submit_review",
+    "pr_submit_review", "pr_for_head", "pr_ready", "pr_update",
+    "issue_with_relations", "pr_reviews", "pr_review_comments", "issue_comments_all",
     "default_branch", "dispatch_workflow",
     "label_list", "label_names", "label_create", "label_edit",
     "list_secret_names", "list_variable_names",
@@ -46,6 +46,28 @@ class PushRefusedError(RuntimeError):
     """push_branch refused: protected branch, nothing to push, or a protected path."""
 
 
+_ISSUE_WITH_RELATIONS_QUERY = """
+query($owner: String!, $repo: String!, $number: Int!) {
+  repository(owner: $owner, name: $repo) {
+    issue(number: $number) {
+      number
+      title
+      body
+      state
+      labels(first: 20) { nodes { name } }
+      comments(first: 50) {
+        nodes { author { login } createdAt body }
+      }
+      parent          { number title state }
+      subIssues(first: 20) { nodes { number title state } }
+      blockedBy(first: 20) { nodes { number title state } }
+      blocking(first: 20)  { nodes { number title state } }
+    }
+  }
+}
+"""
+
+
 def _label_flags(add_labels: list[str] | None, remove_labels: list[str] | None) -> list[str]:
     return [
         *(arg for label in add_labels or [] for arg in ("--add-label", label)),
@@ -57,6 +79,17 @@ def issue_view(repo: str, number: int, fields: list[str]) -> dict:
     """`gh issue view` restricted to `fields`."""
     proc = run(["issue", "view", str(number), "--repo", repo, "--json", ",".join(fields)])
     return json.loads(proc.stdout)
+
+
+def issue_with_relations(repo: str, number: int) -> dict:
+    """The raw GraphQL issue node: labels, comments and parent/sub-issue/blocking
+    relationships. Raises InvalidInputError when `number` is not an issue."""
+    owner, name = repo.split("/", 1)
+    data = graphql(_ISSUE_WITH_RELATIONS_QUERY, owner=owner, repo=name, number=number)
+    issue = data["data"]["repository"]["issue"]
+    if issue is None:
+        raise InvalidInputError(f"#{number} is not an issue (it is a pull request or does not exist)")
+    return issue
 
 
 def issue_edit(repo: str, number: int, *, body: str | None = None, title: str | None = None,
@@ -187,6 +220,21 @@ def pr_update(repo: str, number: int, *, title: str, body: str) -> None:
 def pr_ready(repo: str, number: int) -> None:
     """Take a draft PR out of draft."""
     run(["pr", "ready", str(number), "--repo", repo])
+
+
+def pr_reviews(repo: str, pr: int) -> list:
+    """Every review on `pr`, across every page, oldest first."""
+    return api_all_pages(f"repos/{repo}/pulls/{pr}/reviews")
+
+
+def pr_review_comments(repo: str, pr: int) -> list:
+    """Every line-anchored review comment on `pr`, across every page."""
+    return api_all_pages(f"repos/{repo}/pulls/{pr}/comments")
+
+
+def issue_comments_all(repo: str, number: int) -> list:
+    """Every conversation comment on an issue or PR, across every page."""
+    return api_all_pages(f"repos/{repo}/issues/{number}/comments")
 
 
 def pr_submit_review(repo: str, pr: int, event: str, body: str,

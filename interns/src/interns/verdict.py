@@ -35,7 +35,7 @@ def all_reviews(repo: str, pr: int) -> list[FullReview]:
     first (GitHub's own order) -- e.g. for run-summary's coder-phase fix-round
     count, which counts CHANGES_REQUESTED from any reviewer, not just
     REVIEWER_BOT."""
-    data = gh.api_all_pages(f"repos/{repo}/pulls/{pr}/reviews")
+    data = gh.pr_reviews(repo, pr)
     if not isinstance(data, list):
         raise gh.GhCommandError(f"unexpected reviews payload for {repo}#{pr}")
     return [

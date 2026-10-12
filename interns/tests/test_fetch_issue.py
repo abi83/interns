@@ -5,32 +5,26 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from interns import cli, gh
+from interns import cli
 from interns.steps import fetch_issue
 from interns.steps.fetch_issue import Comment, Issue
 
-GRAPHQL_RESPONSE = {
-    "data": {
-        "repository": {
-            "issue": {
-                "number": 42,
-                "title": "Test issue",
-                "body": "Issue body",
-                "state": "OPEN",
-                "labels": {"nodes": [{"name": "bug"}, {"name": "priority:high"}]},
-                "comments": {
-                    "nodes": [
-                        {"author": {"login": "alice"}, "createdAt": "2024-01-01T00:00:00Z", "body": "Great issue"},
-                        {"author": {"login": "github-actions"}, "createdAt": "2024-01-02T00:00:00Z", "body": "Pipeline comment"},
-                    ]
-                },
-                "parent": {"number": 10, "title": "Parent epic", "state": "OPEN"},
-                "subIssues": {"nodes": [{"number": 43, "title": "Sub", "state": "OPEN"}]},
-                "blockedBy": {"nodes": []},
-                "blocking": {"nodes": []},
-            }
-        }
-    }
+ISSUE_NODE = {
+    "number": 42,
+    "title": "Test issue",
+    "body": "Issue body",
+    "state": "OPEN",
+    "labels": {"nodes": [{"name": "bug"}, {"name": "priority:high"}]},
+    "comments": {
+        "nodes": [
+            {"author": {"login": "alice"}, "createdAt": "2024-01-01T00:00:00Z", "body": "Great issue"},
+            {"author": {"login": "github-actions"}, "createdAt": "2024-01-02T00:00:00Z", "body": "Pipeline comment"},
+        ]
+    },
+    "parent": {"number": 10, "title": "Parent epic", "state": "OPEN"},
+    "subIssues": {"nodes": [{"number": 43, "title": "Sub", "state": "OPEN"}]},
+    "blockedBy": {"nodes": []},
+    "blocking": {"nodes": []},
 }
 
 
@@ -40,9 +34,9 @@ def _issue(body="B", comments=()):
 
 class FetchIssueTests(unittest.TestCase):
     def test_parses_response(self):
-        with patch("interns.steps.fetch_issue.gh.graphql", return_value=GRAPHQL_RESPONSE) as graphql:
+        with patch("interns.steps.fetch_issue.gh.issue_with_relations", return_value=ISSUE_NODE) as view:
             issue = fetch_issue.fetch_issue("owner/repo", 42)
-        graphql.assert_called_once_with(fetch_issue._VIEW_QUERY, owner="owner", repo="repo", number=42)
+        view.assert_called_once_with("owner/repo", 42)
         self.assertEqual(issue.number, 42)
         self.assertEqual(issue.labels, ["bug", "priority:high"])
         self.assertEqual([c.author for c in issue.comments], ["alice"])
@@ -51,33 +45,27 @@ class FetchIssueTests(unittest.TestCase):
         self.assertEqual(issue.blocked_by, [])
 
     def test_null_comment_author(self):
-        response = copy.deepcopy(GRAPHQL_RESPONSE)
-        response["data"]["repository"]["issue"]["comments"]["nodes"].append(
+        response = copy.deepcopy(ISSUE_NODE)
+        response["comments"]["nodes"].append(
             {"author": None, "createdAt": "2024-01-03T00:00:00Z", "body": "From deleted account"}
         )
-        with patch("interns.steps.fetch_issue.gh.graphql", return_value=response):
+        with patch("interns.steps.fetch_issue.gh.issue_with_relations", return_value=response):
             issue = fetch_issue.fetch_issue("owner/repo", 42)
         self.assertEqual(issue.comments[-1].author, "ghost")
         self.assertEqual(issue.comments[-1].body, "From deleted account")
 
     def test_excludes_pipeline_comments(self):
-        with patch("interns.steps.fetch_issue.gh.graphql", return_value=GRAPHQL_RESPONSE):
+        with patch("interns.steps.fetch_issue.gh.issue_with_relations", return_value=ISSUE_NODE):
             issue = fetch_issue.fetch_issue("owner/repo", 42)
         self.assertNotIn("Pipeline comment", [c.body for c in issue.comments])
 
     def test_null_body_and_no_parent(self):
-        response = copy.deepcopy(GRAPHQL_RESPONSE)
-        response["data"]["repository"]["issue"].update(body=None, parent=None)
-        with patch("interns.steps.fetch_issue.gh.graphql", return_value=response):
+        response = copy.deepcopy(ISSUE_NODE)
+        response.update(body=None, parent=None)
+        with patch("interns.steps.fetch_issue.gh.issue_with_relations", return_value=response):
             issue = fetch_issue.fetch_issue("owner/repo", 42)
         self.assertEqual(issue.body, "")
         self.assertIsNone(issue.parent)
-
-    def test_non_issue_number_raises_clear_error(self):
-        response = {"data": {"repository": {"issue": None}}}
-        with patch("interns.steps.fetch_issue.gh.graphql", return_value=response):
-            with self.assertRaisesRegex(gh.InvalidInputError, "#250 is not an issue.*pull request"):
-                fetch_issue.fetch_issue("owner/repo", 250)
 
 
 class WriteGithubOutputTests(unittest.TestCase):

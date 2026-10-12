@@ -8,9 +8,11 @@ from .ops import (  # noqa: F401
     dispatch_workflow,
     issue_comment,
     issue_edit,
+    issue_comments_all,
     issue_edit_validated,
     issue_list,
     issue_view,
+    issue_with_relations,
     label_create,
     label_edit,
     label_list,
@@ -25,8 +27,9 @@ from .ops import (  # noqa: F401
     pr_for_head,
     pr_list,
     pr_ready,
+    pr_review_comments,
+    pr_reviews,
     pr_submit_review,
     pr_update,
     pr_view,
 )
-from .transport import api, api_all_pages, api_status, graphql, run  # noqa: F401
