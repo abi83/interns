@@ -8,22 +8,15 @@ a human.
 
 from __future__ import annotations
 
-from .. import cli, gh
-from ..domain import labels
+from .. import cli
 from ..ctx import ActionsCtx
+from ..domain import lifecycle, lifecycle_apply
 
 
 def handoff(repo: str, issue: int, pr: int | None, *, run_url: str = "") -> None:
-    if pr is not None:
-        labels.set_pr_pipeline_label(repo, pr, labels.PR_IN_REVIEW)
-        return
-    labels.set_issue_status(repo, issue, labels.STATUS_NEEDS_ATTENTION)
-    gh.issue_comment(
-        repo, issue,
-        "Coder run completed without leaving an open PR referencing this "
-        f"issue — likely stopped for clarification or partway through. "
-        f"See the run: {run_url}",
-    )
+    event = lifecycle.Event.CODER_NO_PR if pr is None else lifecycle.Event.CODER_HANDOFF
+    outcome = lifecycle.decide(event, lifecycle.Facts(has_issue=True, has_pr=pr is not None))
+    lifecycle_apply.apply(repo, outcome, pr=pr, issue=issue, words=lifecycle_apply.Words(run_url=run_url))
 
 
 def main(ctx: ActionsCtx, argv: list[str]) -> int:

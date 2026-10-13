@@ -11,8 +11,18 @@ The fix-round decision is read from the verdict, not a label.
 from __future__ import annotations
 
 from .. import cli, config, gh
-from ..domain import labels, verdict
 from ..ctx import ActionsCtx
+from ..domain import lifecycle, lifecycle_apply, verdict
+
+
+def _event(verdict_state: str | None) -> lifecycle.Event:
+    match verdict_state:
+        case "APPROVED":
+            return lifecycle.Event.APPROVED
+        case "CHANGES_REQUESTED":
+            return lifecycle.Event.CHANGES_REQUESTED
+        case _:
+            return lifecycle.Event.NO_VERDICT
 
 
 def apply_verdict(repo: str, pr: int, issue: int | None, reviewer_bot: str, *, max_fix_rounds: int, server_url: str = "", run_url: str = "") -> None:
@@ -20,52 +30,10 @@ def apply_verdict(repo: str, pr: int, issue: int | None, reviewer_bot: str, *, m
     reviews = verdict.reviews_by(repo, pr, reviewer_bot)
     last_state = verdict.verdict_for_head(reviews, head_sha)
 
-    if last_state == "APPROVED":
-        labels.set_pr_pipeline_label(repo, pr)
-        if issue is not None:
-            gh.issue_comment(
-                repo, issue,
-                f"Reviewer approved [PR #{pr}]({server_url}/{repo}/pull/{pr}) — awaiting owner merge. "
-                f"Run: {run_url}",
-            )
-        return
-
-    if last_state == "CHANGES_REQUESTED":
-        rounds = verdict.rounds_requested(reviews)
-        if rounds > max_fix_rounds:
-            labels.escalate_pr(repo, pr)
-            if issue is not None:
-                labels.set_issue_status(repo, issue, labels.STATUS_NEEDS_ATTENTION)
-            gh.pr_comment(
-                repo, pr,
-                "Second review still requests changes — the automatic fix round didn't converge. "
-                f"Escalating to a human. See the run: {run_url}",
-            )
-        elif issue is not None:
-            labels.set_pr_pipeline_label(repo, pr, labels.PR_CODING)
-            # GITHUB_TOKEN label edits don't fire workflow runs (anti-recursion), so
-            # dispatch the coder explicitly as a fix round.
-            gh.dispatch_workflow(
-                repo, "code-pipeline.yml", None,
-                {"phase": "coder", "issue_number": str(issue), "fix_round": "true"},
-            )
-        else:
-            labels.set_pr_pipeline_label(repo, pr)
-            gh.pr_comment(
-                repo, pr,
-                "Changes requested but this PR has no linked issue — can't dispatch a coder fix round "
-                f"automatically. See the run: {run_url}",
-            )
-        return
-
-    labels.escalate_pr(repo, pr)
-    if issue is not None:
-        labels.set_issue_status(repo, issue, labels.STATUS_NEEDS_ATTENTION)
-    gh.pr_comment(
-        repo, pr,
-        "Review run completed without submitting a recognized verdict — likely stopped partway through. "
-        f"See the run: {run_url}",
-    )
+    rounds = verdict.rounds_requested(reviews)
+    facts = lifecycle.Facts(has_issue=issue is not None, has_pr=True, fix_rounds=rounds, max_fix_rounds=max_fix_rounds)
+    outcome = lifecycle.decide(_event(last_state), facts)
+    lifecycle_apply.apply(repo, outcome, pr=pr, issue=issue, words=lifecycle_apply.Words(run_url=run_url, server_url=server_url))
 
 
 def main(ctx: ActionsCtx, argv: list[str]) -> int:

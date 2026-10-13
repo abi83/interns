@@ -12,9 +12,9 @@ workflow_dispatch is an explicit human override and never calls this module.
 
 from __future__ import annotations
 
-from .. import cli, config, gh
-from ..domain import labels, verdict
+from .. import cli, config
 from ..ctx import ActionsCtx
+from ..domain import lifecycle, lifecycle_apply, verdict
 
 
 def check_cap(repo: str, pr: int, reviewer_bot: str, max_reviews: int, *, count: int | None = None,
@@ -31,11 +31,9 @@ def check_cap(repo: str, pr: int, reviewer_bot: str, max_reviews: int, *, count:
         count = len(verdict.reviews_by(repo, pr, reviewer_bot))
     if count < max_reviews:
         return False
-    labels.escalate_pr(repo, pr)
-    gh.pr_comment(
-        repo, pr,
-        f"Automatic review limit ({max_reviews}) reached — further review is manual. Run: {run_url}",
-    )
+    outcome = lifecycle.decide(lifecycle.Event.REVIEW_CAP_REACHED, lifecycle.Facts(has_issue=False, has_pr=True))
+    words = lifecycle_apply.Words(run_url=run_url, detail=str(max_reviews))
+    lifecycle_apply.apply(repo, outcome, pr=pr, issue=None, words=words)
     return True
 
 

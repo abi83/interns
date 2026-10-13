@@ -1,88 +1,56 @@
 import unittest
 from unittest.mock import patch
 
+from interns.domain import labels, lifecycle
+from interns.domain.verdict import Review
 from interns.steps import apply_verdict
+
+REVIEWER = "reviewer[bot]"
+
+
+def review(state: str, commit_id: str = "headsha") -> Review:
+    return Review(login=REVIEWER, state=state, commit_id=commit_id)
+
+
+def run(reviews: list[Review], issue: int | None):
+    with patch("interns.steps.apply_verdict.gh.pr_view", return_value={"headRefOid": "headsha"}), \
+         patch("interns.steps.apply_verdict.verdict.reviews_by", return_value=reviews), \
+         patch("interns.steps.apply_verdict.lifecycle_apply.apply") as apply:
+        apply_verdict.apply_verdict("acme/widgets", 12, issue, REVIEWER, max_fix_rounds=1, server_url="https://github.com", run_url="run")
+    apply.assert_called_once()
+    return apply
 
 
 class ApplyVerdictTests(unittest.TestCase):
-    def test_approved_clears_the_pr_label_and_tells_the_issue(self):
-        with patch("interns.steps.apply_verdict.gh.pr_view", return_value={"headRefOid": "headsha"}), \
-             patch("interns.steps.apply_verdict.verdict.reviews_by", return_value=[
-                 apply_verdict.verdict.Review(login="reviewer[bot]", state="APPROVED", commit_id="headsha"),
-             ]), \
-             patch("interns.steps.apply_verdict.labels.set_pr_pipeline_label") as set_pr, \
-             patch("interns.steps.apply_verdict.gh.issue_comment") as comment:
-            apply_verdict.apply_verdict("acme/widgets", 12, 34, "reviewer[bot]", max_fix_rounds=1)
-        set_pr.assert_called_once_with("acme/widgets", 12)
-        comment.assert_called_once()
-        self.assertIn("Reviewer approved", comment.call_args[0][2])
+    def test_approved_fires_the_approved_event(self):
+        apply = run([review("APPROVED")], 34)
+        self.assertEqual(apply.call_args.args[1], lifecycle.decide(lifecycle.Event.APPROVED, lifecycle.Facts(True, True)))
+        self.assertEqual(apply.call_args.kwargs["pr"], 12)
+        self.assertEqual(apply.call_args.kwargs["issue"], 34)
+        self.assertEqual(apply.call_args.kwargs["words"].server_url, "https://github.com")
 
-    def test_first_changes_requested_with_linked_issue_dispatches_a_fix_round(self):
-        with patch("interns.steps.apply_verdict.gh.pr_view", return_value={"headRefOid": "headsha"}), \
-             patch("interns.steps.apply_verdict.verdict.reviews_by", return_value=[
-                 apply_verdict.verdict.Review(login="reviewer[bot]", state="CHANGES_REQUESTED", commit_id="headsha"),
-             ]), \
-             patch("interns.steps.apply_verdict.labels.set_pr_pipeline_label") as set_pr, \
-             patch("interns.steps.apply_verdict.gh.dispatch_workflow") as dispatch:
-            apply_verdict.apply_verdict("acme/widgets", 12, 34, "reviewer[bot]", max_fix_rounds=1)
-        set_pr.assert_called_once_with("acme/widgets", 12, "pr:coding")
-        dispatch.assert_called_once_with(
-            "acme/widgets", "code-pipeline.yml", None,
-            {"phase": "coder", "issue_number": "34", "fix_round": "true"},
-        )
+    def test_first_changes_requested_dispatches_a_fix_round(self):
+        outcome = run([review("CHANGES_REQUESTED")], 34).call_args.args[1]
+        self.assertEqual(outcome.pr_label, labels.PR_CODING)
+        self.assertTrue(outcome.dispatch_fix_round)
 
-    def test_second_changes_requested_escalates_without_dispatching(self):
-        with patch("interns.steps.apply_verdict.gh.pr_view", return_value={"headRefOid": "headsha"}), \
-             patch("interns.steps.apply_verdict.verdict.reviews_by", return_value=[
-                 apply_verdict.verdict.Review(login="reviewer[bot]", state="CHANGES_REQUESTED", commit_id="oldsha"),
-                 apply_verdict.verdict.Review(login="reviewer[bot]", state="CHANGES_REQUESTED", commit_id="headsha"),
-             ]), \
-             patch("interns.steps.apply_verdict.labels.escalate_pr") as escalate, \
-             patch("interns.steps.apply_verdict.labels.set_issue_status") as set_issue, \
-             patch("interns.steps.apply_verdict.gh.pr_comment") as comment, \
-             patch("interns.steps.apply_verdict.gh.dispatch_workflow") as dispatch:
-            apply_verdict.apply_verdict("acme/widgets", 12, 34, "reviewer[bot]", max_fix_rounds=1)
-        escalate.assert_called_once_with("acme/widgets", 12)
-        set_issue.assert_called_once_with("acme/widgets", 34, "status:needs-attention")
-        dispatch.assert_not_called()
-        self.assertIn("didn't converge", comment.call_args[0][2])
+    def test_second_changes_requested_exhausts_the_fix_loop(self):
+        outcome = run([review("CHANGES_REQUESTED", "oldsha"), review("CHANGES_REQUESTED")], 34).call_args.args[1]
+        self.assertEqual(outcome.pr_label, labels.PR_NEEDS_ATTENTION)
+        self.assertFalse(outcome.dispatch_fix_round)
 
     def test_changes_requested_with_no_linked_issue_cannot_dispatch(self):
-        with patch("interns.steps.apply_verdict.gh.pr_view", return_value={"headRefOid": "headsha"}), \
-             patch("interns.steps.apply_verdict.verdict.reviews_by", return_value=[
-                 apply_verdict.verdict.Review(login="reviewer[bot]", state="CHANGES_REQUESTED", commit_id="headsha"),
-             ]), \
-             patch("interns.steps.apply_verdict.labels.set_pr_pipeline_label") as set_pr, \
-             patch("interns.steps.apply_verdict.gh.pr_comment") as comment, \
-             patch("interns.steps.apply_verdict.gh.dispatch_workflow") as dispatch:
-            apply_verdict.apply_verdict("acme/widgets", 12, None, "reviewer[bot]", max_fix_rounds=1)
-        set_pr.assert_called_once_with("acme/widgets", 12)
-        dispatch.assert_not_called()
-        self.assertIn("no linked issue", comment.call_args[0][2])
+        outcome = run([review("CHANGES_REQUESTED")], None).call_args.args[1]
+        self.assertFalse(outcome.dispatch_fix_round)
+        self.assertEqual(outcome.comment.kind, lifecycle.CommentKind.CHANGES_REQUESTED_NO_ISSUE)
 
-    def test_unrecognized_verdict_flags_for_a_human(self):
-        with patch("interns.steps.apply_verdict.gh.pr_view", return_value={"headRefOid": "headsha"}), \
-             patch("interns.steps.apply_verdict.verdict.reviews_by", return_value=[
-                 apply_verdict.verdict.Review(login="reviewer[bot]", state="COMMENTED", commit_id="headsha"),
-             ]), \
-             patch("interns.steps.apply_verdict.labels.escalate_pr") as escalate, \
-             patch("interns.steps.apply_verdict.labels.set_issue_status") as set_issue, \
-             patch("interns.steps.apply_verdict.gh.pr_comment") as comment:
-            apply_verdict.apply_verdict("acme/widgets", 12, 34, "reviewer[bot]", max_fix_rounds=1)
-        escalate.assert_called_once_with("acme/widgets", 12)
-        set_issue.assert_called_once_with("acme/widgets", 34, "status:needs-attention")
-        self.assertIn("without submitting a recognized verdict", comment.call_args[0][2])
+    def test_unrecognized_verdict_fires_no_verdict(self):
+        outcome = run([review("COMMENTED")], 34).call_args.args[1]
+        self.assertEqual(outcome, lifecycle.decide(lifecycle.Event.NO_VERDICT, lifecycle.Facts(True, True)))
 
-    def test_stale_review_against_an_earlier_commit_flags_for_a_human(self):
-        with patch("interns.steps.apply_verdict.gh.pr_view", return_value={"headRefOid": "headsha"}), \
-             patch("interns.steps.apply_verdict.verdict.reviews_by", return_value=[
-                 apply_verdict.verdict.Review(login="reviewer[bot]", state="APPROVED", commit_id="oldsha"),
-             ]), \
-             patch("interns.steps.apply_verdict.labels.escalate_pr"), \
-             patch("interns.steps.apply_verdict.labels.set_issue_status"), \
-             patch("interns.steps.apply_verdict.gh.pr_comment") as comment:
-            apply_verdict.apply_verdict("acme/widgets", 12, 34, "reviewer[bot]", max_fix_rounds=1)
-        self.assertIn("without submitting a recognized verdict", comment.call_args[0][2])
+    def test_stale_review_against_an_earlier_commit_fires_no_verdict(self):
+        outcome = run([review("APPROVED", "oldsha")], 34).call_args.args[1]
+        self.assertEqual(outcome, lifecycle.decide(lifecycle.Event.NO_VERDICT, lifecycle.Facts(True, True)))
 
 
 if __name__ == "__main__":
