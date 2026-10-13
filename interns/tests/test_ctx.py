@@ -1,9 +1,14 @@
+import json
 import os
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from interns import cli
 from interns.ctx import ActionsCtx
+from interns.domain import routing
+from testkit import events
 
 
 class FromEnvTests(unittest.TestCase):
@@ -23,12 +28,12 @@ class FromEnvTests(unittest.TestCase):
         self.assertEqual(ctx.server_url, "https://github.com")
 
     def test_run_scoped_values_are_read_lazily_from_env(self):
-        extra = dict(GITHUB_RUN_ATTEMPT="2", GITHUB_WORKSPACE="/w", GITHUB_STEP_SUMMARY="/s", GITHUB_EVENT_NAME="push")
+        extra = dict(GITHUB_RUN_ATTEMPT="2", GITHUB_WORKSPACE="/w", GITHUB_STEP_SUMMARY="/s")
         with self._env(GITHUB_RUN_ID="9", REVIEWER_BOT="bot", **extra):
             ctx = ActionsCtx.from_env()
             self.assertEqual(
-                (ctx.run_id, ctx.run_attempt, ctx.workspace, ctx.step_summary, ctx.reviewer_bot, ctx.event_name),
-                ("9", 2, "/w", "/s", "bot", "push"),
+                (ctx.run_id, ctx.run_attempt, ctx.workspace, ctx.step_summary, ctx.reviewer_bot),
+                ("9", 2, "/w", "/s", "bot"),
             )
 
     def test_construction_does_not_require_run_scoped_env(self):
@@ -42,9 +47,16 @@ class FromEnvTests(unittest.TestCase):
                 with self.subTest(name=name), self.assertRaises(cli.MissingEnvError):
                     getattr(ctx, name) if name != "run_url" else ctx.run_url()
 
-    def test_event_name_is_optional(self):
-        with self._env():
-            self.assertEqual(ActionsCtx.from_env().event_name, "")
+    def test_event_is_parsed_from_the_event_file(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "event.json"
+            path.write_text(json.dumps(events.issues_labeled(7, "status:ready")))
+            with self._env(GITHUB_EVENT_NAME="issues", GITHUB_EVENT_PATH=str(path)):
+                self.assertEqual(ActionsCtx.from_env().event(), routing.IssueLabeled(7, "status:ready"))
+
+    def test_event_requires_its_env(self):
+        with self._env(), self.assertRaises(cli.MissingEnvError):
+            ActionsCtx.from_env().event()
 
     def test_missing_repo_raises(self):
         with patch.dict(os.environ, {"GH_TOKEN": "x", "GITHUB_SERVER_URL": "https://github.com"}, clear=True), self.assertRaises(cli.MissingEnvError):

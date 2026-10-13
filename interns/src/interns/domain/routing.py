@@ -1,0 +1,182 @@
+"""Event -> pipeline job routing: the entry edge of the pipeline state machine.
+
+`parse_event` turns the raw GitHub event payload into a `GithubEvent`, raising
+on any shape the caller templates don't subscribe to. `route` is a pure
+function from that event to the single job it starts (or `Job.NONE` with the
+reason), so every trigger decision lives here instead of in workflow `if:`
+conditions.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from enum import StrEnum
+
+from . import labels
+
+
+class Job(StrEnum):
+    REFINE = "refine"
+    ESTIMATE = "estimate"
+    CODER = "coder"
+    REVIEWER = "reviewer"
+    PR_CLOSED = "pr_closed"
+    NONE = "none"
+
+
+@dataclass(frozen=True)
+class IssueLabeled:
+    issue: int
+    label: str
+
+
+@dataclass(frozen=True)
+class PullRequestEvent:
+    action: str
+    number: int
+    draft: bool
+    fork: bool
+    author_login: str
+    author_type: str
+
+
+@dataclass(frozen=True)
+class Dispatch:
+    phase: str
+    issue: int | None
+    pr: int | None
+    fix_round: bool
+
+
+GithubEvent = IssueLabeled | PullRequestEvent | Dispatch
+
+
+@dataclass(frozen=True)
+class RouteConfig:
+    """What the calling workflow runs; a routed job it doesn't own is skipped."""
+
+    handles: frozenset[Job]
+
+    @classmethod
+    def parse(cls, handles: str) -> RouteConfig:
+        return cls(handles=frozenset(Job(name) for name in handles.split(",")))
+
+
+@dataclass(frozen=True)
+class Route:
+    job: Job
+    issue: int | None = None
+    pr: int | None = None
+    fix_round: bool = False
+    skip_reason: str = ""
+
+
+SUPPORTED_ACTIONS: dict[str, frozenset[str]] = {
+    "issues": frozenset({"labeled"}),
+    "pull_request": frozenset({"opened", "ready_for_review", "synchronize", "closed"}),
+    "workflow_dispatch": frozenset(),
+}
+
+LABEL_JOBS: dict[str, Job] = {
+    labels.STATUS_NEEDS_REFINEMENT: Job.REFINE,
+    labels.STATUS_REFINED: Job.ESTIMATE,
+    labels.STATUS_READY: Job.CODER,
+}
+
+ISSUE_PHASES: dict[str, Job] = {"refine": Job.REFINE, "estimate": Job.ESTIMATE, "coder": Job.CODER}
+PR_PHASES: dict[str, Job] = {"reviewer": Job.REVIEWER}
+
+
+def _check_action(name: str, payload: dict) -> str:
+    action = payload.get("action")
+    if action not in SUPPORTED_ACTIONS[name]:
+        raise ValueError(f"unsupported {name} action: {action!r}")
+    return action
+
+
+def _parse_pull_request(payload: dict) -> PullRequestEvent:
+    pr = payload["pull_request"]
+    head_repo = pr["head"]["repo"]
+    return PullRequestEvent(
+        action=_check_action("pull_request", payload),
+        number=pr["number"],
+        draft=pr["draft"],
+        fork=head_repo is None or head_repo["fork"],
+        author_login=pr["user"]["login"],
+        author_type=pr["user"]["type"],
+    )
+
+
+def _optional_int(value: str | int | None) -> int | None:
+    return int(value) if value not in (None, "") else None
+
+
+def _parse_dispatch(payload: dict) -> Dispatch:
+    inputs = payload.get("inputs") or {}
+    return Dispatch(
+        phase=inputs.get("phase") or "",
+        issue=_optional_int(inputs.get("issue_number")),
+        pr=_optional_int(inputs.get("pr_number")),
+        fix_round=str(inputs.get("fix_round")).lower() == "true",
+    )
+
+
+def parse_event(name: str, payload: dict) -> GithubEvent:
+    if name not in SUPPORTED_ACTIONS:
+        raise ValueError(f"unsupported event: {name!r}")
+    if name == "workflow_dispatch":
+        return _parse_dispatch(payload)
+    if name == "pull_request":
+        return _parse_pull_request(payload)
+    _check_action(name, payload)
+    return IssueLabeled(issue=payload["issue"]["number"], label=payload["label"]["name"])
+
+
+def _route_label(event: IssueLabeled) -> Route:
+    job = LABEL_JOBS.get(event.label)
+    if job is None:
+        return Route(Job.NONE, skip_reason=f"label {event.label!r} starts no pipeline job")
+    return Route(job, issue=event.issue)
+
+
+def _route_pull_request(event: PullRequestEvent) -> Route:
+    if event.action == "closed":
+        return Route(Job.PR_CLOSED, pr=event.number)
+    if event.draft:
+        return Route(Job.NONE, pr=event.number, skip_reason="draft PR: reviewed once marked ready")
+    if event.fork:
+        return Route(Job.NONE, pr=event.number, skip_reason="fork PR: no access to secrets")
+    return Route(Job.REVIEWER, pr=event.number)
+
+
+def _required(value: int | None, name: str, phase: str) -> int:
+    if value is None:
+        raise ValueError(f"phase {phase!r} needs {name}")
+    return value
+
+
+def _route_dispatch(event: Dispatch) -> Route:
+    if event.phase in PR_PHASES:
+        return Route(PR_PHASES[event.phase], pr=_required(event.pr, "pr_number", event.phase))
+    if event.phase in ISSUE_PHASES:
+        job = ISSUE_PHASES[event.phase]
+        return Route(job, issue=_required(event.issue, "issue_number", event.phase),
+                     fix_round=job is Job.CODER and event.fix_round)
+    raise ValueError(f"unknown dispatch phase: {event.phase!r}")
+
+
+def _routed(event: GithubEvent) -> Route:
+    match event:
+        case IssueLabeled():
+            return _route_label(event)
+        case PullRequestEvent():
+            return _route_pull_request(event)
+        case Dispatch():
+            return _route_dispatch(event)
+
+
+def route(event: GithubEvent, config: RouteConfig) -> Route:
+    routed = _routed(event)
+    if routed.job is Job.NONE or routed.job in config.handles:
+        return routed
+    return Route(Job.NONE, skip_reason=f"{routed.job.value} job belongs to the other workflow")

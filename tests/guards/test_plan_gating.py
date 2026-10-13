@@ -10,9 +10,11 @@ ISSUE = (WORKFLOWS / "issue-pipeline.yml").read_text()
 
 STEP_SKIP_CONDITION = re.compile(r"if:.*steps\.\w+\.outputs\.(skip|capped|ok)\b")
 GATED_JOBS = [
-    (CODE, "coder", "needs.plan.outputs.skip == 'false'"),
-    (CODE, "reviewer", "needs.plan.outputs.run_review == 'true'"),
-    (ISSUE, "estimate", "needs.plan.outputs.skip == 'false'"),
+    (CODE, "coder"),
+    (CODE, "reviewer"),
+    (CODE, "pr_closed"),
+    (ISSUE, "refine"),
+    (ISSUE, "estimate"),
 ]
 
 
@@ -33,7 +35,14 @@ def test_no_step_condition_inspects_a_skip_flag():
 
 
 def test_agent_jobs_need_plan_and_gate_on_its_outputs():
-    for workflow, job, condition in GATED_JOBS:
+    for workflow, job in GATED_JOBS:
         block = job_block(workflow, job)
         assert "    needs: plan\n" in block, f"{job} must need plan"
-        assert f"    if: {condition}\n" in block, f"{job} must gate on {condition}"
+        assert f"    if: needs.plan.outputs.job == '{job}'\n" in block, f"{job} must gate on the plan's job"
+
+
+def test_no_job_condition_inspects_the_event_besides_the_plan_filter():
+    for name, workflow in (("code-pipeline.yml", CODE), ("issue-pipeline.yml", ISSUE)):
+        without_plan = workflow.replace(job_block(workflow, "plan"), "")
+        offenders = re.findall(r"^    if:.*github\.event.*$", without_plan, re.MULTILINE)
+        assert not offenders, f"{name}: route events in domain/routing.py instead: {offenders}"

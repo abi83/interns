@@ -556,8 +556,9 @@ Python under `interns/src/interns`, with imports flowing one way
 
 - `gh/` — the only code that talks to `gh`; `transport` is private to `gh`.
 - `domain/` — shared logic and read models (`labels`, `issues`, `push`,
-  `verdict`, `size`, `build_config`). Imports nothing from `steps`,
-  `entrypoint` or `mcp`.
+  `verdict`, `size`, `build_config`, `checks`, `routing`). Imports nothing from
+  `steps`, `entrypoint` or `mcp`. `routing` is the pipeline's entry edge: it
+  parses the triggering event and maps it to the one job it starts.
 - `steps/` — one module per workflow command, a thin wrapper over `domain/`.
   Every command's `main` lives here, with no exceptions (guarded by
   `tests/guards/test_command_locations.py`). A step module never shares a
@@ -573,6 +574,11 @@ Python under `interns/src/interns`, with imports flowing one way
   `prompt`, `resolve-issue-template` and `run-setup` take `(argv)` only, because
   their workflow steps carry no GitHub token or repository env for the ctx.
 - `gh_issues_mcp/server.py` — the agent-facing MCP tools, built on `domain/`.
+
+Each reusable workflow starts with a `plan` job: `route-event` / `confirm-route`
+decide which job the event starts (and whether its gates pass), and every other
+job gates only on `needs.plan.outputs.job`. The workflow YAML keeps the
+`on:` triggers and a coarse filter on `plan`.
 
 ## License
 

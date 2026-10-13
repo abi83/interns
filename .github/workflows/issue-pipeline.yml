@@ -1,8 +1,10 @@
 name: Refine & estimate (reusable)
 
 # Reusable core of the issue refine/estimate pipeline. Triggered only via
-# issue-pipeline.yml, which owns the `issues` / `workflow_dispatch` triggers and
-# passes its dispatch inputs through. External repos call this file the same way.
+# issue-pipeline.yml, which owns the `issues` / `workflow_dispatch` triggers.
+# The plan job routes the triggering event itself (from its payload); the
+# dispatch inputs below are only still declared so an older caller that passes
+# them keeps working. External repos call this file the same way.
 on:
   workflow_call:
     inputs:
@@ -46,15 +48,20 @@ env:
 
 jobs:
   plan:
-    # Decides whether the estimate job runs; refine has no skip decision.
+    # Every trigger-to-job and skip/run decision is made here, in Python
+    # (domain/routing.py plus the gates in steps/confirm_route.py); the jobs
+    # below gate only on `needs.plan.outputs.job`. This coarse filter keeps
+    # unrelated label events from spending a runner.
     if: >
-      github.event.label.name == 'status:refined' ||
-      (github.event_name == 'workflow_dispatch' && inputs.phase == 'estimate')
+      github.event_name != 'issues' ||
+      github.event.label.name == 'status:needs-refinement' ||
+      github.event.label.name == 'status:refined'
     runs-on: ubuntu-latest
     permissions:
       issues: write
     outputs:
-      skip: ${{ steps.estimate.outputs.skip }}
+      job: ${{ steps.confirm.outputs.job }}
+      issue: ${{ steps.confirm.outputs.issue }}
     steps:
       - name: Checkout pipeline assets
         uses: actions/checkout@v5
@@ -66,17 +73,15 @@ jobs:
       - name: Set up pipeline Python
         uses: ./.interns/.github/actions/setup-pipeline-python
 
-      - name: Plan estimate run
-        id: estimate
+      - name: Confirm route
+        id: confirm
         env:
           GH_TOKEN: ${{ github.token }}
-          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
-        run: python3 -m interns.entrypoint plan-estimate-run --issue "$ISSUE_NUMBER"
+        run: python3 -m interns.entrypoint confirm-route --handles refine,estimate
 
   refine:
-    if: >
-      github.event.label.name == 'status:needs-refinement' ||
-      (github.event_name == 'workflow_dispatch' && inputs.phase == 'refine')
+    needs: plan
+    if: needs.plan.outputs.job == 'refine'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -98,7 +103,7 @@ jobs:
         id: issue
         uses: ./.interns/.github/actions/resolve-issue
         with:
-          issue_number: ${{ github.event.issue.number || inputs.issue_number }}
+          issue_number: ${{ needs.plan.outputs.issue }}
 
       # status:refined must be applied by a distinct App identity, not the
       # default GITHUB_TOKEN: GitHub never fires new workflow runs from
@@ -253,7 +258,7 @@ jobs:
 
   estimate:
     needs: plan
-    if: needs.plan.outputs.skip == 'false'
+    if: needs.plan.outputs.job == 'estimate'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -302,7 +307,7 @@ jobs:
         id: issue
         uses: ./.interns/.github/actions/resolve-issue
         with:
-          issue_number: ${{ github.event.issue.number || inputs.issue_number }}
+          issue_number: ${{ needs.plan.outputs.issue }}
 
       - name: Load estimator instructions
         id: instructions
@@ -439,7 +444,7 @@ jobs:
   metrics:
     # One commit per workflow run: append the records the agent jobs uploaded to
     # the metrics branch. The concurrency group serialises appends across runs.
-    needs: [refine, estimate]
+    needs: [plan, refine, estimate]
     if: always()
     runs-on: ubuntu-latest
     permissions:
