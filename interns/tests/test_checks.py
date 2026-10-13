@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from interns.domain import checks
+from interns.domain import checks, lifecycle, lifecycle_apply
 
 
 def chk(name, bucket, run="99"):
@@ -73,14 +73,15 @@ class WaitForChecksTests(unittest.TestCase):
 
 
 class RouteRedChecksTests(unittest.TestCase):
-    def test_escalates_the_pr_and_comments_the_reason_with_the_run_link(self):
-        with patch("interns.domain.checks.labels.escalate_pr") as escalate, \
-             patch("interns.domain.checks.gh.pr_comment") as comment:
+    def test_fires_red_checks_for_the_pr_with_the_reason_and_run_link(self):
+        with patch("interns.domain.checks.lifecycle_apply.apply") as apply:
             checks.route_red_checks("acme/widgets", 5, "red checks: lint=fail", run_url="https://github.example/run/1")
-        escalate.assert_called_once_with("acme/widgets", 5)
-        body = comment.call_args[0][2]
-        self.assertIn("red checks: lint=fail", body)
-        self.assertIn("Run: https://github.example/run/1", body)
+        apply.assert_called_once_with(
+            "acme/widgets",
+            lifecycle.decide(lifecycle.Event.RED_CHECKS, lifecycle.Facts(has_issue=False, has_pr=True)),
+            pr=5, issue=None,
+            words=lifecycle_apply.Words(run_url="https://github.example/run/1", detail="red checks: lint=fail"),
+        )
 
 
 if __name__ == "__main__":

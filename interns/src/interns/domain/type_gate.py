@@ -10,11 +10,13 @@ Invoked by the plan steps.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from .. import gh
 from . import labels
 
 
-def gate(repo: str, issue: int, accepted: list[str], remove_status: str, reject_comment: str) -> bool:
+def gate(repo: str, issue: int, accepted: Sequence[str], remove_status: str, reject_comment: str) -> bool:
     """True when the issue's type is accepted and the caller should proceed.
     False after parking the issue on status:needs-attention and commenting
     the rejection."""
