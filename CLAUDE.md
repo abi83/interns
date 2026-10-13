@@ -47,3 +47,11 @@ Read [docs/test-guide.md](docs/test-guide.md) before writing any test.
 This repo's own work is tracked as GitHub issues. Run `gh issue view <n>`
 before starting one; PR against `main`. A TODO/FIXME needs a linked issue,
 not just a description.
+
+## Merging
+
+PRs are squash-merged. When planning several dependent PRs, don't stack
+branches on each other: a stacked branch conflicts once its base is
+squashed. Either wait for the base to merge and branch from `main`, or
+rebase the dependent branch with `git rebase --onto origin/main <old-base-tip>`
+after the base merges.
