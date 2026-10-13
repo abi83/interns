@@ -188,8 +188,23 @@ def test_set_issue_type_dispatches_to_pipeline():
 def test_set_issue_type_schema_only_admits_type_labels():
     (tool,) = asyncio.run(build_server(["set_issue_type"]).list_tools())
     schema = tool.input_schema
-    assert schema["properties"]["type_label"]["enum"] == list(labels.TYPE_LABELS)
+    assert schema["properties"]["type_label"]["$ref"] == "#/$defs/TypeLabel"
+    assert schema["$defs"]["TypeLabel"]["enum"] == list(labels.TYPE_LABELS)
     assert sorted(schema["properties"]) == ["issue_number", "type_label"]
+
+
+@pytest.mark.parametrize(
+    ("tool_name", "enum_name", "allowed"),
+    [
+        ("apply_refinement_outcome", "RefinementOutcome", ["refined", "needs-attention"]),
+        ("apply_estimation_outcome", "EstimationOutcome", ["estimated", "needs-attention"]),
+    ],
+)
+def test_outcome_schema_admits_exactly_the_documented_values(tool_name, enum_name, allowed):
+    (tool,) = asyncio.run(build_server([tool_name]).list_tools())
+    schema = tool.input_schema
+    assert schema["properties"]["outcome"]["$ref"] == f"#/$defs/{enum_name}"
+    assert schema["$defs"][enum_name]["enum"] == allowed
 
 
 # ---------------------------------------------------------------------------

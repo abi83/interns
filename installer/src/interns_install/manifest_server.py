@@ -27,10 +27,10 @@ class _CallbackServer(HTTPServer):
 
 
 class _Handler(BaseHTTPRequestHandler):
-    server: _CallbackServer
+    server: _CallbackServer  # pyright: ignore[reportIncompatibleVariableOverride] -- narrows the stdlib attribute
     server_version = "interns-install/0.1"
 
-    def log_message(self, *args):  # noqa: D401 - silence stdlib request logging
+    def log_message(self, format, *args):  # noqa: D401 - silence stdlib request logging
         pass
 
     def do_GET(self):  # noqa: N802

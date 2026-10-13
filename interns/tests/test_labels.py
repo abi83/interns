@@ -136,27 +136,15 @@ class SetIssueTypeTests(unittest.TestCase):
     def test_swaps_a_wrong_type_label_and_leaves_other_labels_alone(self):
         with patch("interns.gh.issue_view", return_value=_labels_response(["type:spike", "status:needs-refinement"])), \
              patch("interns.gh.issue_edit") as mock_edit:
-            result = labels.set_issue_type("o/r", 7, "type:bug")
+            result = labels.set_issue_type("o/r", 7, labels.TypeLabel.BUG)
         mock_edit.assert_called_once_with("o/r", 7, add_labels=["type:bug"], remove_labels=["type:spike"])
         self.assertEqual(result, "Issue #7 type set to type:bug")
-
-    def test_rejects_a_non_type_label_without_calling_gh(self):
-        with patch("interns.gh.issue_view") as view, patch("interns.gh.issue_edit") as edit:
-            for bad in ("status:ready", "pr:coding", "size:S", "bug"):
-                with self.assertRaisesRegex(gh.InvalidInputError, "type_label must be one of"):
-                    labels.set_issue_type("o/r", 7, bad)
-        view.assert_not_called()
-        edit.assert_not_called()
 
 
 class ApplyRefinementTests(unittest.TestCase):
     def test_refined_without_type_label_raises(self):
         with self.assertRaisesRegex(gh.InvalidInputError, "type_label is required"):
-            labels.apply_refinement("o/r", 5, "refined")
-
-    def test_invalid_outcome_raises(self):
-        with self.assertRaisesRegex(gh.InvalidInputError, "outcome must be"):
-            labels.apply_refinement("o/r", 5, "done")
+            labels.apply_refinement("o/r", 5, labels.RefinementOutcome.REFINED)
 
 
 def _estimation(*levels):
@@ -166,33 +154,29 @@ def _estimation(*levels):
 class ApplyEstimationTests(unittest.TestCase):
     def test_estimated_missing_scores_raises(self):
         with self.assertRaisesRegex(gh.InvalidInputError, "all required"):
-            labels.apply_estimation("o/r", 7, "estimated")
+            labels.apply_estimation("o/r", 7, labels.EstimationOutcome.ESTIMATED)
 
     def test_estimated_bad_score_raises_value_error(self):
         with self.assertRaises(ValueError):
-            labels.apply_estimation("o/r", 7, "estimated", _estimation("Low", "Medium", "Low", "Low"))
-
-    def test_invalid_outcome_raises(self):
-        with self.assertRaisesRegex(gh.InvalidInputError, "outcome must be"):
-            labels.apply_estimation("o/r", 7, "done")
+            labels.apply_estimation("o/r", 7, labels.EstimationOutcome.ESTIMATED, _estimation("Low", "Medium", "Low", "Low"))
 
     def test_transition_precedes_the_score_comment(self):
         calls = []
         with patch("interns.gh.issue_view", return_value=_labels_response(["status:refined"])), \
              patch("interns.gh.issue_edit", side_effect=lambda *a, **k: calls.append("edit")), \
              patch("interns.gh.issue_comment", side_effect=lambda *a, **k: calls.append("comment")):
-            labels.apply_estimation("o/r", 7, "estimated", _estimation("Low", "Low", "Low", "Low"))
+            labels.apply_estimation("o/r", 7, labels.EstimationOutcome.ESTIMATED, _estimation("Low", "Low", "Low", "Low"))
         self.assertEqual(calls, ["edit", "comment"])
 
     def test_failed_transition_posts_no_comment(self):
         with patch("interns.gh.issue_view", return_value=_labels_response(["status:refined"])), patch("interns.gh.issue_edit", side_effect=gh.GhCommandError("boom")), patch("interns.gh.issue_comment") as comment, self.assertRaises(gh.GhCommandError):
-            labels.apply_estimation("o/r", 7, "estimated", _estimation("Low", "Low", "Low", "Low"))
+            labels.apply_estimation("o/r", 7, labels.EstimationOutcome.ESTIMATED, _estimation("Low", "Low", "Low", "Low"))
         comment.assert_not_called()
 
     def test_comment_lists_the_four_scores(self):
         with patch("interns.gh.issue_view", return_value=_labels_response(["status:refined"])), \
              patch("interns.gh.issue_edit"), patch("interns.gh.issue_comment") as comment:
-            labels.apply_estimation("o/r", 7, "estimated", _estimation("Low", "Mid", "Low", "High"))
+            labels.apply_estimation("o/r", 7, labels.EstimationOutcome.ESTIMATED, _estimation("Low", "Mid", "Low", "High"))
         body = comment.call_args[0][2]
         self.assertEqual(body.splitlines()[1], "TOUCH: Mid — because")
         self.assertEqual(len(body.splitlines()), 4)

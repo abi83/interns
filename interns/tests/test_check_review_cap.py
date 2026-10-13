@@ -7,11 +7,11 @@ from unittest.mock import patch
 from interns.steps import check_review_cap
 from interns.ctx import ActionsCtx
 from interns.domain import lifecycle, lifecycle_apply
-from interns.domain.verdict import Review
+from interns.domain.verdict import Review, ReviewState
 
 
 def reviews(n: int) -> list[Review]:
-    return [Review(login="reviewer[bot]", state="CHANGES_REQUESTED", commit_id=f"sha{i}") for i in range(n)]
+    return [Review(login="reviewer[bot]", state=ReviewState.CHANGES_REQUESTED, commit_id=f"sha{i}") for i in range(n)]
 
 
 class CheckCapTests(unittest.TestCase):

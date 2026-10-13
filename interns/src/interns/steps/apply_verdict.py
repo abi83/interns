@@ -13,13 +13,14 @@ from __future__ import annotations
 from .. import cli, config, gh
 from ..ctx import ActionsCtx
 from ..domain import lifecycle, lifecycle_apply, verdict
+from ..domain.verdict import ReviewState
 
 
-def _event(verdict_state: str | None) -> lifecycle.Event:
+def _event(verdict_state: ReviewState | None) -> lifecycle.Event:
     match verdict_state:
-        case "APPROVED":
+        case ReviewState.APPROVED:
             return lifecycle.Event.APPROVED
-        case "CHANGES_REQUESTED":
+        case ReviewState.CHANGES_REQUESTED:
             return lifecycle.Event.CHANGES_REQUESTED
         case _:
             return lifecycle.Event.NO_VERDICT
