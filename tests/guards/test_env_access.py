@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 
 PACKAGE = Path(__file__).resolve().parents[2] / "interns/src/interns"
-OPTIONAL_VARS = {"INTERNS_CONFIG", "GITHUB_EVENT_NAME"}
+OPTIONAL_VARS = {"INTERNS_CONFIG"}
 EMPTY_BODY_VARS = {"ISSUE_BODY"}  # an empty issue body is valid, so require_env's non-empty rule doesn't fit
 ALLOWED = OPTIONAL_VARS | EMPTY_BODY_VARS
 

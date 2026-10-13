@@ -2,7 +2,9 @@ name: Code & review (reusable)
 
 # Reusable core of the coder/reviewer pipeline. Triggered only via
 # code-pipeline.yml, which owns the `issues` / `pull_request` /
-# `workflow_dispatch` triggers and passes its dispatch inputs through.
+# `workflow_dispatch` triggers. The plan job routes the triggering event itself
+# (from its payload); the dispatch inputs below are only still declared so an
+# older caller that passes them keeps working.
 on:
   workflow_call:
     inputs:
@@ -79,38 +81,24 @@ env:
 
 jobs:
   plan:
-    # Every skip/run decision is made here, in Python, so the jobs below gate
-    # on `needs.plan.outputs.*` instead of repeating per-step conditions. This
-    # coarse filter keeps unrelated events from spending a runner:
-    #  - fork PRs have no access to secrets, so the reviewer would just error;
-    #  - draft PRs are unfinished by definition (the pipeline saves a failed
-    #    coder run's work as one) and are reviewed once `ready_for_review`;
-    #  - closed PRs belong to pr_closed.
-    # workflow_dispatch is an unconditional manual override.
-    if: >
-      (github.event_name == 'issues' && github.event.label.name == 'status:ready') ||
-      (github.event_name == 'pull_request' &&
-        github.event.action != 'closed' &&
-        github.event.pull_request.draft == false &&
-        github.event.pull_request.head.repo.fork == false) ||
-      (github.event_name == 'workflow_dispatch' && (inputs.phase == 'coder' || inputs.phase == 'reviewer'))
+    # Every trigger-to-job and skip/run decision is made here, in Python
+    # (domain/routing.py plus the gates in steps/confirm_route.py); the jobs
+    # below gate only on `needs.plan.outputs.job`. This coarse filter keeps
+    # unrelated label events from spending a runner.
+    if: github.event_name != 'issues' || github.event.label.name == 'status:ready'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
       issues: write
     outputs:
-      skip: ${{ steps.coder.outputs.skip }}
-      fix_round: ${{ steps.coder.outputs.fix_round }}
-      run_review: ${{ steps.review.outputs.run_review }}
+      job: ${{ steps.confirm.outputs.job }}
+      issue: ${{ steps.confirm.outputs.issue }}
+      pr: ${{ steps.confirm.outputs.pr }}
+      fix_round: ${{ steps.confirm.outputs.fix_round }}
       reviewer_bot: ${{ steps.reviewer_token.outputs.app-slug }}[bot]
       coder_bot: ${{ steps.coder_token.outputs.app-slug }}[bot]
     steps:
-      # Reads .github/interns.yml for the review gate.
-      - name: Checkout
-        if: github.event_name == 'pull_request' || inputs.phase == 'reviewer'
-        uses: actions/checkout@v5
-
       - name: Checkout pipeline assets
         uses: actions/checkout@v5
         with:
@@ -121,60 +109,53 @@ jobs:
       - name: Set up pipeline Python
         uses: ./.interns/.github/actions/setup-pipeline-python
 
-      - name: Plan coder run
-        id: coder
-        if: github.event_name == 'issues' || inputs.phase == 'coder'
+      - name: Route event
+        id: route
         env:
           GH_TOKEN: ${{ github.token }}
-          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
-          FIX_ROUND: ${{ inputs.fix_round }}
-        run: python3 -m interns.entrypoint plan-coder-run --issue "$ISSUE_NUMBER" --fix-round "$FIX_ROUND"
+        run: python3 -m interns.entrypoint route-event --handles coder,reviewer,pr_closed
 
-      # The reviewer runs under its own GitHub App identity, distinct from the
-      # coder's, so it can actually submit an APPROVE review -- GitHub forbids
-      # approving a PR authored by the same identity (#119). Both logins are
-      # derived from the app tokens (never hardcoded) and exposed as outputs.
+      # Reviewer-only below: the consumer's .github/interns.yml for the review
+      # gate (a subdirectory, so the .interns checkout survives), and both App
+      # logins -- the reviewer's to find its own reviews, the coder's to tell a
+      # pipeline PR from another bot's. Forks have no secrets to mint them with.
+      - name: Checkout consumer repo
+        if: steps.route.outputs.job == 'reviewer'
+        uses: actions/checkout@v5
+        with:
+          path: consumer
+
       - name: Generate reviewer app token
         id: reviewer_token
-        if: github.event_name == 'pull_request' || inputs.phase == 'reviewer'
+        if: steps.route.outputs.job == 'reviewer'
         uses: actions/create-github-app-token@v3
         with:
           client-id: ${{ vars.INTERNS_REVIEWER_CLIENT_ID }}
           private-key: ${{ secrets.INTERNS_REVIEWER_APP_PRIVATE_KEY }}
 
-      # Only to resolve the coder's bot login (per-account, interns-coder-<owner>[bot]):
-      # a bot-authored PR that isn't the coder's own App is not a pipeline PR.
       - name: Generate coder app token
         id: coder_token
-        if: github.event_name == 'pull_request' || inputs.phase == 'reviewer'
+        if: steps.route.outputs.job == 'reviewer'
         uses: actions/create-github-app-token@v3
         with:
           client-id: ${{ vars.INTERNS_CODER_CLIENT_ID }}
           private-key: ${{ secrets.INTERNS_CODER_APP_PRIVATE_KEY }}
 
-      - name: Plan review
-        id: review
-        if: github.event_name == 'pull_request' || inputs.phase == 'reviewer'
+      - name: Confirm route
+        id: confirm
         env:
           GH_TOKEN: ${{ github.token }}
+          INTERNS_CONFIG: consumer/.github/interns.yml
           REVIEWER_BOT: ${{ steps.reviewer_token.outputs.app-slug }}[bot]
           CODER_BOT: ${{ steps.coder_token.outputs.app-slug }}[bot]
-          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
-          PR_AUTHOR_LOGIN: ${{ github.event.pull_request.user.login }}
-          PR_AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
-        run: >
-          python3 -m interns.entrypoint plan-review
-          --pr "$PR_NUMBER"
-          --coder-bot "$CODER_BOT"
-          --pr-author-login "$PR_AUTHOR_LOGIN"
-          --pr-author-type "$PR_AUTHOR_TYPE"
+        run: python3 -m interns.entrypoint confirm-route --handles coder,reviewer,pr_closed
 
   coder:
     needs: plan
-    if: needs.plan.outputs.skip == 'false'
+    if: needs.plan.outputs.job == 'coder'
     runs-on: ubuntu-latest
     concurrency:
-      group: coder-issue-${{ github.event.issue.number || inputs.issue_number }}
+      group: coder-issue-${{ needs.plan.outputs.issue }}
     steps:
       # The coder pushes branches and opens PRs under its own GitHub App
       # identity (interns-coder: pull_requests/issues write, contents write), so
@@ -228,7 +209,7 @@ jobs:
         if: always()
         uses: ./.interns/.github/actions/resolve-issue
         with:
-          issue_number: ${{ github.event.issue.number || inputs.issue_number }}
+          issue_number: ${{ needs.plan.outputs.issue }}
 
       - name: Set in-progress
         env:
@@ -552,7 +533,7 @@ jobs:
 
   reviewer:
     needs: plan
-    if: needs.plan.outputs.run_review == 'true'
+    if: needs.plan.outputs.job == 'reviewer'
     runs-on: ubuntu-latest
     # GITHUB_TOKEN-authored label edits don't fire new workflow runs (GitHub's
     # anti-recursion rule for the default token), so a label alone would never
@@ -568,7 +549,7 @@ jobs:
       actions: write
       id-token: write
     concurrency:
-      group: reviewer-pr-${{ github.event.pull_request.number || inputs.pr_number }}
+      group: reviewer-pr-${{ needs.plan.outputs.pr }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -594,7 +575,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          PR="${{ github.event.pull_request.number || inputs.pr_number }}"
+          PR="${{ needs.plan.outputs.pr }}"
           HEAD_REF=$(python3 -m interns.entrypoint gh-query --query head-ref --number "$PR")
           git fetch origin "$HEAD_REF"
           git checkout "$HEAD_REF"
@@ -603,7 +584,7 @@ jobs:
         id: linked
         uses: ./.interns/.github/actions/resolve-linked-issue
         with:
-          pr_number: ${{ github.event.pull_request.number || inputs.pr_number }}
+          pr_number: ${{ needs.plan.outputs.pr }}
 
       - name: Resolve agent config
         id: cfg
@@ -640,7 +621,7 @@ jobs:
         timeout-minutes: ${{ fromJSON(steps.cfg.outputs.timeout_minutes) }}
         uses: anthropics/claude-code-action@v1
         env:
-          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+          PR_NUMBER: ${{ needs.plan.outputs.pr }}
           CLAUDE_CODE_MAX_OUTPUT_TOKENS: ${{ steps.cfg.outputs.max_output_tokens }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -649,7 +630,7 @@ jobs:
           allowed_bots: "${{ needs.plan.outputs.coder_bot }}"
           prompt: |
             REPO: ${{ github.repository }}
-            PR NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+            PR NUMBER: ${{ needs.plan.outputs.pr }}
             LINKED ISSUE: ${{ steps.linked.outputs.issue_number }}
 
             INSTRUCTIONS:
@@ -669,7 +650,7 @@ jobs:
         if: (inputs.debug == true || steps.cfg.outputs.debug == 'true') && always() && steps.claude.outputs.execution_file != ''
         uses: ./.interns/.github/actions/upload-execution-log
         with:
-          name: execution-log-reviewer-pr-${{ github.event.pull_request.number || inputs.pr_number }}
+          name: execution-log-reviewer-pr-${{ needs.plan.outputs.pr }}
           path: ${{ steps.claude.outputs.execution_file }}
 
       - name: Report run cost
@@ -681,7 +662,7 @@ jobs:
           --phase Review
           --exec-file "${{ steps.claude.outputs.execution_file }}"
           --issue "${{ steps.linked.outputs.issue_number }}"
-          --pr "${{ github.event.pull_request.number || inputs.pr_number }}"
+          --pr "${{ needs.plan.outputs.pr }}"
 
       - name: Extract run metrics
         id: metrics
@@ -695,7 +676,7 @@ jobs:
           --job reviewer
           --ref "${{ inputs.pipeline_ref }}"
           --issue "${{ steps.linked.outputs.issue_number }}"
-          --pr "${{ github.event.pull_request.number || inputs.pr_number }}"
+          --pr "${{ needs.plan.outputs.pr }}"
           > "${{ runner.temp }}/metrics-reviewer.json"
 
       - name: Upload run metrics
@@ -714,7 +695,7 @@ jobs:
           REVIEWER_BOT: ${{ needs.plan.outputs.reviewer_bot }}
         run: >
           python3 -m interns.entrypoint apply-verdict
-          --pr "${{ github.event.pull_request.number || inputs.pr_number }}"
+          --pr "${{ needs.plan.outputs.pr }}"
           --issue "${{ steps.linked.outputs.issue_number }}"
 
       - name: Write run summary
@@ -726,7 +707,7 @@ jobs:
           python3 -m interns.entrypoint run-summary
           --phase Review
           --exec-file "${{ steps.claude.outputs.execution_file }}"
-          --pr "${{ github.event.pull_request.number || inputs.pr_number }}"
+          --pr "${{ needs.plan.outputs.pr }}"
           --issue "${{ steps.linked.outputs.issue_number }}"
           --cost-warn "${{ steps.cfg.outputs.cost_warn_usd }}"
 
@@ -737,7 +718,7 @@ jobs:
         run: >
           python3 -m interns.entrypoint flag-failure --noun review
           --exec-file "${{ steps.claude.outputs.execution_file }}"
-          --pr "${{ github.event.pull_request.number || inputs.pr_number }}"
+          --pr "${{ needs.plan.outputs.pr }}"
           --issue "${{ steps.linked.outputs.issue_number }}"
 
   pr_closed:
@@ -746,14 +727,15 @@ jobs:
     # the already-closed issue; on an unmerged close, move it to
     # status:needs-attention with a comment. Clears any stale pr:* label either
     # way. No agent, no secrets — just label bookkeeping.
-    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    needs: plan
+    if: needs.plan.outputs.job == 'pr_closed'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
       issues: write
     concurrency:
-      group: pr-closed-${{ github.event.pull_request.number }}
+      group: pr-closed-${{ needs.plan.outputs.pr }}
     steps:
       - name: Checkout pipeline assets
         uses: actions/checkout@v5
@@ -769,21 +751,21 @@ jobs:
         id: linked
         uses: ./.interns/.github/actions/resolve-linked-issue
         with:
-          pr_number: ${{ github.event.pull_request.number }}
+          pr_number: ${{ needs.plan.outputs.pr }}
 
       - name: Handle PR closed
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
           python3 -m interns.entrypoint handle-pr-closed
-          --pr "${{ github.event.pull_request.number }}"
+          --pr "${{ needs.plan.outputs.pr }}"
           --issue "${{ steps.linked.outputs.issue_number }}"
           --merged "${{ github.event.pull_request.merged }}"
 
   metrics:
     # One commit per workflow run: append the records the agent jobs uploaded to
     # the metrics branch. The concurrency group serialises appends across runs.
-    needs: [coder, reviewer]
+    needs: [plan, coder, reviewer]
     if: always()
     runs-on: ubuntu-latest
     permissions:

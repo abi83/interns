@@ -1,4 +1,4 @@
-"""A failed initial coder run saves its work as a draft PR, the failure comment links it, and the reviewer skips drafts."""
+"""A failed initial coder run saves its work as a draft PR, the failure comment links it, and the caller template reviews it once marked ready."""
 
 import re
 from pathlib import Path
@@ -9,12 +9,6 @@ WORKFLOW = (Path(__file__).resolve().parents[2] / ".github/workflows/code-pipeli
 def step(name: str) -> str:
     match = re.search(rf"      - name: {re.escape(name)}\n((?:        .*\n|\n)+)", WORKFLOW)
     assert match, f"step {name!r} not found"
-    return match.group(1)
-
-
-def job_if(job: str) -> str:
-    match = re.search(rf"^  {job}:\n(?:    #.*\n)*    if: >\n((?:      .*\n)+)", WORKFLOW, re.MULTILINE)
-    assert match, f"job {job!r} has no multi-line if"
     return match.group(1)
 
 
@@ -37,12 +31,6 @@ def test_draft_step_opens_the_pr_as_the_coder_app_and_passes_the_title_through_e
 def test_failure_comment_receives_the_draft_url_from_a_step_that_ran_before_it():
     assert WORKFLOW.index("name: Save unfinished work as draft PR") < WORKFLOW.index("name: Flag failure")
     assert '--draft-pr-url "${{ steps.draft_pr.outputs.draft_pr_url }}"' in step("Flag failure")
-
-
-def test_reviewer_skips_draft_prs_on_events_but_not_on_manual_dispatch():
-    condition = job_if("plan")
-    assert "github.event.pull_request.draft == false" in condition
-    assert "github.event_name == 'workflow_dispatch' && (inputs.phase == 'coder' || inputs.phase == 'reviewer')" in condition
 
 
 def test_caller_template_reviews_a_draft_once_it_is_marked_ready():

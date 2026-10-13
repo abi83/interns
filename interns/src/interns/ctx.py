@@ -4,10 +4,12 @@ that needs them."""
 
 from __future__ import annotations
 
-import os
+import json
 from dataclasses import dataclass
+from pathlib import Path
 
 from . import cli, config
+from .domain import routing
 
 
 @dataclass
@@ -36,9 +38,9 @@ class ActionsCtx:
     def step_summary(self) -> str:
         return cli.require_env("GITHUB_STEP_SUMMARY")
 
-    @property
-    def event_name(self) -> str:
-        return os.environ.get("GITHUB_EVENT_NAME", "")
+    def event(self) -> routing.GithubEvent:
+        payload = json.loads(Path(cli.require_env("GITHUB_EVENT_PATH")).read_text())
+        return routing.parse_event(cli.require_env("GITHUB_EVENT_NAME"), payload)
 
     @property
     def config_path(self) -> str:
