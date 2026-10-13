@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
+from ..config import ReviewerTrigger
 from . import labels
 
 
@@ -56,10 +57,11 @@ class RouteConfig:
     """What the calling workflow runs; a routed job it doesn't own is skipped."""
 
     handles: frozenset[Job]
+    trigger: ReviewerTrigger
 
     @classmethod
-    def parse(cls, handles: str) -> RouteConfig:
-        return cls(handles=frozenset(Job(name) for name in handles.split(",")))
+    def parse(cls, handles: str, trigger: ReviewerTrigger) -> RouteConfig:
+        return cls(handles=frozenset(Job(name) for name in handles.split(",")), trigger=trigger)
 
 
 @dataclass(frozen=True)
@@ -139,13 +141,27 @@ def _route_label(event: IssueLabeled) -> Route:
     return Route(job, issue=event.issue)
 
 
-def _route_pull_request(event: PullRequestEvent) -> Route:
+def _unreviewed_reason(event: PullRequestEvent, trigger: ReviewerTrigger) -> str:
+    if event.draft:
+        return "draft PR: reviewed once marked ready"
+    if event.fork:
+        return "fork PR: no access to secrets"
+    is_bot = event.author_type == "Bot"
+    if is_bot and not trigger.coder_prs:
+        return "bot-authored PR and agents.reviewer.trigger.coder_prs is false"
+    if not is_bot and not trigger.human_prs:
+        return "human-authored PR and agents.reviewer.trigger.human_prs is false"
+    if event.action == "synchronize" and not trigger.rereview_on_push:
+        return "push to an open PR and agents.reviewer.trigger.rereview_on_push is false"
+    return ""
+
+
+def _route_pull_request(event: PullRequestEvent, trigger: ReviewerTrigger) -> Route:
     if event.action == "closed":
         return Route(Job.PR_CLOSED, pr=event.number)
-    if event.draft:
-        return Route(Job.NONE, pr=event.number, skip_reason="draft PR: reviewed once marked ready")
-    if event.fork:
-        return Route(Job.NONE, pr=event.number, skip_reason="fork PR: no access to secrets")
+    reason = _unreviewed_reason(event, trigger)
+    if reason:
+        return Route(Job.NONE, pr=event.number, skip_reason=reason)
     return Route(Job.REVIEWER, pr=event.number)
 
 
@@ -165,18 +181,18 @@ def _route_dispatch(event: Dispatch) -> Route:
     raise ValueError(f"unknown dispatch phase: {event.phase!r}")
 
 
-def _routed(event: GithubEvent) -> Route:
+def _routed(event: GithubEvent, trigger: ReviewerTrigger) -> Route:
     match event:
         case IssueLabeled():
             return _route_label(event)
         case PullRequestEvent():
-            return _route_pull_request(event)
+            return _route_pull_request(event, trigger)
         case Dispatch():
             return _route_dispatch(event)
 
 
 def route(event: GithubEvent, config: RouteConfig) -> Route:
-    routed = _routed(event)
+    routed = _routed(event, config.trigger)
     if routed.job is Job.NONE or routed.job in config.handles:
         return routed
     return Route(Job.NONE, skip_reason=f"{routed.job.value} job belongs to the other workflow")

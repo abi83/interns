@@ -38,6 +38,11 @@ class ActionsCtx:
     def step_summary(self) -> str:
         return cli.require_env("GITHUB_STEP_SUMMARY")
 
+    def route_config(self, handles: str) -> routing.RouteConfig:
+        config_path = self.config_path
+        trigger = config.reviewer_trigger_config(config.load_raw(config_path), config_path)
+        return routing.RouteConfig.parse(handles, trigger)
+
     def event(self) -> routing.GithubEvent:
         payload = json.loads(Path(cli.require_env("GITHUB_EVENT_PATH")).read_text())
         return routing.parse_event(cli.require_env("GITHUB_EVENT_NAME"), payload)

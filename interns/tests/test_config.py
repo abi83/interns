@@ -114,6 +114,7 @@ _BUILTIN_FIXTURE = {
         },
         "reviewer": {
             "max_turns": 45,
+            "trigger": {"coder_prs": True, "human_prs": True, "rereview_on_push": True},
         },
     },
 }
@@ -320,9 +321,14 @@ class DefaultsCoverLoaderKeysTests(unittest.TestCase):
     def test_review_loop_keys_are_in_the_shipped_defaults(self):
         self.assertEqual(set(config._builtin_data()["review_loop"]), set(config._schema_properties(config._SCHEMA["properties"]["review_loop"])))
 
+    def test_reviewer_trigger_keys_are_in_the_shipped_defaults(self):
+        shipped = config._builtin_data()["agents"]["reviewer"]["trigger"]
+        self.assertEqual(set(shipped), set(config.ReviewerTrigger.__dataclass_fields__))
+
     def test_loaders_resolve_from_the_shipped_defaults_alone(self):
         config.checks_config({}, "interns.yml")
         config.review_loop_config({}, "interns.yml")
+        config.reviewer_trigger_config({}, "interns.yml")
 
 
 class MissingDefaultKeyTests(unittest.TestCase):
@@ -427,6 +433,39 @@ class AutoProceedConfigTests(unittest.TestCase):
     def test_unknown_size_is_rejected(self):
         with self.assertRaisesRegex(config.ConfigError, "unknown key 'auto_proceed.XXL'"):
             _load({"auto_proceed": {"XXL": True}})
+
+
+class ReviewerTriggerConfigTests(unittest.TestCase):
+    def setUp(self):
+        patcher = patch("interns.config._builtin_data", return_value=_BUILTIN_FIXTURE)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_defaults_review_everything(self):
+        self.assertEqual(
+            config.reviewer_trigger_config({}, "interns.yml"),
+            config.ReviewerTrigger(coder_prs=True, human_prs=True, rereview_on_push=True),
+        )
+
+    def test_consumer_overrides_one_key_and_keeps_the_rest(self):
+        data = {"agents": {"reviewer": {"trigger": {"human_prs": False}}}}
+        self.assertEqual(
+            config.reviewer_trigger_config(data, "interns.yml"),
+            config.ReviewerTrigger(coder_prs=True, human_prs=False, rereview_on_push=True),
+        )
+
+    def test_non_boolean_value_is_rejected(self):
+        data = {"agents": {"reviewer": {"trigger": {"coder_prs": "no"}}}}
+        with self.assertRaisesRegex(config.ConfigError, "agents.reviewer.trigger.coder_prs must be true or false"):
+            config.reviewer_trigger_config(data, "interns.yml")
+
+    def test_unknown_trigger_key_is_rejected(self):
+        with self.assertRaisesRegex(config.ConfigError, "unknown key 'agents.reviewer.trigger.fork_prs'"):
+            _load({"agents": {"reviewer": {"trigger": {"fork_prs": True}}}})
+
+    def test_trigger_belongs_to_the_reviewer_only(self):
+        with self.assertRaisesRegex(config.ConfigError, "unknown key 'agents.coder.trigger'"):
+            _load({"agents": {"coder": {"trigger": {"coder_prs": True}}}})
 
 
 class CliTests(unittest.TestCase):

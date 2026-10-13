@@ -390,6 +390,12 @@ and the coder–reviewer loop caps (`review_loop.max_fix_rounds` /
 `max_automatic_reviews`) are documented with their defaults in the config
 file.
 
+`agents.reviewer.trigger` narrows which PR events start a review: `coder_prs`
+and `human_prs` select whose PRs are reviewed, and `rereview_on_push: false`
+reviews only when a PR is opened or marked ready. All default to `true`, and a
+manual `workflow_dispatch` (`phase: reviewer`) always runs. Fork PRs and other
+bots' PRs are never reviewed.
+
 `auto_proceed` decides, per size label, whether an estimated
 `type:coding-task` / `type:bug` goes straight to the coder without waiting for
 your `status:estimated` → `status:ready` approval. By default `XS`, `S` and `M`

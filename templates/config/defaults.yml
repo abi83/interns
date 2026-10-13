@@ -68,6 +68,12 @@ agents:
     #   - "Bash(psql:*)"
   reviewer:
     max_turns: 45
+    # Which PR events start a review (a manual workflow_dispatch always runs).
+    # Fork PRs and other bots' PRs are never reviewed.
+    trigger:
+      coder_prs: true         # PRs opened by the coder agent
+      human_prs: true         # PRs opened by a human
+      rereview_on_push: true  # every push, not just open / ready for review
 
 # After estimation, an issue whose size is true here goes straight to the coder
 # (status:ready) without waiting for a human to approve it. A size set to false
