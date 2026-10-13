@@ -40,9 +40,9 @@ def test_failure_comment_receives_the_draft_url_from_a_step_that_ran_before_it()
 
 
 def test_reviewer_skips_draft_prs_on_events_but_not_on_manual_dispatch():
-    condition = job_if("reviewer")
+    condition = job_if("plan")
     assert "github.event.pull_request.draft == false" in condition
-    assert "github.event_name == 'workflow_dispatch' && inputs.phase == 'reviewer'" in condition
+    assert "github.event_name == 'workflow_dispatch' && (inputs.phase == 'coder' || inputs.phase == 'reviewer')" in condition
 
 
 def test_caller_template_reviews_a_draft_once_it_is_marked_ready():

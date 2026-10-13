@@ -45,6 +45,34 @@ env:
   ALLOWED_APPLY_ESTIMATION: "mcp__gh-issues__apply_estimation_outcome"
 
 jobs:
+  plan:
+    # Decides whether the estimate job runs; refine has no skip decision.
+    if: >
+      github.event.label.name == 'status:refined' ||
+      (github.event_name == 'workflow_dispatch' && inputs.phase == 'estimate')
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    outputs:
+      skip: ${{ steps.estimate.outputs.skip }}
+    steps:
+      - name: Checkout pipeline assets
+        uses: actions/checkout@v5
+        with:
+          repository: abi83/interns
+          ref: ${{ inputs.pipeline_ref }}
+          path: .interns
+
+      - name: Set up pipeline Python
+        uses: ./.interns/.github/actions/setup-pipeline-python
+
+      - name: Plan estimate run
+        id: estimate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
+        run: python3 -m interns.entrypoint plan-estimate-run --issue "$ISSUE_NUMBER"
+
   refine:
     if: >
       github.event.label.name == 'status:needs-refinement' ||
@@ -54,15 +82,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Resolve pipeline ref
-        id: pipeline_ref
-        run: echo "ref=${{ inputs.pipeline_ref }}" >> "$GITHUB_OUTPUT"
-
       - name: Checkout pipeline assets
         uses: actions/checkout@v5
         with:
           repository: abi83/interns
-          ref: ${{ steps.pipeline_ref.outputs.ref }}
+          ref: ${{ inputs.pipeline_ref }}
           path: .interns
 
       - name: Set up pipeline Python
@@ -194,7 +218,7 @@ jobs:
           python3 -m interns.entrypoint extract-metrics
           --exec-file "${{ steps.claude.outputs.execution_file }}"
           --job refiner
-          --ref "${{ steps.pipeline_ref.outputs.ref }}"
+          --ref "${{ inputs.pipeline_ref }}"
           --issue "${{ steps.issue.outputs.number }}"
           > "${{ runner.temp }}/metrics-refiner.json"
 
@@ -228,23 +252,18 @@ jobs:
           --issue "${{ steps.issue.outputs.number }}"
 
   estimate:
-    if: >
-      github.event.label.name == 'status:refined' ||
-      (github.event_name == 'workflow_dispatch' && inputs.phase == 'estimate')
+    needs: plan
+    if: needs.plan.outputs.skip == 'false'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Resolve pipeline ref
-        id: pipeline_ref
-        run: echo "ref=${{ inputs.pipeline_ref }}" >> "$GITHUB_OUTPUT"
-
       - name: Checkout pipeline assets
         uses: actions/checkout@v5
         with:
           repository: abi83/interns
-          ref: ${{ steps.pipeline_ref.outputs.ref }}
+          ref: ${{ inputs.pipeline_ref }}
           path: .interns
 
       - name: Set up pipeline Python
@@ -285,28 +304,11 @@ jobs:
         with:
           issue_number: ${{ github.event.issue.number || inputs.issue_number }}
 
-      # Deterministic backstop: the refiner can no longer produce a type:epic, so
-      # on the happy path the estimator never sees one. This catches a manual
-      # mislabel or a workflow_dispatch — a pure label transition, no agent.
-      - name: Gate issue type
-        id: gate
-        uses: ./.interns/.github/actions/gate-issue-type
-        with:
-          issue_number: ${{ steps.issue.outputs.number }}
-          accepted_types: type:coding-task,type:bug,type:spike
-          remove_status: status:refined
-          reject_comment: >-
-            Epics aren't sized directly — a dev-effort number doesn't mean
-            anything before the work is broken down. Break this into sub-issues
-            and estimate those.
-
       - name: Load estimator instructions
         id: instructions
-        if: steps.gate.outputs.skip != 'true'
         run: python3 -m interns.entrypoint prompt .interns/.github/prompts/_shared.md .interns/.github/prompts/estimate.md
 
       - name: Set up gh-issues MCP server
-        if: steps.gate.outputs.skip != 'true'
         uses: ./.interns/.github/actions/setup-gh-issues-mcp
         with:
           gh_token: ${{ secrets.GITHUB_TOKEN }}
@@ -314,7 +316,6 @@ jobs:
 
       - name: Run Claude estimation
         id: claude
-        if: steps.gate.outputs.skip != 'true'
         timeout-minutes: ${{ fromJSON(steps.cfg.outputs.timeout_minutes) }}
         uses: anthropics/claude-code-action@v1
         env:
@@ -348,13 +349,13 @@ jobs:
             ${{ steps.cfg.outputs.disallowed_tools_arg }}
 
       - name: Spike advisory
-        if: steps.gate.outputs.skip != 'true' && steps.claude.outcome == 'success'
+        if: steps.claude.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 -m interns.entrypoint spike-advisory --issue "${{ steps.issue.outputs.number }}"
 
       - name: Verify estimation outcome applied
-        if: steps.gate.outputs.skip != 'true' && steps.claude.outcome == 'success'
+        if: steps.claude.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -370,13 +371,13 @@ jobs:
       # Triage token, not GITHUB_TOKEN: a status:ready edit by GITHUB_TOKEN
       # would not trigger the coder workflow.
       - name: Auto-proceed to coder
-        if: steps.gate.outputs.skip != 'true' && steps.claude.outcome == 'success'
+        if: steps.claude.outcome == 'success'
         env:
           GH_TOKEN: ${{ steps.triage_token.outputs.token }}
         run: python3 -m interns.entrypoint auto-proceed --issue "${{ steps.issue.outputs.number }}"
 
       - name: Upload estimator execution log (debug)
-        if: steps.gate.outputs.skip != 'true' && (inputs.debug == true || steps.cfg.outputs.debug == 'true') && always() && steps.claude.outputs.execution_file != ''
+        if: (inputs.debug == true || steps.cfg.outputs.debug == 'true') && always() && steps.claude.outputs.execution_file != ''
         uses: ./.interns/.github/actions/upload-execution-log
         with:
           name: execution-log-estimator-issue-${{ steps.issue.outputs.number }}
@@ -402,7 +403,7 @@ jobs:
           python3 -m interns.entrypoint extract-metrics
           --exec-file "${{ steps.claude.outputs.execution_file }}"
           --job estimator
-          --ref "${{ steps.pipeline_ref.outputs.ref }}"
+          --ref "${{ inputs.pipeline_ref }}"
           --issue "${{ steps.issue.outputs.number }}"
           > "${{ runner.temp }}/metrics-estimator.json"
 
@@ -446,15 +447,11 @@ jobs:
     concurrency:
       group: metrics-append
     steps:
-      - name: Resolve pipeline ref
-        id: pipeline_ref
-        run: echo "ref=${{ inputs.pipeline_ref }}" >> "$GITHUB_OUTPUT"
-
       - name: Checkout pipeline assets
         uses: actions/checkout@v5
         with:
           repository: abi83/interns
-          ref: ${{ steps.pipeline_ref.outputs.ref }}
+          ref: ${{ inputs.pipeline_ref }}
           path: .interns
 
       - name: Set up pipeline Python

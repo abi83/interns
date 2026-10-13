@@ -262,30 +262,6 @@ def test_fix_round_failure_without_an_issue_fails_after_clearing_the_pr_label(sc
     assert scenario.comments("pr") == []
 
 
-def test_accepted_issue_type_passes_the_gate(scenario):
-    scenario.gh("issue", "view", "labels", stdout=labels_payload("type:bug", "status:refined"))
-
-    result = scenario.run("interns.entrypoint", "gate-issue-type",
-                          "--issue", ISSUE, "--accepted", "type:coding-task,type:bug",
-                          "--remove-status", "status:refined", "--reject-comment", "nope")
-
-    assert result.outputs == {"skip": "false"}
-    assert scenario.label_edits("issue") == []
-
-
-def test_rejected_issue_type_is_parked_with_the_reason(scenario):
-    scenario.gh("issue", "view", "labels", stdout=labels_payload("type:epic", "status:refined"))
-
-    result = scenario.run("interns.entrypoint", "gate-issue-type",
-                          "--issue", ISSUE, "--accepted", "type:coding-task",
-                          "--remove-status", "status:refined",
-                          "--reject-comment", "Epics aren't sized directly.")
-
-    assert result.outputs == {"skip": "true"}
-    assert scenario.label_edits("issue") == [(ISSUE, {"status:needs-attention"}, {"status:refined"})]
-    assert scenario.comments("issue") == [(ISSUE, "Epics aren't sized directly.")]
-
-
 def test_original_issue_body_is_preserved_before_refinement(scenario):
     result = scenario.run("interns.entrypoint", "preserve-issue-body",
                           "--issue", ISSUE, env={"ISSUE_BODY": "original text"})

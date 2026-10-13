@@ -1,6 +1,4 @@
-"""Two independent guardrails: the per-PR ceiling on automatic reviewer runs,
-and syncing the versioned label manifest into a repo.
-"""
+"""Syncing the versioned label manifest into a repo."""
 
 import json
 
@@ -8,48 +6,10 @@ import pytest
 
 from testkit.harness import REPO, Scenario
 
-PR = "12"
-
 
 @pytest.fixture
 def scenario(tmp_path) -> Scenario:
     return Scenario(tmp_path)
-
-
-def review(login: str = "reviewer-bot") -> dict:
-    return {"id": 1, "user": {"login": login}, "state": "CHANGES_REQUESTED", "commit_id": "sha", "submitted_at": "2026-01-01T00:00:00Z", "body": ""}
-
-
-def test_review_cap_is_a_noop_below_the_limit(scenario):
-    scenario.gh(f"repos/{REPO}/pulls/{PR}/reviews", stdout=[[review(), review()]])
-
-    result = scenario.run("interns.entrypoint", "check-review-cap", "--pr", PR)
-
-    assert result.outputs == {"capped": "false"}
-    assert scenario.calls("gh", "pr", "edit") == []
-    assert scenario.comments("pr") == []
-
-
-def test_review_cap_escalates_once_the_limit_is_reached(scenario):
-    scenario.gh(f"repos/{REPO}/pulls/{PR}/reviews", stdout=[[review(), review()]])
-    scenario.gh("pr", "view", "labels", stdout={"labels": [{"name": "pr:in-review"}]})
-
-    result = scenario.run("interns.entrypoint", "check-review-cap", "--pr", PR,
-                          "--max-reviews", "2")
-
-    assert result.outputs == {"capped": "true"}
-    assert scenario.label_edits("pr") == [(PR, {"pr:needs-attention"}, {"pr:in-review"})]
-    (number, body), = scenario.comments("pr")
-    assert number == PR and "Automatic review limit (2) reached" in body
-
-
-def test_review_cap_accepts_a_precomputed_count_without_refetching(scenario):
-    scenario.gh("pr", "view", "labels", stdout={"labels": []})
-
-    result = scenario.run("interns.entrypoint", "check-review-cap", "--pr", PR, "--count", "5")
-
-    assert result.outputs == {"capped": "true"}
-    assert scenario.calls("gh", "api") == []
 
 
 def _manifest(path, *labels):
