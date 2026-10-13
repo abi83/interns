@@ -1,0 +1,23 @@
+name: Next
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: next-tag
+  cancel-in-progress: true
+
+jobs:
+  move-next-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Move the floating next tag to this commit
+        run: |
+          git tag -f next "$GITHUB_SHA"
+          git push -f origin next
