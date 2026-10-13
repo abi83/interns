@@ -12,9 +12,7 @@ workflow_dispatch is an explicit human override and never calls this module.
 
 from __future__ import annotations
 
-from .. import cli, config
-from ..ctx import ActionsCtx
-from ..domain import lifecycle, lifecycle_apply, verdict
+from . import lifecycle, lifecycle_apply, verdict
 
 
 def check_cap(repo: str, pr: int, reviewer_bot: str, max_reviews: int, *, count: int | None = None,
@@ -23,7 +21,7 @@ def check_cap(repo: str, pr: int, reviewer_bot: str, max_reviews: int, *, count:
     that case. False (a no-op) otherwise.
 
     `count` lets a caller that already fetched the reviewer's review count
-    this run (the reviewer job's dedup check, one job earlier) pass it
+    this run (the review plan's dedup check, one step earlier) pass it
     straight through instead of this function fetching it all over again --
     the two would otherwise hit the same `pulls/{pr}/reviews` endpoint twice
     in the same run. Omit it to fetch fresh, e.g. for a standalone call."""
@@ -35,20 +33,3 @@ def check_cap(repo: str, pr: int, reviewer_bot: str, max_reviews: int, *, count:
     words = lifecycle_apply.Words(run_url=run_url, detail=str(max_reviews))
     lifecycle_apply.apply(repo, outcome, pr=pr, issue=None, words=words)
     return True
-
-
-def main(ctx: ActionsCtx, argv: list[str]) -> int:
-    config_path = ctx.config_path
-    rl = config.review_loop_config(config.load_raw(config_path), config_path)
-
-    parser = cli.build_parser("check-review-cap")
-    parser.add_argument("--pr", type=int, required=True)
-    parser.add_argument("--count", type=int, default=None,
-                        help="skip the review-count fetch and use this instead")
-    parser.add_argument("--max-reviews", type=int, default=rl.max_automatic_reviews)
-    args = parser.parse_args(argv)
-
-    capped = check_cap(ctx.repo, args.pr, ctx.reviewer_bot, args.max_reviews,
-                       count=args.count, run_url=ctx.run_url())
-    cli.write_output("capped", capped)
-    return 0

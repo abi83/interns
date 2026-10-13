@@ -2,7 +2,7 @@
 file (schema: .github/interns.schema.json).
 
 Both the agent-config resolution (interns.steps.show_config) and the
-reviewer's checks-ignore list (interns.steps.wait_for_checks) go
+reviewer's checks-ignore list (interns.steps.plan_review) go
 through `load_raw` here, so a malformed file fails the same way no matter
 which setting the caller needed.
 """

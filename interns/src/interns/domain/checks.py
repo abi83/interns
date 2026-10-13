@@ -1,12 +1,11 @@
-"""Reviewer gate: block until every check on the PR has finished, then
+"""Reviewer check gate: block until every check on the PR has finished, then
 report ok (and a reason when not ok). A red check routes the PR to a human
-with no coder retry; workflow_dispatch skips the gate.
+with no coder retry (#133); only the PR is escalated, the issue keeps its
+status because the work is in a PR awaiting a human (#289).
 
 Two things are excluded from the wait: this workflow run's own checks (they
 never finish before the gate does) and anything in `checks.ignore` in
-.github/interns.yml (non-blocking advisory checks), read via
-interns.config -- the file's only reader. A malformed config now fails the
-gate loudly instead of silently ignoring nothing.
+.github/interns.yml (non-blocking advisory checks).
 """
 
 from __future__ import annotations
@@ -14,8 +13,8 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 
-from .. import cli, config, gh
-from ..ctx import ActionsCtx
+from .. import gh
+from . import lifecycle, lifecycle_apply
 
 
 @dataclass(frozen=True)
@@ -25,7 +24,7 @@ class CheckSummary:
     pending: list[str]
 
 
-def _classify(checks: list[dict], run_id: str, ignore: list[str]) -> CheckSummary:
+def classify(checks: list[dict], run_id: str, ignore: list[str]) -> CheckSummary:
     own_run = f"/runs/{run_id}/" if run_id else None
     relevant = [
         c for c in checks
@@ -48,7 +47,7 @@ def wait_for_checks(
 
     while True:
         now = monotonic()
-        summary = _classify(gh.pr_checks(repo, pr), run_id, ignore)
+        summary = classify(gh.pr_checks(repo, pr), run_id, ignore)
         last_pending = summary.pending
         print(f"checks: total={summary.total} red=[{', '.join(summary.red)}] pending={len(summary.pending)}")
 
@@ -66,26 +65,6 @@ def wait_for_checks(
     return False, f"timed out waiting for checks to finish: {', '.join(last_pending) or 'unknown'}"
 
 
-def main(ctx: ActionsCtx, argv: list[str]) -> int:
-    parser = cli.build_parser("wait-for-checks")
-    parser.add_argument("--pr", type=int, required=True)
-    args = parser.parse_args(argv)
-
-    if ctx.event_name == "workflow_dispatch":
-        print("Manual dispatch — skipping the check gate.")
-        cli.write_output("ok", True)
-        return 0
-
-    config_path = ctx.config_path
-    cfg = config.checks_config(config.load_raw(config_path), config_path)
-
-    ok, reason = wait_for_checks(
-        ctx.repo, args.pr, ctx.run_id, cfg.ignore,
-        timeout=cfg.timeout_seconds,
-        poll=cfg.poll_seconds,
-        settle=cfg.settle_seconds,
-    )
-    cli.write_output("ok", ok)
-    if not ok:
-        cli.write_output("reason", reason)
-    return 0
+def route_red_checks(repo: str, pr: int, reason: str, *, run_url: str) -> None:
+    outcome = lifecycle.decide(lifecycle.Event.RED_CHECKS, lifecycle.Facts(has_issue=False, has_pr=True))
+    lifecycle_apply.apply(repo, outcome, pr=pr, issue=None, words=lifecycle_apply.Words(run_url=run_url, detail=reason))

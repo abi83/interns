@@ -2,7 +2,7 @@
 
 Unifies three independently-written "reviewer's last review state against
 current head" queries (interns.steps.apply_verdict, interns.run_summary,
-interns.steps.check_review_cap -- interns#157) into one place.
+interns.domain.review_cap -- interns#157) into one place.
 """
 
 from __future__ import annotations

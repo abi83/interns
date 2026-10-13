@@ -78,10 +78,100 @@ env:
   ALLOWED_PR_READ: "Bash(gh pr diff:*),Bash(gh pr view:*)"
 
 jobs:
-  coder:
+  plan:
+    # Every skip/run decision is made here, in Python, so the jobs below gate
+    # on `needs.plan.outputs.*` instead of repeating per-step conditions. This
+    # coarse filter keeps unrelated events from spending a runner:
+    #  - fork PRs have no access to secrets, so the reviewer would just error;
+    #  - draft PRs are unfinished by definition (the pipeline saves a failed
+    #    coder run's work as one) and are reviewed once `ready_for_review`;
+    #  - closed PRs belong to pr_closed.
+    # workflow_dispatch is an unconditional manual override.
     if: >
       (github.event_name == 'issues' && github.event.label.name == 'status:ready') ||
-      (github.event_name == 'workflow_dispatch' && inputs.phase == 'coder')
+      (github.event_name == 'pull_request' &&
+        github.event.action != 'closed' &&
+        github.event.pull_request.draft == false &&
+        github.event.pull_request.head.repo.fork == false) ||
+      (github.event_name == 'workflow_dispatch' && (inputs.phase == 'coder' || inputs.phase == 'reviewer'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    outputs:
+      skip: ${{ steps.coder.outputs.skip }}
+      fix_round: ${{ steps.coder.outputs.fix_round }}
+      run_review: ${{ steps.review.outputs.run_review }}
+      reviewer_bot: ${{ steps.reviewer_token.outputs.app-slug }}[bot]
+      coder_bot: ${{ steps.coder_token.outputs.app-slug }}[bot]
+    steps:
+      # Reads .github/interns.yml for the review gate.
+      - name: Checkout
+        if: github.event_name == 'pull_request' || inputs.phase == 'reviewer'
+        uses: actions/checkout@v5
+
+      - name: Checkout pipeline assets
+        uses: actions/checkout@v5
+        with:
+          repository: abi83/interns
+          ref: ${{ inputs.pipeline_ref }}
+          path: .interns
+
+      - name: Set up pipeline Python
+        uses: ./.interns/.github/actions/setup-pipeline-python
+
+      - name: Plan coder run
+        id: coder
+        if: github.event_name == 'issues' || inputs.phase == 'coder'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
+          FIX_ROUND: ${{ inputs.fix_round }}
+        run: python3 -m interns.entrypoint plan-coder-run --issue "$ISSUE_NUMBER" --fix-round "$FIX_ROUND"
+
+      # The reviewer runs under its own GitHub App identity, distinct from the
+      # coder's, so it can actually submit an APPROVE review -- GitHub forbids
+      # approving a PR authored by the same identity (#119). Both logins are
+      # derived from the app tokens (never hardcoded) and exposed as outputs.
+      - name: Generate reviewer app token
+        id: reviewer_token
+        if: github.event_name == 'pull_request' || inputs.phase == 'reviewer'
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.INTERNS_REVIEWER_CLIENT_ID }}
+          private-key: ${{ secrets.INTERNS_REVIEWER_APP_PRIVATE_KEY }}
+
+      # Only to resolve the coder's bot login (per-account, interns-coder-<owner>[bot]):
+      # a bot-authored PR that isn't the coder's own App is not a pipeline PR.
+      - name: Generate coder app token
+        id: coder_token
+        if: github.event_name == 'pull_request' || inputs.phase == 'reviewer'
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.INTERNS_CODER_CLIENT_ID }}
+          private-key: ${{ secrets.INTERNS_CODER_APP_PRIVATE_KEY }}
+
+      - name: Plan review
+        id: review
+        if: github.event_name == 'pull_request' || inputs.phase == 'reviewer'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEWER_BOT: ${{ steps.reviewer_token.outputs.app-slug }}[bot]
+          CODER_BOT: ${{ steps.coder_token.outputs.app-slug }}[bot]
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+          PR_AUTHOR_LOGIN: ${{ github.event.pull_request.user.login }}
+          PR_AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
+        run: >
+          python3 -m interns.entrypoint plan-review
+          --pr "$PR_NUMBER"
+          --coder-bot "$CODER_BOT"
+          --pr-author-login "$PR_AUTHOR_LOGIN"
+          --pr-author-type "$PR_AUTHOR_TYPE"
+
+  coder:
+    needs: plan
+    if: needs.plan.outputs.skip == 'false'
     runs-on: ubuntu-latest
     concurrency:
       group: coder-issue-${{ github.event.issue.number || inputs.issue_number }}
@@ -119,31 +209,14 @@ jobs:
           # Persisted so the agent's push_branch MCP tool reaches origin as the coder App.
           token: ${{ steps.coder_token.outputs.token }}
 
-      # .interns/ (path: .interns, a subdirectory) must be checked out *after*
-      # the main repo (path: ., the workspace root): actions/checkout wipes
-      # the entire target directory before initializing a repo that isn't
-      # already a matching checkout there, regardless of `clean` -- doing it
-      # in the other order deletes .interns/ the moment the main checkout runs
-      # (confirmed live on tetris: "Deleting the contents of ...", then Gate
-      # issue type failed with the action missing). `if: always()` below is
-      # what actually fixes #90 instead: if the app-token step (or Checkout)
-      # fails, both are skipped, so there's nothing for this step to conflict
-      # with, and Flag failure still gets .interns/ and a real issue number.
-      # No hard-fail on an empty ref here (unlike the other "Resolve pipeline
-      # ref" steps, see #101) -- this step must stay unconditionally
-      # successful, or the #90 fix above breaks: Flag failure needs
-      # .interns/ checked out even when the ref can't be resolved.
-      - name: Resolve pipeline ref
-        id: pipeline_ref
-        if: always()
-        run: echo "ref=${{ inputs.pipeline_ref }}" >> "$GITHUB_OUTPUT"
-
+      # After the main checkout (it wipes the workspace) and `if: always()`, so
+      # Flag failure still has .interns/ when an earlier step fails (#90).
       - name: Checkout pipeline assets
         if: always()
         uses: actions/checkout@v5
         with:
           repository: abi83/interns
-          ref: ${{ steps.pipeline_ref.outputs.ref }}
+          ref: ${{ inputs.pipeline_ref }}
           path: .interns
 
       - name: Set up pipeline Python
@@ -157,66 +230,7 @@ jobs:
         with:
           issue_number: ${{ github.event.issue.number || inputs.issue_number }}
 
-      # Deterministic type gate: only type:coding-task and type:bug are
-      # implementable. status:ready can also land on a spike or (via a manual
-      # mislabel) an epic — the coder should never attempt either. Shared with
-      # the estimate job's gate. Skipped on a fix round: the issue is already
-      # status:in-progress and its type hasn't changed.
-      - name: Gate issue type
-        id: gate
-        if: inputs.fix_round != 'true'
-        uses: ./.interns/.github/actions/gate-issue-type
-        with:
-          issue_number: ${{ steps.issue.outputs.number }}
-          accepted_types: type:coding-task,type:bug
-          remove_status: status:ready
-          reject_comment: >-
-            This issue reached `status:ready` without a `type:coding-task` or
-            `type:bug` label, so the coder agent won't attempt it — only those
-            two types are implementable code deliverables. If this should be
-            implemented, add the correct type label and re-apply `status:ready`.
-
-      - name: Guard against duplicate or stale trigger
-        id: guard
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          NUM="${{ steps.issue.outputs.number }}"
-          FIX_ROUND="${{ inputs.fix_round }}"
-          echo "fix_round=$FIX_ROUND" >> "$GITHUB_OUTPUT"
-          if [[ "${{ steps.gate.outputs.skip }}" == "true" ]]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          LABELS=$(python3 -m interns.entrypoint labels issue-labels "$NUM")
-          # A fix round is an explicit dispatch from the reviewer against an issue
-          # that is *already* status:in-progress — the stale-trigger guard below
-          # would wrongly skip it, so let it through.
-          if [[ "$FIX_ROUND" != "true" ]] && \
-             [[ "$LABELS" == *"status:in-progress"* || "$LABELS" == *"status:needs-attention"* ]]; then
-            echo "Issue #$NUM is already past status:ready ($LABELS) — stale or duplicate trigger, skipping."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Determine fix round
-        id: mode
-        if: steps.guard.outputs.skip != 'true'
-        run: |
-          # The reviewer dispatches a fix round explicitly with
-          # `-f fix_round=true`; an initial `status:ready` label event never
-          # sets it. No label-derived inference — issue state no longer
-          # distinguishes the two (the issue stays status:in-progress for
-          # the whole run).
-          if [[ "${{ steps.guard.outputs.fix_round }}" == "true" ]]; then
-            echo "fix_round=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "fix_round=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Set in-progress
-        if: steps.guard.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -227,7 +241,6 @@ jobs:
 
       - name: Resolve agent config
         id: cfg
-        if: steps.guard.outputs.skip != 'true'
         uses: ./.interns/.github/actions/resolve-agent-config
         with:
           agent: coder
@@ -241,13 +254,13 @@ jobs:
 
       - name: Resolve existing PR (fix round)
         id: pr
-        if: steps.guard.outputs.skip != 'true' && steps.mode.outputs.fix_round == 'true'
+        if: needs.plan.outputs.fix_round == 'true'
         uses: ./.interns/.github/actions/find-pr-for-issue
         with:
           issue_number: ${{ steps.issue.outputs.number }}
 
       - name: Mark PR pr:coding (fix round)
-        if: steps.guard.outputs.skip != 'true' && steps.mode.outputs.fix_round == 'true' && steps.pr.outputs.pr_number != ''
+        if: needs.plan.outputs.fix_round == 'true' && steps.pr.outputs.pr_number != ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -255,7 +268,7 @@ jobs:
 
       - name: Gather reviewer feedback (fix round)
         id: feedback
-        if: steps.guard.outputs.skip != 'true' && steps.mode.outputs.fix_round == 'true'
+        if: needs.plan.outputs.fix_round == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_REF: ${{ steps.pr.outputs.head_ref }}
@@ -271,7 +284,7 @@ jobs:
       # fix round reuses the existing PR branch.
       - name: Derive commit-type and branch hints
         id: hints
-        if: steps.guard.outputs.skip != 'true' && steps.mode.outputs.fix_round != 'true'
+        if: needs.plan.outputs.fix_round != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -283,7 +296,7 @@ jobs:
       # than have the coder spend a tool call discovering it's still on the
       # checked-out default branch and switching itself.
       - name: Create coder branch
-        if: steps.guard.outputs.skip != 'true' && steps.mode.outputs.fix_round != 'true'
+        if: needs.plan.outputs.fix_round != 'true'
         env:
           BRANCH: ${{ steps.hints.outputs.branch }}
         run: |
@@ -297,11 +310,10 @@ jobs:
 
       - name: Load coder instructions
         id: instructions
-        if: steps.guard.outputs.skip != 'true' && steps.mode.outputs.fix_round != 'true'
+        if: needs.plan.outputs.fix_round != 'true'
         run: python3 -m interns.entrypoint prompt .interns/.github/prompts/_shared.md .interns/.github/prompts/_shared-coder.md .interns/.github/prompts/code.md
 
       - name: Set up gh-issues MCP server
-        if: steps.guard.outputs.skip != 'true'
         uses: ./.interns/.github/actions/setup-gh-issues-mcp
         with:
           gh_token: ${{ steps.coder_token.outputs.token }}
@@ -311,12 +323,11 @@ jobs:
       # runner and its allowlist can't install anything. A failure here fails
       # the job before any Claude tokens are spent.
       - name: Install dependencies (make setup)
-        if: steps.guard.outputs.skip != 'true'
         run: python3 -m interns.entrypoint run-setup "$GITHUB_WORKSPACE"
 
       - name: Run Claude coder (initial implementation)
         id: claude_initial
-        if: steps.guard.outputs.skip != 'true' && steps.mode.outputs.fix_round != 'true'
+        if: needs.plan.outputs.fix_round != 'true'
         timeout-minutes: ${{ fromJSON(steps.cfg.outputs.timeout_minutes) }}
         uses: anthropics/claude-code-action@v1
         env:
@@ -352,7 +363,7 @@ jobs:
             ${{ steps.cfg.outputs.disallowed_tools_arg }}
 
       - name: Upload coder-initial execution log (debug)
-        if: steps.guard.outputs.skip != 'true' && (inputs.debug == true || steps.cfg.outputs.debug == 'true') && always() && steps.claude_initial.outputs.execution_file != ''
+        if: (inputs.debug == true || steps.cfg.outputs.debug == 'true') && always() && steps.claude_initial.outputs.execution_file != ''
         uses: ./.interns/.github/actions/upload-execution-log
         with:
           name: execution-log-coder-initial-issue-${{ steps.issue.outputs.number }}
@@ -362,7 +373,7 @@ jobs:
       # its working tree as a draft PR instead of losing it with the runner.
       - name: Save unfinished work as draft PR
         id: draft_pr
-        if: failure() && steps.guard.outputs.skip != 'true' && steps.claude_initial.outcome == 'failure'
+        if: failure() && steps.claude_initial.outcome == 'failure'
         env:
           GH_TOKEN: ${{ steps.coder_token.outputs.token }}
           ISSUE_TITLE: ${{ steps.issue.outputs.title }}
@@ -379,12 +390,12 @@ jobs:
 
       - name: Load coder fix-round instructions
         id: fix_instructions
-        if: steps.guard.outputs.skip != 'true' && steps.mode.outputs.fix_round == 'true'
+        if: needs.plan.outputs.fix_round == 'true'
         run: python3 -m interns.entrypoint prompt .interns/.github/prompts/_shared.md .interns/.github/prompts/_shared-coder.md .interns/.github/prompts/code-fix.md
 
       - name: Run Claude coder (fix round)
         id: claude_fix
-        if: steps.guard.outputs.skip != 'true' && steps.mode.outputs.fix_round == 'true'
+        if: needs.plan.outputs.fix_round == 'true'
         timeout-minutes: ${{ fromJSON(steps.cfg.outputs.timeout_minutes) }}
         uses: anthropics/claude-code-action@v1
         env:
@@ -423,7 +434,7 @@ jobs:
             ${{ steps.cfg.outputs.disallowed_tools_arg }}
 
       - name: Upload coder-fix execution log (debug)
-        if: steps.guard.outputs.skip != 'true' && (inputs.debug == true || steps.cfg.outputs.debug == 'true') && always() && steps.claude_fix.outputs.execution_file != ''
+        if: (inputs.debug == true || steps.cfg.outputs.debug == 'true') && always() && steps.claude_fix.outputs.execution_file != ''
         uses: ./.interns/.github/actions/upload-execution-log
         with:
           name: execution-log-coder-fix-issue-${{ steps.issue.outputs.number }}
@@ -434,11 +445,11 @@ jobs:
       # it, so the nudge below fires even on a run that failed outright.
       - name: Check test/build configuration
         id: build_config
-        if: steps.guard.outputs.skip != 'true' && always()
+        if: always()
         run: python3 -m interns.entrypoint check-build-config "$GITHUB_WORKSPACE"
 
       - name: Report run cost
-        if: steps.guard.outputs.skip != 'true' && always() && (steps.claude_initial.outputs.execution_file != '' || steps.claude_fix.outputs.execution_file != '')
+        if: always() && (steps.claude_initial.outputs.execution_file != '' || steps.claude_fix.outputs.execution_file != '')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -460,7 +471,7 @@ jobs:
       # can't proceed — so this is distinct from `Flag failure`.
       - name: Check for coder give-up (fix round)
         id: giveup
-        if: steps.guard.outputs.skip != 'true' && steps.mode.outputs.fix_round == 'true' && success()
+        if: needs.plan.outputs.fix_round == 'true' && success()
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
@@ -470,7 +481,7 @@ jobs:
 
       - name: Check PR now exists
         id: verify_pr
-        if: steps.guard.outputs.skip != 'true' && success() && steps.giveup.outputs.gave_up != 'true'
+        if: success() && steps.giveup.outputs.gave_up != 'true'
         uses: ./.interns/.github/actions/find-pr-for-issue
         with:
           issue_number: ${{ steps.issue.outputs.number }}
@@ -478,20 +489,20 @@ jobs:
       - name: Extract run metrics
         id: metrics
         continue-on-error: true
-        if: steps.guard.outputs.skip != 'true' && always() && (steps.claude_initial.outputs.execution_file != '' || steps.claude_fix.outputs.execution_file != '')
+        if: always() && (steps.claude_initial.outputs.execution_file != '' || steps.claude_fix.outputs.execution_file != '')
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
           python3 -m interns.entrypoint extract-metrics
           --exec-file "${{ steps.claude_initial.outputs.execution_file }}${{ steps.claude_fix.outputs.execution_file }}"
           --job coder
-          --ref "${{ steps.pipeline_ref.outputs.ref }}"
+          --ref "${{ inputs.pipeline_ref }}"
           --issue "${{ steps.issue.outputs.number }}"
           --pr "${{ steps.verify_pr.outputs.pr_number || steps.pr.outputs.pr_number }}"
           > "${{ runner.temp }}/metrics-coder.json"
 
       - name: Upload run metrics
-        if: always() && steps.guard.outputs.skip != 'true' && steps.metrics.outcome == 'success'
+        if: always() && steps.metrics.outcome == 'success'
         uses: actions/upload-artifact@v7
         with:
           name: pipeline-metrics-coder
@@ -500,7 +511,7 @@ jobs:
           retention-days: 2
 
       - name: Hand off to reviewer
-        if: steps.guard.outputs.skip != 'true' && success() && steps.giveup.outputs.gave_up != 'true'
+        if: success() && steps.giveup.outputs.gave_up != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
@@ -509,7 +520,7 @@ jobs:
           --pr "${{ steps.verify_pr.outputs.pr_number }}"
 
       - name: Write run summary
-        if: steps.guard.outputs.skip != 'true' && always() && (steps.claude_initial.outcome != 'skipped' || steps.claude_fix.outcome != 'skipped')
+        if: always() && (steps.claude_initial.outcome != 'skipped' || steps.claude_fix.outcome != 'skipped')
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
@@ -518,15 +529,16 @@ jobs:
           --exec-file "${{ steps.claude_initial.outputs.execution_file }}${{ steps.claude_fix.outputs.execution_file }}"
           --issue "${{ steps.issue.outputs.number }}"
           --pr "${{ steps.verify_pr.outputs.pr_number || steps.pr.outputs.pr_number }}"
-          --round ${{ steps.mode.outputs.fix_round == 'true' && 'fix' || 'initial' }}
+          --round ${{ needs.plan.outputs.fix_round == 'true' && 'fix' || 'initial' }}
           --cost-warn "${{ steps.cfg.outputs.cost_warn_usd }}"
 
       - name: Flag failure
-        if: steps.guard.outputs.skip != 'true' && failure()
+        if: failure()
         env:
           GH_TOKEN: ${{ github.token }}
+          FIX_ROUND: ${{ needs.plan.outputs.fix_round }}
         run: |
-          if [[ "${{ steps.mode.outputs.fix_round }}" == "true" ]]; then
+          if [[ "$FIX_ROUND" == "true" ]]; then
             python3 -m interns.entrypoint flag-failure --noun implementation \
               --exec-file "${{ steps.claude_initial.outputs.execution_file }}${{ steps.claude_fix.outputs.execution_file }}" \
               --issue "${{ steps.issue.outputs.number }}" \
@@ -539,27 +551,8 @@ jobs:
           fi
 
   reviewer:
-    # Skip PRs the reviewer can't meaningfully handle instead of failing on them
-    # (see #132 defect 8):
-    #  - fork PRs have no access to secrets, so CLAUDE_CODE_OAUTH_TOKEN /
-    #    INTERNS_REVIEWER_APP_PRIVATE_KEY are empty and the run just errors out;
-    #  - draft PRs are unfinished by definition (the pipeline saves a failed
-    #    coder run's work as one); the review runs when it is marked ready
-    #    (`ready_for_review`);
-    #  - bot PRs other than the coder's own App (Dependabot, etc.) aren't in
-    #    allowed_bots and produce an "Automated review failed" comment. The
-    #    coder's bot login is per-account (interns-coder-<owner>[bot]), not a
-    #    fixed name, so it can't be compared here at job-if time (no steps.*
-    #    yet) -- "Dedup check" below folds this into its existing skip output
-    #    once the coder's identity is resolved as a step.
-    # A skipped job posts nothing. workflow_dispatch stays an unconditional
-    # manual override.
-    if: >
-      (github.event_name == 'pull_request' &&
-        github.event.action != 'closed' &&
-        github.event.pull_request.draft == false &&
-        github.event.pull_request.head.repo.fork == false) ||
-      (github.event_name == 'workflow_dispatch' && inputs.phase == 'reviewer')
+    needs: plan
+    if: needs.plan.outputs.run_review == 'true'
     runs-on: ubuntu-latest
     # GITHUB_TOKEN-authored label edits don't fire new workflow runs (GitHub's
     # anti-recursion rule for the default token), so a label alone would never
@@ -582,15 +575,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Resolve pipeline ref
-        id: pipeline_ref
-        run: echo "ref=${{ inputs.pipeline_ref }}" >> "$GITHUB_OUTPUT"
-
       - name: Checkout pipeline assets
         uses: actions/checkout@v5
         with:
           repository: abi83/interns
-          ref: ${{ steps.pipeline_ref.outputs.ref }}
+          ref: ${{ inputs.pipeline_ref }}
           path: .interns
 
       - name: Set up pipeline Python
@@ -629,27 +618,6 @@ jobs:
           repository: ${{ steps.cfg.outputs.wiki_repo }}
           destination: ${{ steps.cfg.outputs.wiki_dir }}
 
-      - name: Wait for PR checks
-        id: checks
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
-        run: python3 -m interns.entrypoint wait-for-checks --pr "$PR_NUMBER"
-
-      - name: Route red checks to a human
-        if: steps.checks.outputs.ok == 'false'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
-          REASON: ${{ steps.checks.outputs.reason }}
-        run: >
-          python3 -m interns.entrypoint route-red-checks
-          --pr "$PR_NUMBER"
-          --reason "$REASON"
-
-      # The reviewer runs under its own GitHub App identity, distinct from the
-      # coder's, so it can actually submit an APPROVE review — GitHub forbids
-      # approving a PR authored by the same identity (#119).
       - name: Generate reviewer app token
         id: reviewer_token
         uses: actions/create-github-app-token@v3
@@ -657,88 +625,11 @@ jobs:
           client-id: ${{ vars.INTERNS_REVIEWER_CLIENT_ID }}
           private-key: ${{ secrets.INTERNS_REVIEWER_APP_PRIVATE_KEY }}
 
-      # One source of truth for the reviewer's bot login, derived from the app
-      # token (which is derived from vars.INTERNS_REVIEWER_CLIENT_ID). Every step that
-      # matches reviews by author reads this output — renaming the app only
-      # touches the variable, never a hardcoded slug (see #132 defect 3).
-      - name: Resolve reviewer identity
-        id: ident
-        run: echo "bot=${{ steps.reviewer_token.outputs.app-slug }}[bot]" >> "$GITHUB_OUTPUT"
-
-      # Needed only to resolve the coder's bot login below (never used to
-      # authenticate anything in this job) -- the PR-author check at job-if
-      # time can't compare against a fixed name since the coder's login is
-      # per-account (interns-coder-<owner>[bot]).
-      - name: Generate coder app token
-        id: coder_token
-        uses: actions/create-github-app-token@v3
-        with:
-          client-id: ${{ vars.INTERNS_CODER_CLIENT_ID }}
-          private-key: ${{ secrets.INTERNS_CODER_APP_PRIVATE_KEY }}
-
-      - name: Resolve coder identity
-        id: coder_ident
-        run: echo "bot=${{ steps.coder_token.outputs.app-slug }}[bot]" >> "$GITHUB_OUTPUT"
-
-      # Dedup, plus the bot-identity check that used to live at job-if (see
-      # above): a bot-authored PR whose author isn't the coder's own App
-      # (Dependabot, etc.) skips the same way a duplicate event does. The
-      # round cap lives in "Apply verdict" -- the reviewer always runs and
-      # submits a verdict (so a second review can still land on APPROVE),
-      # and the escalate-vs-dispatch-coder decision is made from that
-      # verdict — see #132 defect 6.
-      - name: Dedup check
-        id: check
-        if: steps.checks.outputs.ok == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REVIEWER_BOT: ${{ steps.ident.outputs.bot }}
-          PR_AUTHOR_LOGIN: ${{ github.event.pull_request.user.login }}
-          PR_AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
-          CODER_BOT: ${{ steps.coder_ident.outputs.bot }}
-        run: |
-          if [[ "$PR_AUTHOR_TYPE" == "Bot" && "$PR_AUTHOR_LOGIN" != "$CODER_BOT" ]]; then
-            echo "PR author $PR_AUTHOR_LOGIN isn't the coder's own App ($CODER_BOT) — not a pipeline PR, skipping."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          PR="${{ github.event.pull_request.number || inputs.pr_number }}"
-          HEAD_SHA=$(python3 -m interns.entrypoint gh-query --query head-sha --number "$PR")
-          # One fetch of the reviewer bot's reviews covers both this check and
-          # "Enforce automatic review cap" below -- review_count is threaded
-          # through so that step doesn't hit the same endpoint again.
-          readarray -t summary < <(python3 -m interns.entrypoint verdict --pr "$PR" summary-for-head "$HEAD_SHA")
-          LAST_VERDICT="${summary[0]#verdict=}"
-          echo "review_count=${summary[1]#count=}" >> "$GITHUB_OUTPUT"
-
-          if [[ -n "$LAST_VERDICT" ]]; then
-            echo "Head commit $HEAD_SHA already reviewed — duplicate event, skipping."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      # Hard ceiling on automatic reviews per PR (#16). Event-triggered only —
-      # workflow_dispatch is an explicit human override and never runs this.
-      - name: Enforce automatic review cap
-        id: cap
-        if: github.event_name == 'pull_request' && steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REVIEWER_BOT: ${{ steps.ident.outputs.bot }}
-        run: >
-          python3 -m interns.entrypoint check-review-cap
-          --pr "${{ github.event.pull_request.number }}"
-          --count "${{ steps.check.outputs.review_count }}"
-
       - name: Load reviewer instructions
         id: instructions
-        if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.cap.outputs.capped != 'true'
         run: python3 -m interns.entrypoint prompt .interns/.github/prompts/_shared.md .interns/.github/prompts/review.md
 
       - name: Set up gh-issues MCP server
-        if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.cap.outputs.capped != 'true'
         uses: ./.interns/.github/actions/setup-gh-issues-mcp
         with:
           gh_token: ${{ steps.reviewer_token.outputs.token }}
@@ -746,7 +637,6 @@ jobs:
 
       - name: Run Claude reviewer
         id: claude
-        if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.cap.outputs.capped != 'true'
         timeout-minutes: ${{ fromJSON(steps.cfg.outputs.timeout_minutes) }}
         uses: anthropics/claude-code-action@v1
         env:
@@ -756,7 +646,7 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ steps.reviewer_token.outputs.token }}
           show_full_output: ${{ inputs.debug == true || steps.cfg.outputs.debug == 'true' }}
-          allowed_bots: "${{ steps.coder_ident.outputs.bot }}"
+          allowed_bots: "${{ needs.plan.outputs.coder_bot }}"
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
@@ -776,14 +666,14 @@ jobs:
             ${{ steps.cfg.outputs.disallowed_tools_arg }}
 
       - name: Upload reviewer execution log (debug)
-        if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.cap.outputs.capped != 'true' && (inputs.debug == true || steps.cfg.outputs.debug == 'true') && always() && steps.claude.outputs.execution_file != ''
+        if: (inputs.debug == true || steps.cfg.outputs.debug == 'true') && always() && steps.claude.outputs.execution_file != ''
         uses: ./.interns/.github/actions/upload-execution-log
         with:
           name: execution-log-reviewer-pr-${{ github.event.pull_request.number || inputs.pr_number }}
           path: ${{ steps.claude.outputs.execution_file }}
 
       - name: Report run cost
-        if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.cap.outputs.capped != 'true' && always() && steps.claude.outputs.execution_file != ''
+        if: always() && steps.claude.outputs.execution_file != ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
@@ -796,20 +686,20 @@ jobs:
       - name: Extract run metrics
         id: metrics
         continue-on-error: true
-        if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.cap.outputs.capped != 'true' && always() && steps.claude.outputs.execution_file != ''
+        if: always() && steps.claude.outputs.execution_file != ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
           python3 -m interns.entrypoint extract-metrics
           --exec-file "${{ steps.claude.outputs.execution_file }}"
           --job reviewer
-          --ref "${{ steps.pipeline_ref.outputs.ref }}"
+          --ref "${{ inputs.pipeline_ref }}"
           --issue "${{ steps.linked.outputs.issue_number }}"
           --pr "${{ github.event.pull_request.number || inputs.pr_number }}"
           > "${{ runner.temp }}/metrics-reviewer.json"
 
       - name: Upload run metrics
-        if: always() && steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.cap.outputs.capped != 'true' && steps.metrics.outcome == 'success'
+        if: always() && steps.metrics.outcome == 'success'
         uses: actions/upload-artifact@v7
         with:
           name: pipeline-metrics-reviewer
@@ -818,20 +708,20 @@ jobs:
           retention-days: 2
 
       - name: Apply reviewer verdict
-        if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.cap.outputs.capped != 'true' && success()
+        if: success()
         env:
           GH_TOKEN: ${{ github.token }}
-          REVIEWER_BOT: ${{ steps.ident.outputs.bot }}
+          REVIEWER_BOT: ${{ needs.plan.outputs.reviewer_bot }}
         run: >
           python3 -m interns.entrypoint apply-verdict
           --pr "${{ github.event.pull_request.number || inputs.pr_number }}"
           --issue "${{ steps.linked.outputs.issue_number }}"
 
       - name: Write run summary
-        if: steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true' && steps.cap.outputs.capped != 'true' && always() && steps.claude.outcome != 'skipped'
+        if: always() && steps.claude.outcome != 'skipped'
         env:
           GH_TOKEN: ${{ github.token }}
-          REVIEWER_BOT: ${{ steps.ident.outputs.bot }}
+          REVIEWER_BOT: ${{ needs.plan.outputs.reviewer_bot }}
         run: >
           python3 -m interns.entrypoint run-summary
           --phase Review
@@ -841,14 +731,7 @@ jobs:
           --cost-warn "${{ steps.cfg.outputs.cost_warn_usd }}"
 
       - name: Flag failure
-        # Also fires when Resolve agent config fails — that step runs before
-        # `checks`, so a bad config would otherwise leave checks.outputs.ok
-        # empty and skip the standard failure comment (#150's generic fallback).
-        if: >
-          failure() && (
-            steps.cfg.outcome == 'failure' ||
-            (steps.checks.outputs.ok == 'true' && steps.check.outputs.skip != 'true')
-          )
+        if: failure()
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
@@ -872,15 +755,11 @@ jobs:
     concurrency:
       group: pr-closed-${{ github.event.pull_request.number }}
     steps:
-      - name: Resolve pipeline ref
-        id: pipeline_ref
-        run: echo "ref=${{ inputs.pipeline_ref }}" >> "$GITHUB_OUTPUT"
-
       - name: Checkout pipeline assets
         uses: actions/checkout@v5
         with:
           repository: abi83/interns
-          ref: ${{ steps.pipeline_ref.outputs.ref }}
+          ref: ${{ inputs.pipeline_ref }}
           path: .interns
 
       - name: Set up pipeline Python
@@ -912,15 +791,11 @@ jobs:
     concurrency:
       group: metrics-append
     steps:
-      - name: Resolve pipeline ref
-        id: pipeline_ref
-        run: echo "ref=${{ inputs.pipeline_ref }}" >> "$GITHUB_OUTPUT"
-
       - name: Checkout pipeline assets
         uses: actions/checkout@v5
         with:
           repository: abi83/interns
-          ref: ${{ steps.pipeline_ref.outputs.ref }}
+          ref: ${{ inputs.pipeline_ref }}
           path: .interns
 
       - name: Set up pipeline Python

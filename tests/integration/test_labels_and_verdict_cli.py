@@ -129,12 +129,3 @@ def test_verdict_review_count_only_counts_the_given_login(scenario):
 
     assert result.returncode == 0
     assert result.stdout.strip() == "1"
-
-
-def test_verdict_summary_for_head_prints_both_verdict_and_count_from_one_fetch(scenario):
-    scenario.gh(f"repos/{REPO}/pulls/{PR}/reviews", stdout=[[review("CHANGES_REQUESTED")]])
-
-    result = scenario.run("interns.entrypoint", "verdict", "--pr", PR, "summary-for-head", HEAD)
-
-    assert result.returncode == 0
-    assert result.stdout.splitlines() == ["verdict=CHANGES_REQUESTED", "count=1"]

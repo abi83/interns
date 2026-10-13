@@ -27,7 +27,7 @@ def checkout_branch(head_ref: str) -> None:
 
 def _latest_changes_requested_review(repo: str, pr: int) -> verdict.FullReview:
     # Any reviewer's CHANGES_REQUESTED counts here, not just REVIEWER_BOT's --
-    # unlike apply_verdict/check_review_cap, which only ever act on the bot's
+    # unlike apply_verdict/review_cap, which only ever act on the bot's
     # own verdict. Routed through verdict.all_reviews rather than a second,
     # independent fetch so this and those three stay paginated the same way
     # and can't disagree about which review is "latest" (interns#180 review).

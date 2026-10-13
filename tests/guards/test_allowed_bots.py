@@ -7,7 +7,7 @@ from pathlib import Path
 WORKFLOWS = Path(__file__).resolve().parents[2] / ".github/workflows"
 
 TRIAGE = "${{ steps.triage_ident.outputs.bot }}"
-CODER = "${{ steps.coder_ident.outputs.bot }}"
+CODER = "${{ needs.plan.outputs.coder_bot }}"
 
 TRIGGERING_BOTS: dict[tuple[str, str], list[str]] = {
     ("issue-pipeline.yml", "Run Claude refinement"): [],
@@ -46,4 +46,4 @@ def test_each_claude_step_allowlists_the_bots_that_trigger_it():
 def test_triage_and_coder_identities_are_resolved_before_their_use():
     code = (WORKFLOWS / "code-pipeline.yml").read_text()
     assert code.index("id: triage_ident") < code.index("name: Run Claude coder (initial implementation)")
-    assert code.index("id: coder_ident") < code.index("name: Run Claude reviewer")
+    assert code.index("coder_bot: ${{ steps.coder_token.outputs.app-slug }}[bot]") < code.index("name: Run Claude reviewer")

@@ -43,8 +43,8 @@ runs:
     - name: Resolve agent config
       id: resolve
       shell: bash
-      # AGENT goes through env: rather than being interpolated straight into
-      # `run:`, same as gate-issue-type -- see that action for why.
+      # env: rather than interpolating straight into `run:`, so a "`" or
+      # "$(...)" in the value can't run as shell.
       env:
         AGENT: ${{ inputs.agent }}
       run: python3 -m interns.entrypoint config agent-config "$AGENT" >> "$GITHUB_OUTPUT"

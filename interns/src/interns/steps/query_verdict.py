@@ -23,15 +23,10 @@ def _review_count(reviews: list[FullReview], args: argparse.Namespace) -> list[s
     return [str(len(reviews))]
 
 
-def _summary_for_head(reviews: list[FullReview], args: argparse.Namespace) -> list[str]:
-    return [f"verdict={verdict.verdict_for_head(reviews, args.head_sha) or ''}", f"count={len(reviews)}"]
-
-
 _SUBCOMMANDS: dict[str, Callable[[list[FullReview], argparse.Namespace], list[str]]] = {
     "verdict-for-head": _verdict_for_head,
     "rounds-requested": _rounds_requested,
     "review-count": _review_count,
-    "summary-for-head": _summary_for_head,
 }
 
 
@@ -48,13 +43,6 @@ def main(ctx: ActionsCtx, argv: list[str]) -> int:
     p.add_argument("--exclude-commit", default=None)
 
     sub.add_parser("review-count")
-
-    # verdict-for-head + review-count in one fetch, for a caller (the
-    # reviewer job's dedup check) that needs both and would otherwise hit
-    # `pulls/{pr}/reviews` twice for data that doesn't change between the
-    # two queries.
-    p = sub.add_parser("summary-for-head")
-    p.add_argument("head_sha")
 
     args = parser.parse_args(argv)
     reviews = verdict.reviews_by(ctx.repo, args.pr, args.login or ctx.reviewer_bot)

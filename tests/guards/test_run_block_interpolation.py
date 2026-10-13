@@ -13,25 +13,21 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 FILES = sorted((ROOT / ".github/workflows").glob("*.yml")) + sorted((ROOT / ".github/actions").glob("*/action.yml"))
 
-STEP_OUTPUTS = (
-    "number|pr_number|issue_number|review_count|execution_file|skip|fix_round|configured|"
-    "cost_warn_usd|app-slug|draft_pr_url"
-)
-# `ref` and the pipeline_ref input are pinned by the consumer's caller workflow,
-# not by issue/PR content; the PR/issue number inputs are workflow_dispatch
-# inputs, settable only by users with write access.
+STEP_OUTPUTS = "number|pr_number|issue_number|execution_file|configured|cost_warn_usd|app-slug|draft_pr_url"
+# The pipeline_ref input is pinned by the consumer's caller workflow, not by
+# issue/PR content; the PR/issue number inputs are workflow_dispatch inputs,
+# settable only by users with write access.
 ALLOWED = [
     re.compile(p)
     for p in (
         r"github\.(repository|workspace|token)",
         r"github\.event\.pull_request\.(number|merged)",
         r"runner\.temp",
-        r"inputs\.(pr_number|issue_number|pipeline_ref|fix_round)",
+        r"inputs\.(pr_number|issue_number|pipeline_ref)",
         rf"steps\.\w+\.outputs\.({STEP_OUTPUTS})",
-        r"steps\.pipeline_ref\.outputs\.ref",
         r"github\.event\.pull_request\.number \|\| inputs\.pr_number",
         r"steps\.verify_pr\.outputs\.pr_number \|\| steps\.pr\.outputs\.pr_number",
-        r"steps\.mode\.outputs\.fix_round == 'true' && 'fix' \|\| 'initial'",
+        r"needs\.plan\.outputs\.fix_round == 'true' && 'fix' \|\| 'initial'",
     )
 ]
 

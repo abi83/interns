@@ -14,7 +14,7 @@ from interns import gh
 from interns.domain import verdict
 from interns.steps import gh_query
 from interns.domain import labels
-from interns.steps import wait_for_checks
+from interns.domain import checks as domain_checks
 
 from testkit.harness import Scenario
 
@@ -78,7 +78,7 @@ def test_pr_checks_classify_by_bucket(scenario):
     scenario.gh("pr", "checks", stdout=fixture("pr_checks"))
 
     checks = gh.pr_checks(REPO, 199)
-    summary = wait_for_checks._classify(checks, run_id="", ignore=[])
+    summary = domain_checks.classify(checks, run_id="", ignore=[])
 
     assert summary.total == len(json.loads(fixture("pr_checks")))
     assert summary.red == [] and summary.pending == []
