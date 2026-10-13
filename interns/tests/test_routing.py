@@ -4,10 +4,12 @@ from interns.config import ReviewerTrigger
 from interns.domain.routing import (
     Dispatch,
     IssueLabeled,
+    CheckSuiteEvent,
     Job,
     PullRequestEvent,
     Route,
     RouteConfig,
+    SuitePullRequest,
     parse_event,
     route,
 )
@@ -99,6 +101,26 @@ class ReviewerTriggerTests(unittest.TestCase):
         self.assertEqual(route(IssueLabeled(7, "status:ready"), config).job, Job.CODER)
 
 
+class RouteCheckSuiteTests(unittest.TestCase):
+    def test_a_completed_suite_for_a_prs_current_head_starts_the_reviewer(self):
+        event = CheckSuiteEvent("sha-1", SuitePullRequest(12, "sha-1"))
+        self.assertEqual(route(event, BOTH), Route(Job.REVIEWER, pr=12))
+
+    def test_a_suite_without_a_same_repo_pr_starts_nothing(self):
+        routed = route(CheckSuiteEvent("sha-1", None), BOTH)
+        self.assertEqual(routed.job, Job.NONE)
+        self.assertIn("no open same-repo PR", routed.skip_reason)
+
+    def test_a_suite_for_an_outdated_commit_starts_nothing(self):
+        routed = route(CheckSuiteEvent("sha-old", SuitePullRequest(12, "sha-new")), BOTH)
+        self.assertEqual((routed.job, routed.pr), (Job.NONE, 12))
+        self.assertIn("outdated", routed.skip_reason)
+
+    def test_the_issue_workflow_ignores_check_suites(self):
+        event = CheckSuiteEvent("sha-1", SuitePullRequest(12, "sha-1"))
+        self.assertEqual(route(event, ISSUE_WORKFLOW).job, Job.NONE)
+
+
 class RouteDispatchTests(unittest.TestCase):
     def test_each_phase_starts_its_job_with_its_operand(self):
         cases = [
@@ -167,6 +189,17 @@ class ParseEventTests(unittest.TestCase):
         parsed = parse_event("pull_request", payload)
         assert isinstance(parsed, PullRequestEvent)
         self.assertTrue(parsed.fork)
+
+    def test_check_suite_with_a_pr(self):
+        parsed = parse_event("check_suite", events.check_suite("sha-1", pr=12, pr_head_sha="sha-2"))
+        self.assertEqual(parsed, CheckSuiteEvent("sha-1", SuitePullRequest(12, "sha-2")))
+
+    def test_check_suite_without_a_pr(self):
+        self.assertEqual(parse_event("check_suite", events.check_suite("sha-1", pr=None)), CheckSuiteEvent("sha-1", None))
+
+    def test_only_completed_check_suites_are_supported(self):
+        with self.assertRaises(ValueError):
+            parse_event("check_suite", {**events.check_suite(), "action": "requested"})
 
     def test_dispatch_inputs(self):
         parsed = parse_event("workflow_dispatch", events.dispatch(phase="coder", issue_number="7", fix_round="true"))

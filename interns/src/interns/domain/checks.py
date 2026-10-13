@@ -1,7 +1,9 @@
-"""Reviewer check gate: block until every check on the PR has finished, then
-report ok (and a reason when not ok). A red check routes the PR to a human
-with no coder retry (#133); only the PR is escalated, the issue keeps its
-status because the work is in a PR awaiting a human (#289).
+"""Reviewer check gate: wait briefly for the PR's checks, then report green,
+red or still pending. A red check routes the PR to a human with no coder retry
+(#133); only the PR is escalated, the issue keeps its status because the work
+is in a PR awaiting a human (#289). Checks still pending when the wait ends are
+not a failure: the review is skipped and the next check suite to complete
+triggers it again.
 
 Two things are excluded from the wait: this workflow run's own checks (they
 never finish before the gate does) and anything in `checks.ignore` in
@@ -12,9 +14,16 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
+from enum import StrEnum
 
 from .. import gh
 from . import lifecycle, lifecycle_apply
+
+
+class Outcome(StrEnum):
+    GREEN = "green"
+    RED = "red"
+    PENDING = "pending"
 
 
 @dataclass(frozen=True)
@@ -40,7 +49,7 @@ def wait_for_checks(
     repo: str, pr: int, run_id: str, ignore: list[str], *,
     timeout: float, poll: float, settle: float,
     sleep=time.sleep, monotonic=time.monotonic,
-) -> tuple[bool, str]:
+) -> tuple[Outcome, str]:
     start = monotonic()
     deadline = start + timeout
     last_pending: list[str] = []
@@ -52,17 +61,17 @@ def wait_for_checks(
         print(f"checks: total={summary.total} red=[{', '.join(summary.red)}] pending={len(summary.pending)}")
 
         if summary.red:
-            return False, f"red checks: {', '.join(summary.red)}"
+            return Outcome.RED, f"red checks: {', '.join(summary.red)}"
         if summary.total == 0 and now - start >= settle:
             print("No checks reported on this PR — nothing to wait on.")
-            return True, ""
+            return Outcome.GREEN, ""
         if summary.total > 0 and not summary.pending:
-            return True, ""
+            return Outcome.GREEN, ""
         if now >= deadline:
             break
         sleep(poll)
 
-    return False, f"timed out waiting for checks to finish: {', '.join(last_pending) or 'unknown'}"
+    return Outcome.PENDING, f"checks still running: {', '.join(last_pending) or 'unknown'}"
 
 
 def route_red_checks(repo: str, pr: int, reason: str, *, run_url: str) -> None:

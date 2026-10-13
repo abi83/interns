@@ -30,6 +30,7 @@ def main(repo: str, pr: str, issue: str) -> None:
     capture("issue_view", "issue", "view", issue, "--repo", repo, "--json", "labels,title")
     capture("pr_view", "pr", "view", pr, "--repo", repo,
             "--json", "headRefName,headRefOid,labels,closingIssuesReferences,title")
+    capture("pr_rest", *api, f"repos/{repo}/pulls/{pr}")
     capture("pr_list", "pr", "list", "--repo", repo, "--state", "merged", "--limit", "3",
             "--json", "number,headRefName,closingIssuesReferences")
     capture("pr_checks", "pr", "checks", pr, "--repo", repo, "--json", "name,bucket,link")

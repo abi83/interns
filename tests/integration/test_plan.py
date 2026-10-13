@@ -310,3 +310,102 @@ def test_an_invalid_trigger_value_fails_the_plan(scenario):
 
     assert result.returncode != 0
     assert "agents.reviewer.trigger.human_prs must be true or false" in result.stderr
+
+
+def rest_pr(*, state: str = "open", head_sha: str = HEAD, draft: bool = False, login: str = "alice",
+            user_type: str = "User") -> dict:
+    pull_request = events.pull_request(draft=draft, login=login, user_type=user_type)["pull_request"]
+    return {**pull_request, "state": state, "head": {"sha": head_sha, "repo": {"fork": False}}}
+
+
+def confirm_suite(scenario: Scenario, payload: dict, live: dict | None = None, config_text: str = ""):
+    if live is not None:
+        scenario.gh("api", f"repos/{REPO}/pulls/{PR}", stdout=live)
+    return confirm_review(scenario, payload, event="check_suite", config_text=config_text)
+
+
+def test_completed_check_suite_reviews_a_green_open_pr(scenario):
+    pr_state(scenario)
+
+    result = confirm_suite(scenario, events.check_suite(HEAD), rest_pr())
+
+    assert result.outputs == routed("reviewer", pr=PR)
+
+
+def test_check_suite_without_a_pr_or_for_an_outdated_commit_needs_no_lookup(scenario):
+    without_pr = confirm_suite(scenario, events.check_suite(HEAD, pr=None))
+    outdated = confirm_suite(scenario, events.check_suite("sha-old", pr_head_sha=HEAD))
+
+    assert without_pr.outputs["job"] == outdated.outputs["job"] == "none"
+    assert "outdated" in outdated.outputs["skip_reason"]
+    assert scenario.calls("gh") == []
+
+
+def test_check_suite_for_a_closed_pr_runs_nothing(scenario):
+    result = confirm_suite(scenario, events.check_suite(HEAD), rest_pr(state="closed"))
+
+    assert result.outputs["job"] == "none"
+    assert result.outputs["skip_reason"] == "PR is not open"
+    assert scenario.calls("gh", "pr") == []
+
+
+def test_check_suite_for_a_pr_that_moved_on_runs_nothing(scenario):
+    result = confirm_suite(scenario, events.check_suite(HEAD), rest_pr(head_sha="sha-newer"))
+
+    assert result.outputs["job"] == "none"
+    assert "moved past" in result.outputs["skip_reason"]
+
+
+def test_check_suite_for_a_draft_pr_runs_nothing(scenario):
+    result = confirm_suite(scenario, events.check_suite(HEAD), rest_pr(draft=True))
+
+    assert result.outputs["job"] == "none"
+    assert "draft" in result.outputs["skip_reason"]
+    assert scenario.calls("gh", "pr") == []
+
+
+def test_check_suite_for_another_bots_pr_runs_nothing(scenario):
+    pr_state(scenario)
+
+    result = confirm_suite(scenario, events.check_suite(HEAD), rest_pr(login="dependabot[bot]", user_type="Bot"))
+
+    assert result.outputs["job"] == "none"
+    assert "not a pipeline PR" in result.outputs["skip_reason"]
+
+
+def test_checks_still_running_skip_the_review_without_escalating(scenario):
+    pr_state(scenario, checks=[{"name": "integration", "bucket": "pending", "link": "https://github.example/runs/1/job/2"}])
+
+    result = confirm_suite(scenario, events.check_suite(HEAD), rest_pr(),
+                           config_text="checks:\n  timeout_seconds: 0.01\n  poll_seconds: 0.01\n  settle_seconds: 0.01\n")
+
+    assert result.outputs["job"] == "none"
+    assert result.outputs["skip_reason"] == "checks still running: integration"
+    assert scenario.calls("gh", "pr", "edit") == []
+    assert scenario.comments("pr") == []
+
+
+def test_a_red_check_in_a_completed_suite_routes_the_pr_to_a_human(scenario):
+    pr_state(scenario, checks=RED)
+
+    result = confirm_suite(scenario, events.check_suite(HEAD), rest_pr())
+
+    assert result.outputs["job"] == "none"
+    assert scenario.label_edits("pr") == [(PR, {"pr:needs-attention"}, {"pr:in-review"})]
+
+
+def test_rereview_on_push_off_skips_a_check_suite_for_an_already_reviewed_pr(scenario):
+    pr_state(scenario, review())
+
+    result = confirm_suite(scenario, events.check_suite(HEAD), rest_pr(), config_text=trigger(rereview_on_push="false"))
+
+    assert result.outputs["job"] == "none"
+    assert "rereview_on_push" in result.outputs["skip_reason"]
+
+
+def test_rereview_on_push_off_still_reviews_a_check_suite_for_an_unreviewed_pr(scenario):
+    pr_state(scenario)
+
+    result = confirm_suite(scenario, events.check_suite(HEAD), rest_pr(), config_text=trigger(rereview_on_push="false"))
+
+    assert result.outputs == routed("reviewer", pr=PR)

@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import patch
 
 from interns.domain import checks, lifecycle, lifecycle_apply
+from interns.domain.checks import Outcome
 
 
 def chk(name, bucket, run="99"):
@@ -10,7 +11,7 @@ def chk(name, bucket, run="99"):
 
 def _wait(repo, pr, run_id, ignore, **kwargs):
     return checks.wait_for_checks(
-        repo, pr, run_id, ignore, **{"timeout": 1200, "poll": 20, "settle": 30, **kwargs},
+        repo, pr, run_id, ignore, **{"timeout": 120, "poll": 20, "settle": 30, **kwargs},
     )
 
 
@@ -19,40 +20,40 @@ class WaitForChecksTests(unittest.TestCase):
         checks = [chk("test", "pass"), chk("build", "pass"), chk("lint", "pass"), chk("coverage", "skipping")]
         with patch("interns.domain.checks.gh.pr_checks", return_value=checks):
             ok, reason = _wait("acme/widgets", 5, "42", [], settle=0, sleep=lambda s: None)
-        self.assertTrue(ok)
+        self.assertIs(ok, Outcome.GREEN)
         self.assertEqual(reason, "")
 
     def test_one_red_check_fails_with_a_reason_naming_it(self):
         checks = [chk("test", "pass"), chk("lint", "fail"), chk("typecheck", "pass")]
         with patch("interns.domain.checks.gh.pr_checks", return_value=checks):
             ok, reason = _wait("acme/widgets", 5, "42", [], settle=0, sleep=lambda s: None)
-        self.assertFalse(ok)
+        self.assertIs(ok, Outcome.RED)
         self.assertEqual(reason, "red checks: lint=fail")
 
     def test_a_cancelled_check_counts_as_red(self):
         checks = [chk("test", "pass"), chk("build", "cancel")]
         with patch("interns.domain.checks.gh.pr_checks", return_value=checks):
             ok, reason = _wait("acme/widgets", 5, "42", [], settle=0, sleep=lambda s: None)
-        self.assertFalse(ok)
+        self.assertIs(ok, Outcome.RED)
         self.assertIn("build=cancel", reason)
 
     def test_a_pending_check_that_later_passes_resolves_ok(self):
         seq = iter([[chk("test", "pending")], [chk("test", "pass")]])
         with patch("interns.domain.checks.gh.pr_checks", side_effect=lambda repo, pr: next(seq)):
             ok, _ = _wait("acme/widgets", 5, "42", [], settle=0, sleep=lambda s: None)
-        self.assertTrue(ok)
+        self.assertIs(ok, Outcome.GREEN)
 
     def test_the_runs_own_checks_are_excluded(self):
         checks = [chk("pipeline / reviewer", "pending", run="42")]
         with patch("interns.domain.checks.gh.pr_checks", return_value=checks):
             ok, _ = _wait("acme/widgets", 5, "42", [], settle=0, sleep=lambda s: None)
-        self.assertTrue(ok)
+        self.assertIs(ok, Outcome.GREEN)
 
     def test_ignored_checks_are_dropped(self):
         checks = [chk("test", "pass"), chk("preview-deploy", "fail")]
         with patch("interns.domain.checks.gh.pr_checks", return_value=checks):
             ok, _ = _wait("acme/widgets", 5, "42", ["preview-deploy"], settle=0, sleep=lambda s: None)
-        self.assertTrue(ok)
+        self.assertIs(ok, Outcome.GREEN)
 
     def test_no_checks_at_all_is_ok_after_the_settle_window(self):
         with patch("interns.domain.checks.gh.pr_checks", return_value=[]):
@@ -60,7 +61,7 @@ class WaitForChecksTests(unittest.TestCase):
             ok, _ = _wait(
                 "acme/widgets", 5, "42", [], settle=1, sleep=lambda s: None, monotonic=lambda: next(times),
             )
-        self.assertTrue(ok)
+        self.assertIs(ok, Outcome.GREEN)
 
     def test_times_out_when_a_check_never_resolves(self):
         checks = [chk("test", "pending"), chk("build", "pass")]
@@ -68,8 +69,8 @@ class WaitForChecksTests(unittest.TestCase):
             ok, reason = _wait(
                 "acme/widgets", 5, "42", [], timeout=0, settle=0, sleep=lambda s: None,
             )
-        self.assertFalse(ok)
-        self.assertIn("timed out waiting for checks to finish: test", reason)
+        self.assertIs(ok, Outcome.PENDING)
+        self.assertEqual(reason, "checks still running: test")
 
 
 class RouteRedChecksTests(unittest.TestCase):

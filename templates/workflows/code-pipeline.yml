@@ -6,7 +6,9 @@ on:
   issues:
     types: [labeled]
   pull_request:
-    types: [opened, ready_for_review, synchronize, closed]
+    types: [opened, ready_for_review, closed]
+  check_suite:
+    types: [completed]
   workflow_dispatch:
     inputs:
       issue_number:
@@ -41,6 +43,12 @@ permissions:
   issues: write
   id-token: write
   actions: write
+
+# Open / ready / check-suite events for one PR run one at a time, so a duplicate
+# event finds the head already reviewed instead of racing the first review.
+# Every other event gets its own group.
+concurrency:
+  group: ${{ (github.event.check_suite.pull_requests[0].number || (github.event.action != 'closed' && github.event.pull_request.number)) && format('review-pr-{0}', github.event.check_suite.pull_requests[0].number || github.event.pull_request.number) || github.run_id }}
 
 jobs:
   interns:

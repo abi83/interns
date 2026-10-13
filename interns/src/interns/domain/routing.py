@@ -42,6 +42,18 @@ class PullRequestEvent:
 
 
 @dataclass(frozen=True)
+class SuitePullRequest:
+    number: int
+    head_sha: str
+
+
+@dataclass(frozen=True)
+class CheckSuiteEvent:
+    head_sha: str
+    pull_request: SuitePullRequest | None
+
+
+@dataclass(frozen=True)
 class Dispatch:
     phase: str
     issue: int | None
@@ -49,7 +61,7 @@ class Dispatch:
     fix_round: bool
 
 
-GithubEvent = IssueLabeled | PullRequestEvent | Dispatch
+GithubEvent = IssueLabeled | PullRequestEvent | CheckSuiteEvent | Dispatch
 
 
 @dataclass(frozen=True)
@@ -76,6 +88,7 @@ class Route:
 SUPPORTED_ACTIONS: dict[str, frozenset[str]] = {
     "issues": frozenset({"labeled"}),
     "pull_request": frozenset({"opened", "ready_for_review", "synchronize", "closed"}),
+    "check_suite": frozenset({"completed"}),
     "workflow_dispatch": frozenset(),
 }
 
@@ -96,16 +109,27 @@ def _check_action(name: str, payload: dict) -> str:
     return action
 
 
-def _parse_pull_request(payload: dict) -> PullRequestEvent:
-    pr = payload["pull_request"]
+def pull_request_event(action: str, pr: dict) -> PullRequestEvent:
+    """From a pull request object, as in a `pull_request` payload or the REST API."""
     head_repo = pr["head"]["repo"]
     return PullRequestEvent(
-        action=_check_action("pull_request", payload),
+        action=action,
         number=pr["number"],
         draft=pr["draft"],
         fork=head_repo is None or head_repo["fork"],
         author_login=pr["user"]["login"],
         author_type=pr["user"]["type"],
+    )
+
+
+def _parse_check_suite(payload: dict) -> CheckSuiteEvent:
+    _check_action("check_suite", payload)
+    suite = payload["check_suite"]
+    pull_requests = suite["pull_requests"]
+    first = pull_requests[0] if pull_requests else None
+    return CheckSuiteEvent(
+        head_sha=suite["head_sha"],
+        pull_request=None if first is None else SuitePullRequest(first["number"], first["head"]["sha"]),
     )
 
 
@@ -129,7 +153,9 @@ def parse_event(name: str, payload: dict) -> GithubEvent:
     if name == "workflow_dispatch":
         return _parse_dispatch(payload)
     if name == "pull_request":
-        return _parse_pull_request(payload)
+        return pull_request_event(_check_action(name, payload), payload["pull_request"])
+    if name == "check_suite":
+        return _parse_check_suite(payload)
     _check_action(name, payload)
     return IssueLabeled(issue=payload["issue"]["number"], label=payload["label"]["name"])
 
@@ -165,6 +191,15 @@ def _route_pull_request(event: PullRequestEvent, trigger: ReviewerTrigger) -> Ro
     return Route(Job.REVIEWER, pr=event.number)
 
 
+def _route_check_suite(event: CheckSuiteEvent) -> Route:
+    pr = event.pull_request
+    if pr is None:
+        return Route(Job.NONE, skip_reason="check suite has no open same-repo PR")
+    if pr.head_sha != event.head_sha:
+        return Route(Job.NONE, pr=pr.number, skip_reason="check suite is for an outdated commit")
+    return Route(Job.REVIEWER, pr=pr.number)
+
+
 def _required(value: int | None, name: str, phase: str) -> int:
     if value is None:
         raise ValueError(f"phase {phase!r} needs {name}")
@@ -187,6 +222,8 @@ def _routed(event: GithubEvent, trigger: ReviewerTrigger) -> Route:
             return _route_label(event)
         case PullRequestEvent():
             return _route_pull_request(event, trigger)
+        case CheckSuiteEvent():
+            return _route_check_suite(event)
         case Dispatch():
             return _route_dispatch(event)
 
