@@ -353,12 +353,21 @@ which carries the `workflow` scope that `GITHUB_TOKEN` is never granted, so the
   [`defaults.yml`](templates/config/defaults.yml) with every key commented out.
 
 The `@version` those wrapper files pin to is `v0`: a floating tag that always
-points at the latest non-breaking release (`v0.1.x`, ...), the same
-convention `actions/checkout@v4` and friends use. A patch or minor release
-reaches every consumer with zero file edits on their side — moving `v0`
-forward is enough. A future breaking change would ship as `v1`; existing
-consumers stay on `v0` until they choose to re-pin. The only time a consumer
-touches this pin is to opt into that kind of major bump.
+points at the latest release, the same convention `actions/checkout@v4` and
+friends use. A patch or minor release reaches every consumer with zero file
+edits on their side. A future breaking change would ship as `v1`; existing
+consumers stay on `v0` until they choose to re-pin.
+
+Releases are automated with [release-please](https://github.com/googleapis/release-please).
+Conventional commits on `main` accumulate into a release PR (changelog plus
+version bump); merging it creates the immutable `vX.Y.Z` tag and GitHub
+release and moves `v0` to it. Tags:
+
+| Tag | Moves when | Audience |
+|---|---|---|
+| `vX.Y.Z` | never (created once per release) | consumers who want a reproducible pin |
+| `v0` | the release PR is merged | consumers (stable) |
+| `next` | every merge to `main` | internal testing; set `INTERNS_REF=next` when installing |
 
 Missing files are added; the three wrapper files above are also re-synced if
 an earlier install's copy has drifted from the current template. `interns.yml`
