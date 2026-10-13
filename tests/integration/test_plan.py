@@ -49,10 +49,13 @@ def pr_state(scenario: Scenario, *reviews: dict, checks: list = GREEN) -> None:
     scenario.gh("pr", "view", "labels", stdout=labels_payload("pr:in-review"))
 
 
-def confirm_review(scenario: Scenario, payload: dict, event: str = "pull_request", max_reviews: int | None = None):
+def confirm_review(scenario: Scenario, payload: dict, event: str = "pull_request", max_reviews: int | None = None,
+                   config_text: str = ""):
     config = scenario.workspace / "interns.yml"
     if max_reviews is not None:
-        config.write_text(f"review_loop:\n  max_automatic_reviews: {max_reviews}\n")
+        config_text += f"review_loop:\n  max_automatic_reviews: {max_reviews}\n"
+    if config_text:
+        config.write_text(config_text)
     return run(scenario, "confirm-route", event, payload, env={"INTERNS_CONFIG": str(config), "CODER_BOT": CODER_BOT})
 
 
@@ -254,3 +257,56 @@ def test_manual_dispatch_still_skips_an_already_reviewed_head(scenario):
     result = confirm_review(scenario, events.dispatch(phase="reviewer", pr_number=PR), event="workflow_dispatch")
 
     assert result.outputs["job"] == "none"
+
+
+def trigger(**keys: str) -> str:
+    return "agents:\n  reviewer:\n    trigger:\n" + "".join(f"      {key}: {value}\n" for key, value in keys.items())
+
+
+def test_human_prs_off_leaves_a_human_pr_unreviewed_without_calling_gh(scenario):
+    result = confirm_review(scenario, events.pull_request(), config_text=trigger(human_prs="false"))
+
+    assert result.outputs["job"] == "none"
+    assert "human_prs" in result.outputs["skip_reason"]
+    assert scenario.calls("gh") == []
+
+
+def test_coder_prs_off_leaves_the_coders_pr_unreviewed(scenario):
+    result = confirm_review(scenario, events.pull_request(login=CODER_BOT, user_type="Bot"),
+                            config_text=trigger(coder_prs="false"))
+
+    assert result.outputs["job"] == "none"
+    assert "coder_prs" in result.outputs["skip_reason"]
+    assert scenario.calls("gh") == []
+
+
+def test_rereview_on_push_off_skips_a_push_but_not_the_opening(scenario):
+    pushed = confirm_review(scenario, events.pull_request("synchronize"), config_text=trigger(rereview_on_push="false"))
+    assert pushed.outputs["job"] == "none"
+    assert scenario.calls("gh") == []
+
+    pr_state(scenario)
+    opened = confirm_review(scenario, events.pull_request("opened"), config_text=trigger(rereview_on_push="false"))
+    assert opened.outputs["job"] == "reviewer"
+
+
+def test_trigger_policy_does_not_stop_a_manual_reviewer_dispatch(scenario):
+    pr_state(scenario)
+
+    result = confirm_review(scenario, events.dispatch(phase="reviewer", pr_number=PR), event="workflow_dispatch",
+                            config_text=trigger(coder_prs="false", human_prs="false", rereview_on_push="false"))
+
+    assert result.outputs["job"] == "reviewer"
+
+
+def test_route_event_applies_the_shipped_trigger_policy_before_the_consumer_config_is_checked_out(scenario):
+    result = run(scenario, "route-event", "pull_request", events.pull_request("synchronize"))
+
+    assert result.outputs["job"] == "reviewer"
+
+
+def test_an_invalid_trigger_value_fails_the_plan(scenario):
+    result = confirm_review(scenario, events.pull_request(), config_text=trigger(human_prs="maybe"))
+
+    assert result.returncode != 0
+    assert "agents.reviewer.trigger.human_prs must be true or false" in result.stderr

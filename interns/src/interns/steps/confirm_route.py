@@ -129,7 +129,7 @@ def main(ctx: ActionsCtx, argv: list[str]) -> int:
     args = parser.parse_args(argv)
 
     event = ctx.event()
-    route = routing.route(event, routing.RouteConfig.parse(args.handles))
+    route = routing.route(event, ctx.route_config(args.handles))
     reason = _skip_reason(ctx, event, route)
     final = replace(route, job=Job.NONE, skip_reason=reason) if reason else route
     if final.skip_reason:

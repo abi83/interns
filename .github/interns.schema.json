@@ -18,7 +18,7 @@
         "refiner": { "$ref": "#/definitions/limits" },
         "estimator": { "$ref": "#/definitions/limits" },
         "coder": { "$ref": "#/definitions/limits" },
-        "reviewer": { "$ref": "#/definitions/limits" }
+        "reviewer": { "$ref": "#/definitions/reviewer" }
       }
     },
     "wiki": {
@@ -69,6 +69,29 @@
     }
   },
   "definitions": {
+    "reviewer": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "model": { "$ref": "#/definitions/limits/properties/model" },
+        "max_turns": { "$ref": "#/definitions/limits/properties/max_turns" },
+        "timeout_minutes": { "$ref": "#/definitions/limits/properties/timeout_minutes" },
+        "max_output_tokens": { "$ref": "#/definitions/limits/properties/max_output_tokens" },
+        "cost_warn_usd": { "$ref": "#/definitions/limits/properties/cost_warn_usd" },
+        "allowed_tools": { "$ref": "#/definitions/limits/properties/allowed_tools" },
+        "disallowed_tools": { "$ref": "#/definitions/limits/properties/disallowed_tools" },
+        "trigger": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Which PR events start a review. A workflow_dispatch with phase reviewer always runs. Defaults review everything the pipeline can handle; fork PRs and other bots' PRs are never reviewed.",
+          "properties": {
+            "coder_prs": { "type": "boolean", "description": "Review PRs opened by the coder agent." },
+            "human_prs": { "type": "boolean", "description": "Review PRs opened by a human." },
+            "rereview_on_push": { "type": "boolean", "description": "Re-review on every push, not just when a PR is opened or marked ready for review." }
+          }
+        }
+      }
+    },
     "limits": {
       "type": "object",
       "additionalProperties": false,

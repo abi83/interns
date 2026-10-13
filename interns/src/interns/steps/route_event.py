@@ -1,7 +1,9 @@
 """`route-event`: maps the triggering GitHub event to the one job it starts.
 
-Pure routing, no `gh` calls. The plan job runs it first so later steps (app
-tokens, a config checkout) can be limited to the jobs that need them.
+Routing only, no `gh` calls. The plan job runs it first so later steps (app
+tokens, the consumer checkout) can be limited to the jobs that need them. The
+consumer's `.github/interns.yml` isn't checked out yet, so the reviewer trigger
+policy is still the shipped default here; `confirm-route` applies the real one.
 """
 
 from __future__ import annotations
@@ -16,7 +18,7 @@ def main(ctx: ActionsCtx, argv: list[str]) -> int:
     parser.add_argument("--handles", required=True, help="comma-separated jobs the calling workflow runs")
     args = parser.parse_args(argv)
 
-    route = routing.route(ctx.event(), routing.RouteConfig.parse(args.handles))
+    route = routing.route(ctx.event(), ctx.route_config(args.handles))
     if route.skip_reason:
         print(f"No job: {route.skip_reason}")
     plan_outputs.write_route(route)

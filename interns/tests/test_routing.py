@@ -1,5 +1,6 @@
 import unittest
 
+from interns.config import ReviewerTrigger
 from interns.domain.routing import (
     Dispatch,
     IssueLabeled,
@@ -12,13 +13,18 @@ from interns.domain.routing import (
 )
 from testkit import events
 
-BOTH = RouteConfig(handles=frozenset(Job) - {Job.NONE})
-ISSUE_WORKFLOW = RouteConfig(handles=frozenset({Job.REFINE, Job.ESTIMATE}))
-CODE_WORKFLOW = RouteConfig(handles=frozenset({Job.CODER, Job.REVIEWER, Job.PR_CLOSED}))
+REVIEW_EVERYTHING = ReviewerTrigger(coder_prs=True, human_prs=True, rereview_on_push=True)
+BOTH = RouteConfig(handles=frozenset(Job) - {Job.NONE}, trigger=REVIEW_EVERYTHING)
+ISSUE_WORKFLOW = RouteConfig(handles=frozenset({Job.REFINE, Job.ESTIMATE}), trigger=REVIEW_EVERYTHING)
+CODE_WORKFLOW = RouteConfig(handles=frozenset({Job.CODER, Job.REVIEWER, Job.PR_CLOSED}), trigger=REVIEW_EVERYTHING)
 
 
-def pr_event(action="opened", *, draft=False, fork=False) -> PullRequestEvent:
-    return PullRequestEvent(action=action, number=12, draft=draft, fork=fork, author_login="alice", author_type="User")
+def with_trigger(**overrides: bool) -> RouteConfig:
+    return RouteConfig(handles=BOTH.handles, trigger=ReviewerTrigger(**{**vars(REVIEW_EVERYTHING), **overrides}))
+
+
+def pr_event(action="opened", *, draft=False, fork=False, author_type="User") -> PullRequestEvent:
+    return PullRequestEvent(action=action, number=12, draft=draft, fork=fork, author_login="alice", author_type=author_type)
 
 
 class RouteLabelTests(unittest.TestCase):
@@ -60,6 +66,37 @@ class RoutePullRequestTests(unittest.TestCase):
         routed = route(pr_event(fork=True), BOTH)
         self.assertEqual(routed.job, Job.NONE)
         self.assertIn("fork", routed.skip_reason)
+
+
+class ReviewerTriggerTests(unittest.TestCase):
+    def test_coder_prs_off_skips_bot_authored_prs_only(self):
+        config = with_trigger(coder_prs=False)
+        self.assertEqual(route(pr_event(author_type="Bot"), config).job, Job.NONE)
+        self.assertIn("coder_prs", route(pr_event(author_type="Bot"), config).skip_reason)
+        self.assertEqual(route(pr_event(author_type="User"), config).job, Job.REVIEWER)
+
+    def test_human_prs_off_skips_human_authored_prs_only(self):
+        config = with_trigger(human_prs=False)
+        self.assertEqual(route(pr_event(author_type="User"), config).job, Job.NONE)
+        self.assertIn("human_prs", route(pr_event(author_type="User"), config).skip_reason)
+        self.assertEqual(route(pr_event(author_type="Bot"), config).job, Job.REVIEWER)
+
+    def test_rereview_on_push_off_skips_pushes_only(self):
+        config = with_trigger(rereview_on_push=False)
+        self.assertEqual(route(pr_event("synchronize"), config).job, Job.NONE)
+        self.assertIn("rereview_on_push", route(pr_event("synchronize"), config).skip_reason)
+        for action in ("opened", "ready_for_review"):
+            with self.subTest(action=action):
+                self.assertEqual(route(pr_event(action), config).job, Job.REVIEWER)
+
+    def test_every_policy_off_still_closes_prs_and_honours_manual_dispatch(self):
+        config = with_trigger(coder_prs=False, human_prs=False, rereview_on_push=False)
+        self.assertEqual(route(pr_event("closed"), config).job, Job.PR_CLOSED)
+        self.assertEqual(route(Dispatch("reviewer", None, 12, False), config).job, Job.REVIEWER)
+
+    def test_the_policy_does_not_touch_issue_events(self):
+        config = with_trigger(coder_prs=False, human_prs=False, rereview_on_push=False)
+        self.assertEqual(route(IssueLabeled(7, "status:ready"), config).job, Job.CODER)
 
 
 class RouteDispatchTests(unittest.TestCase):
@@ -109,11 +146,11 @@ class WorkflowOwnershipTests(unittest.TestCase):
         self.assertIn("other workflow", route(IssueLabeled(7, "status:ready"), ISSUE_WORKFLOW).skip_reason)
 
     def test_handles_parses_a_comma_separated_list(self):
-        self.assertEqual(RouteConfig.parse("refine,estimate").handles, frozenset({Job.REFINE, Job.ESTIMATE}))
+        self.assertEqual(RouteConfig.parse("refine,estimate", REVIEW_EVERYTHING).handles, frozenset({Job.REFINE, Job.ESTIMATE}))
 
     def test_an_unknown_job_name_raises(self):
         with self.assertRaises(ValueError):
-            RouteConfig.parse("refine,deploy")
+            RouteConfig.parse("refine,deploy", REVIEW_EVERYTHING)
 
 
 class ParseEventTests(unittest.TestCase):

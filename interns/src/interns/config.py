@@ -61,6 +61,13 @@ class ReviewLoopConfig:
     max_automatic_reviews: int
 
 
+@dataclass(frozen=True)
+class ReviewerTrigger:
+    coder_prs: bool
+    human_prs: bool
+    rereview_on_push: bool
+
+
 def _yaml_to_json(path: str) -> object:
     try:
         proc = subprocess.run(["yq", "-o=json", "-I=0", ".", path], capture_output=True, text=True)
@@ -291,6 +298,19 @@ def auto_proceed_config(data: dict, path: str) -> dict[str, bool]:
             raise ConfigError(f"auto_proceed.{size} must be true or false (got '{value}') in {path}")
         resolved[size] = value
     return resolved
+
+
+def reviewer_trigger_config(data: dict, path: str) -> ReviewerTrigger:
+    """`agents.reviewer.trigger`, merged key by key over the shipped defaults."""
+    consumer = ((data.get("agents") or {}).get("reviewer") or {}).get("trigger") or {}
+    builtin = ((_builtin_data().get("agents") or {}).get("reviewer") or {}).get("trigger") or {}
+    resolved: dict[str, bool] = {}
+    for key in ReviewerTrigger.__dataclass_fields__:
+        value = _section_value(consumer, builtin, "agents.reviewer.trigger", key)
+        if not isinstance(value, bool):
+            raise ConfigError(f"agents.reviewer.trigger.{key} must be true or false (got '{value}') in {path}")
+        resolved[key] = value
+    return ReviewerTrigger(**resolved)
 
 
 def wiki_dir(wiki_repo: str, workspace: str) -> str:
