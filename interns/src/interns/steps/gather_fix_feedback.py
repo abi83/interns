@@ -12,6 +12,7 @@ import sys
 
 from .. import cli, gh
 from ..domain import verdict
+from ..domain.verdict import ReviewState
 from ..ctx import ActionsCtx
 
 
@@ -30,7 +31,7 @@ def _latest_changes_requested_review(repo: str, pr: int) -> verdict.FullReview:
     # own verdict. Routed through verdict.all_reviews rather than a second,
     # independent fetch so this and those three stay paginated the same way
     # and can't disagree about which review is "latest" (interns#180 review).
-    reviews = [r for r in verdict.all_reviews(repo, pr) if r.state == "CHANGES_REQUESTED"]
+    reviews = [r for r in verdict.all_reviews(repo, pr) if r.state == ReviewState.CHANGES_REQUESTED]
     if not reviews:
         raise NoChangesRequestedReviewError(f"no CHANGES_REQUESTED review found for PR #{pr}")
     return reviews[-1]

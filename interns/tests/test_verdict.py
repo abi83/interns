@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 from interns import gh
 from interns.domain import verdict
-from interns.domain.verdict import FullReview, Review
+from interns.domain.verdict import FullReview, Review, ReviewState
 
 
 def _reviews_payload(entries: list[tuple[str, str, str]]) -> list[dict]:
@@ -31,6 +31,11 @@ class AllReviewsTests(unittest.TestCase):
 
     def test_unexpected_payload_raises(self):
         with patch("interns.gh.pr_reviews", return_value={"not": "a list"}), self.assertRaises(gh.GhCommandError):
+            verdict.all_reviews("o/r", 12)
+
+    def test_an_unknown_review_state_raises(self):
+        payload = _reviews_payload([("somedev", "APPROVE", "sha1")])
+        with patch("interns.gh.pr_reviews", return_value=payload), self.assertRaises(ValueError):
             verdict.all_reviews("o/r", 12)
 
     def test_payload_missing_a_required_key_raises(self):
@@ -63,20 +68,20 @@ class VerdictForHeadTests(unittest.TestCase):
         self.assertIsNone(verdict.verdict_for_head([], "head1"))
 
     def test_latest_review_against_current_head(self):
-        reviews = [Review("reviewer[bot]", "CHANGES_REQUESTED", "head1")]
+        reviews = [Review("reviewer[bot]", ReviewState.CHANGES_REQUESTED, "head1")]
         self.assertEqual(verdict.verdict_for_head(reviews, "head1"), "CHANGES_REQUESTED")
 
     def test_stale_review_from_an_earlier_commit_is_no_verdict(self):
         # The exact edge case the bash dedup logic exists to handle: a fix was
         # pushed on top of a CHANGES_REQUESTED review, moving the head past
         # the commit that review targeted.
-        reviews = [Review("reviewer[bot]", "CHANGES_REQUESTED", "oldsha")]
+        reviews = [Review("reviewer[bot]", ReviewState.CHANGES_REQUESTED, "oldsha")]
         self.assertIsNone(verdict.verdict_for_head(reviews, "newsha"))
 
     def test_only_the_latest_review_counts(self):
         reviews = [
-            Review("reviewer[bot]", "CHANGES_REQUESTED", "head1"),
-            Review("reviewer[bot]", "APPROVED", "head2"),
+            Review("reviewer[bot]", ReviewState.CHANGES_REQUESTED, "head1"),
+            Review("reviewer[bot]", ReviewState.APPROVED, "head2"),
         ]
         self.assertEqual(verdict.verdict_for_head(reviews, "head2"), "APPROVED")
         self.assertIsNone(verdict.verdict_for_head(reviews, "head1"))
@@ -85,23 +90,23 @@ class VerdictForHeadTests(unittest.TestCase):
 class RoundsRequestedTests(unittest.TestCase):
     def test_counts_changes_requested_only(self):
         reviews = [
-            Review("reviewer[bot]", "COMMENTED", "sha1"),
-            Review("reviewer[bot]", "CHANGES_REQUESTED", "sha2"),
-            Review("reviewer[bot]", "APPROVED", "sha3"),
+            Review("reviewer[bot]", ReviewState.COMMENTED, "sha1"),
+            Review("reviewer[bot]", ReviewState.CHANGES_REQUESTED, "sha2"),
+            Review("reviewer[bot]", ReviewState.APPROVED, "sha3"),
         ]
         self.assertEqual(verdict.rounds_requested(reviews), 1)
 
     def test_excludes_the_given_commit(self):
         reviews = [
-            Review("reviewer[bot]", "CHANGES_REQUESTED", "head1"),
-            Review("reviewer[bot]", "CHANGES_REQUESTED", "head2"),
+            Review("reviewer[bot]", ReviewState.CHANGES_REQUESTED, "head1"),
+            Review("reviewer[bot]", ReviewState.CHANGES_REQUESTED, "head2"),
         ]
         self.assertEqual(verdict.rounds_requested(reviews, exclude_commit="head2"), 1)
 
     def test_no_exclusion_counts_everything(self):
         reviews = [
-            Review("reviewer[bot]", "CHANGES_REQUESTED", "head1"),
-            Review("reviewer[bot]", "CHANGES_REQUESTED", "head2"),
+            Review("reviewer[bot]", ReviewState.CHANGES_REQUESTED, "head1"),
+            Review("reviewer[bot]", ReviewState.CHANGES_REQUESTED, "head2"),
         ]
         self.assertEqual(verdict.rounds_requested(reviews), 2)
 

@@ -206,7 +206,7 @@ def test_set_issue_type_swaps_only_type_labels(scenario):
     scenario.gh("issue", "view", stdout=json.dumps({"labels": [{"name": "type:spike"}, {"name": "status:needs-refinement"}]}))
     # gh issue edit is QUIET
 
-    result = labels.set_issue_type(REPO, 7, "type:bug")
+    result = labels.set_issue_type(REPO, 7, labels.TypeLabel.BUG)
 
     assert result == "Issue #7 type set to type:bug"
     assert scenario.label_edits("issue") == [("7", {"type:bug"}, {"type:spike"})]
@@ -221,7 +221,7 @@ def test_apply_refinement_refined_applies_transition(scenario):
     scenario.gh("issue", "view", stdout=json.dumps({"labels": [{"name": "status:needs-refinement"}]}))
     # gh issue edit is QUIET
 
-    result = labels.apply_refinement(REPO, 5, "refined", "type:coding-task")
+    result = labels.apply_refinement(REPO, 5, labels.RefinementOutcome.REFINED, labels.TypeLabel.CODING_TASK)
 
     edits = scenario.calls("gh", "issue", "edit")
     assert edits
@@ -235,7 +235,7 @@ def test_apply_refinement_refined_applies_transition(scenario):
 def test_apply_refinement_needs_attention_applies_transition(scenario):
     scenario.gh("issue", "view", stdout=json.dumps({"labels": [{"name": "status:needs-refinement"}]}))
 
-    result = labels.apply_refinement(REPO, 5, "needs-attention")
+    result = labels.apply_refinement(REPO, 5, labels.RefinementOutcome.NEEDS_ATTENTION)
 
     edits = scenario.calls("gh", "issue", "edit")
     assert edits
@@ -255,7 +255,7 @@ def test_apply_estimation_estimated_applies_size_transition(scenario):
 
     estimation = Estimation(*(Score(level, "because") for level in ("Low", "Mid", "Low", "Low")))
 
-    result = labels.apply_estimation(REPO, 7, "estimated", estimation)
+    result = labels.apply_estimation(REPO, 7, labels.EstimationOutcome.ESTIMATED, estimation)
 
     edits = scenario.calls("gh", "issue", "edit")
     assert edits
@@ -269,7 +269,7 @@ def test_apply_estimation_estimated_applies_size_transition(scenario):
 def test_apply_estimation_needs_attention_applies_transition(scenario):
     scenario.gh("issue", "view", stdout=json.dumps({"labels": [{"name": "status:refined"}]}))
 
-    result = labels.apply_estimation(REPO, 7, "needs-attention")
+    result = labels.apply_estimation(REPO, 7, labels.EstimationOutcome.NEEDS_ATTENTION)
 
     edits = scenario.calls("gh", "issue", "edit")
     assert edits

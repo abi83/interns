@@ -6,12 +6,12 @@ from unittest.mock import patch
 
 from interns.steps import gather_fix_feedback
 from interns.ctx import ActionsCtx
-from interns.domain.verdict import FullReview
+from interns.domain.verdict import FullReview, ReviewState
 
 
 class BuildFeedbackTextTests(unittest.TestCase):
     def test_builds_the_review_comments_and_conversation_block(self):
-        review = FullReview(login="somedev", state="CHANGES_REQUESTED", commit_id="sha1",
+        review = FullReview(login="somedev", state=ReviewState.CHANGES_REQUESTED, commit_id="sha1",
                          id=123, submitted_at="2026-01-02T03:04:05Z", body="do the thing")
         comments = [{"pull_request_review_id": 123, "path": "a.py", "line": 10, "body": "fix this", "created_at": "2026-01-02T03:05:00Z"}]
         conversation = [{"created_at": "2026-01-02T04:00:00Z", "user": {"login": "somedev"}, "body": "looks good otherwise"}]
@@ -27,7 +27,7 @@ class BuildFeedbackTextTests(unittest.TestCase):
 
     def test_only_changes_requested_reviews_are_considered(self):
         reviews = [
-            FullReview(login="somedev", state="APPROVED", commit_id="sha1", id=1, submitted_at="t1", body="lgtm"),
+            FullReview(login="somedev", state=ReviewState.APPROVED, commit_id="sha1", id=1, submitted_at="t1", body="lgtm"),
         ]
         with patch("interns.steps.gather_fix_feedback.verdict.all_reviews", return_value=reviews), self.assertRaises(gather_fix_feedback.NoChangesRequestedReviewError):
             gather_fix_feedback.build_feedback_text("acme/widgets", 6)

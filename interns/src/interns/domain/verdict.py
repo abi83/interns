@@ -9,14 +9,23 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from enum import StrEnum
 
 from .. import gh
+
+
+class ReviewState(StrEnum):
+    APPROVED = "APPROVED"
+    CHANGES_REQUESTED = "CHANGES_REQUESTED"
+    COMMENTED = "COMMENTED"
+    DISMISSED = "DISMISSED"
+    PENDING = "PENDING"
 
 
 @dataclass(frozen=True)
 class Review:
     login: str
-    state: str
+    state: ReviewState
     commit_id: str
 
 
@@ -41,7 +50,7 @@ def all_reviews(repo: str, pr: int) -> list[FullReview]:
     return [
         FullReview(
             login=r["user"]["login"],
-            state=r["state"],
+            state=ReviewState(r["state"]),
             commit_id=r["commit_id"],
             id=r["id"],
             submitted_at=r["submitted_at"],
@@ -56,7 +65,7 @@ def reviews_by(repo: str, pr: int, login: str) -> list[FullReview]:
     return [r for r in all_reviews(repo, pr) if r.login == login]
 
 
-def verdict_for_head(reviews: Sequence[Review], head_sha: str) -> str | None:
+def verdict_for_head(reviews: Sequence[Review], head_sha: str) -> ReviewState | None:
     """The reviewer's verdict for `head_sha`: the state of their latest
     review, or None when that review targets an earlier commit -- a stale
     review left over from a round a later push already addressed."""
@@ -72,5 +81,5 @@ def rounds_requested(reviews: Sequence[Review], *, exclude_commit: str | None = 
     already posted against the PR's current head)."""
     return sum(
         1 for r in reviews
-        if r.state == "CHANGES_REQUESTED" and r.commit_id != exclude_commit
+        if r.state == ReviewState.CHANGES_REQUESTED and r.commit_id != exclude_commit
     )

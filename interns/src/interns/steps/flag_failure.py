@@ -4,10 +4,18 @@ lifecycle event with the failure details gathered from the execution log."""
 from __future__ import annotations
 
 from collections import Counter
+from enum import StrEnum
 
 from .. import cli, execution
 from ..ctx import ActionsCtx
 from ..domain import lifecycle, lifecycle_apply
+
+
+class Noun(StrEnum):
+    REFINEMENT = "refinement"
+    ESTIMATION = "estimation"
+    IMPLEMENTATION = "implementation"
+    REVIEW = "review"
 
 
 MAX_LISTED_DENIALS = 5
@@ -43,7 +51,7 @@ def failure_details(exec_file: str) -> str:
     return "\n".join(lines)
 
 
-def flag_failure(repo: str, noun: str, issue: int | None, pr: int | None, fix_round: bool, *,
+def flag_failure(repo: str, noun: Noun, issue: int | None, pr: int | None, fix_round: bool, *,
                  run_url: str = "", exec_file: str = "", draft_pr_url: str = "") -> None:
     details = failure_details(exec_file)
     suffix = f"\n\n{details}" if details else ""
@@ -59,7 +67,7 @@ def flag_failure(repo: str, noun: str, issue: int | None, pr: int | None, fix_ro
 
 def main(ctx: ActionsCtx, argv: list[str]) -> int:
     parser = cli.build_parser("flag-failure")
-    parser.add_argument("--noun", default="")
+    parser.add_argument("--noun", type=Noun, choices=list(Noun), required=True)
     parser.add_argument("--issue", default="")
     parser.add_argument("--pr", default="")
     parser.add_argument("--fix-round", action="store_true")

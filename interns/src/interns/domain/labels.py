@@ -15,7 +15,8 @@ absent label -- which `gh` would reject -- never happens in the first place.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Literal, NamedTuple, get_args
+from enum import StrEnum
+from typing import NamedTuple
 
 from .. import best_effort, gh
 from .size import Estimation
@@ -31,9 +32,26 @@ PR_CODING = "pr:coding"
 PR_IN_REVIEW = "pr:in-review"
 PR_NEEDS_ATTENTION = "pr:needs-attention"
 
-TypeLabel = Literal["type:coding-task", "type:bug", "type:spike"]
-TYPE_LABELS = get_args(TypeLabel)
+
+
+class TypeLabel(StrEnum):
+    CODING_TASK = "type:coding-task"
+    BUG = "type:bug"
+    SPIKE = "type:spike"
+
+
+TYPE_LABELS = tuple(TypeLabel)
 TYPE_CODING_TASK, TYPE_BUG, TYPE_SPIKE = TYPE_LABELS
+
+
+class RefinementOutcome(StrEnum):
+    REFINED = "refined"
+    NEEDS_ATTENTION = "needs-attention"
+
+
+class EstimationOutcome(StrEnum):
+    ESTIMATED = "estimated"
+    NEEDS_ATTENTION = "needs-attention"
 
 SIZE_PREFIX = "size:"
 
@@ -55,7 +73,7 @@ class Transition(NamedTuple):
     remove: list[str]
 
 
-def refined(type_label: str) -> Transition:
+def refined(type_label: TypeLabel) -> Transition:
     """Refinement done: hands the issue to the estimate job via its type label."""
     return Transition(
         add=[STATUS_REFINED, type_label],
@@ -143,14 +161,12 @@ def escalate_pr(repo: str, pr: int) -> None:
     set_pr_pipeline_label(repo, pr, PR_NEEDS_ATTENTION)
 
 
-def set_issue_type(repo: str, issue: int, type_label: str) -> str:
+def set_issue_type(repo: str, issue: int, type_label: TypeLabel) -> str:
     """Make `type_label` the issue's only `type:*` label.
 
     The only label write an agent gets besides the outcome tools: it can
     never touch status:*, pr:* or size:*. Strict: a failed edit raises.
     """
-    if type_label not in TYPE_LABELS:
-        raise gh.InvalidInputError(f"type_label must be one of: {', '.join(TYPE_LABELS)}")
     edit_issue_labels_strict(repo, issue, add=[type_label], remove=[t for t in TYPE_LABELS if t != type_label])
     return f"Issue #{issue} type set to {type_label}"
 
@@ -158,46 +174,45 @@ def set_issue_type(repo: str, issue: int, type_label: str) -> str:
 def apply_refinement(
     repo: str,
     issue: int,
-    outcome: str,
-    type_label: str | None = None,
+    outcome: RefinementOutcome,
+    type_label: TypeLabel | None = None,
 ) -> str:
     """Apply the lifecycle label transition after refinement.
 
     refined        → requires type_label; transitions issue to status:refined.
     needs-attention → transitions issue to status:needs-attention.
-    Raises gh.InvalidInputError for invalid inputs.
+    Raises gh.InvalidInputError when refined comes without a type_label.
     """
-    if outcome == "refined":
-        if type_label is None:
-            raise gh.InvalidInputError("type_label is required when outcome='refined'")
-        transition = refined(type_label)
-    elif outcome == "needs-attention":
-        transition = refinement_needs_attention()
-    else:
-        raise gh.InvalidInputError("outcome must be 'refined' or 'needs-attention'")
+    match outcome:
+        case RefinementOutcome.REFINED:
+            if type_label is None:
+                raise gh.InvalidInputError("type_label is required when outcome='refined'")
+            transition = refined(type_label)
+        case RefinementOutcome.NEEDS_ATTENTION:
+            transition = refinement_needs_attention()
     apply_transition(repo, issue, transition)
     return f"Refinement outcome '{outcome}' applied to issue #{issue}"
 
 
-def apply_estimation(repo: str, issue: int, outcome: str, estimation: Estimation | None = None) -> str:
+def apply_estimation(repo: str, issue: int, outcome: EstimationOutcome, estimation: Estimation | None = None) -> str:
     """Apply the lifecycle label transition after estimation.
 
     estimated      → rolls the four scores into a size:* label, then posts the
                      score comment. The transition goes first and is strict, so
                      a failed transition leaves no comment behind.
     needs-attention → transitions issue to status:needs-attention.
-    Raises gh.InvalidInputError for invalid inputs; ValueError for bad scores.
+    Raises gh.InvalidInputError when estimated comes without scores; ValueError for bad scores.
     """
-    if outcome == "estimated":
-        if estimation is None:
-            raise gh.InvalidInputError(
-                "blast_radius, touch, human_involvement, and review_overhead are all required when outcome='estimated'"
-            )
-        size = estimation.size()
-        apply_transition(repo, issue, estimated(size))
-        gh.issue_comment(repo, issue, estimation.comment())
-        return f"Estimation outcome 'estimated' applied to issue #{issue} ({size_label(size)})"
-    if outcome == "needs-attention":
-        apply_transition(repo, issue, estimation_needs_attention())
-        return f"Estimation outcome 'needs-attention' applied to issue #{issue}"
-    raise gh.InvalidInputError("outcome must be 'estimated' or 'needs-attention'")
+    match outcome:
+        case EstimationOutcome.ESTIMATED:
+            if estimation is None:
+                raise gh.InvalidInputError(
+                    "blast_radius, touch, human_involvement, and review_overhead are all required when outcome='estimated'"
+                )
+            size = estimation.size()
+            apply_transition(repo, issue, estimated(size))
+            gh.issue_comment(repo, issue, estimation.comment())
+            return f"Estimation outcome 'estimated' applied to issue #{issue} ({size_label(size)})"
+        case EstimationOutcome.NEEDS_ATTENTION:
+            apply_transition(repo, issue, estimation_needs_attention())
+            return f"Estimation outcome 'needs-attention' applied to issue #{issue}"

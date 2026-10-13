@@ -248,7 +248,7 @@ def push_branch() -> str:
 @_tool
 def apply_refinement_outcome(
     issue_number: Annotated[int, Field(description="Issue number.")],
-    outcome: Annotated[Literal["refined", "needs-attention"], Field(description="Refinement outcome.")],
+    outcome: Annotated[labels.RefinementOutcome, Field(description="Refinement outcome.")],
     type_label: Annotated[
         labels.TypeLabel | None,
         Field(description="Required when outcome='refined'. The type label for this issue."),
@@ -267,7 +267,7 @@ def apply_refinement_outcome(
 @_tool
 def apply_estimation_outcome(
     issue_number: Annotated[int, Field(description="Issue number.")],
-    outcome: Annotated[Literal["estimated", "needs-attention"], Field(description="Estimation outcome.")],
+    outcome: Annotated[labels.EstimationOutcome, Field(description="Estimation outcome.")],
     estimation: Annotated[
         Estimation | None,
         Field(

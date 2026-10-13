@@ -49,4 +49,4 @@ pythonVersion = "3.12"
 include = ["interns", "installer", "gh_issues_mcp", "tests"]
 extraPaths = ["interns/src", "installer/src", "gh_issues_mcp", "tests"]
 exclude = ["**/.venv", ".claude"]
-typeCheckingMode = "basic"
+typeCheckingMode = "standard"
