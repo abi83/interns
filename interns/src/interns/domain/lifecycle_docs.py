@@ -1,0 +1,89 @@
+"""Renders the README's PR-loop lifecycle section from `lifecycle.SCENARIOS`,
+so the documented transitions cannot drift from `lifecycle.decide`.
+
+Regenerate with `PYTHONPATH=interns/src uv run --frozen python -m interns.domain.lifecycle_docs`.
+"""
+
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+from . import labels
+from .lifecycle import SCENARIOS, Event, IssueChange, Outcome, Scenario, decide
+
+START = "<!-- lifecycle:start -->"
+END = "<!-- lifecycle:end -->"
+
+README = Path(__file__).resolve().parents[4] / "README.md"
+
+_ISSUE_TEXT = {
+    IssueChange.UNCHANGED: "unchanged",
+    IssueChange.NEEDS_ATTENTION: f"`{labels.STATUS_NEEDS_ATTENTION}`",
+    IssueChange.RETIRE_IN_PROGRESS: f"drops `{labels.STATUS_IN_PROGRESS}`",
+}
+
+
+def _pr_text(outcome: Outcome) -> str:
+    return f"`{outcome.pr_label}`" if outcome.pr_label else "none"
+
+
+def _comment_text(outcome: Outcome) -> str:
+    return f"{outcome.comment.kind} on the {outcome.comment.target}" if outcome.comment else "none"
+
+
+def _dispatch_text(outcome: Outcome) -> str:
+    return "coder fix round" if outcome.dispatch_fix_round else "none"
+
+
+def _table(rows: list[tuple[Scenario, Outcome]]) -> str:
+    lines = [
+        "| Event | Situation | PR label | Issue | Comment | Dispatch |",
+        "|---|---|---|---|---|---|",
+    ]
+    for scenario, outcome in rows:
+        cells = (
+            f"`{scenario.event}`",
+            scenario.name,
+            _pr_text(outcome),
+            _ISSUE_TEXT[outcome.issue],
+            _comment_text(outcome),
+            _dispatch_text(outcome),
+        )
+        lines.append("| " + " | ".join(cells) + " |")
+    return "\n".join(lines)
+
+
+def _node_id(text: str) -> str:
+    return re.sub(r"\W", "_", text)
+
+
+def _diagram(rows: list[tuple[Scenario, Outcome]]) -> str:
+    lines = ["```mermaid", "flowchart LR"]
+    for event in Event:
+        lines.append(f'    {event}(["{event}"])')
+    edges: list[str] = []
+    for scenario, outcome in rows:
+        pr = _pr_text(outcome).strip("`")
+        pr_node = f"pr_{_node_id(pr)}"
+        edges.append(f'    {scenario.event} -->|"{scenario.name}"| {pr_node}["PR: {pr}"]')
+        if outcome.issue is not IssueChange.UNCHANGED:
+            issue = _ISSUE_TEXT[outcome.issue].replace("`", "")
+            edges.append(f'    {scenario.event} -.->|"{scenario.name}"| issue_{_node_id(issue)}["issue: {issue}"]')
+    lines.extend(dict.fromkeys(edges))
+    lines.append("```")
+    return "\n".join(lines)
+
+
+def render() -> str:
+    rows = [(scenario, decide(scenario.event, scenario.facts)) for scenario in SCENARIOS]
+    return f"{START}\n{_table(rows)}\n\n{_diagram(rows)}\n{END}"
+
+
+def splice(readme: str) -> str:
+    start, end = readme.index(START), readme.index(END) + len(END)
+    return readme[:start] + render() + readme[end:]
+
+
+if __name__ == "__main__":
+    README.write_text(splice(README.read_text()))

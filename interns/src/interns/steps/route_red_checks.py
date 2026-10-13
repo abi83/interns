@@ -5,21 +5,14 @@ Only the PR is escalated; the issue keeps its status because the work is in a PR
 
 from __future__ import annotations
 
-from .. import cli, gh
-from ..domain import labels
+from .. import cli
 from ..ctx import ActionsCtx
+from ..domain import lifecycle, lifecycle_apply
 
 
 def route_red_checks(repo: str, pr: int, reason: str, *, run_url: str = "") -> None:
-    labels.escalate_pr(repo, pr)
-    gh.pr_comment(
-        repo, pr,
-        f"PR checks are not green ({reason}) — the reviewer won't run, so this is sent straight to a "
-        "human rather than retried. The coder can only verify its work through your Makefile: make sure "
-        "it has real `setup`, `test` and `build` targets (stubs are skipped), otherwise the coder "
-        "cannot catch failures before pushing. "
-        f"Run: {run_url}",
-    )
+    outcome = lifecycle.decide(lifecycle.Event.RED_CHECKS, lifecycle.Facts(has_issue=False, has_pr=True))
+    lifecycle_apply.apply(repo, outcome, pr=pr, issue=None, words=lifecycle_apply.Words(run_url=run_url, detail=reason))
 
 
 def main(ctx: ActionsCtx, argv: list[str]) -> int:

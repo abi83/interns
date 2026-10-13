@@ -16,9 +16,9 @@ from __future__ import annotations
 
 import os
 
-from .. import cli, gh
-from ..domain import labels
+from .. import cli
 from ..ctx import ActionsCtx
+from ..domain import lifecycle, lifecycle_apply
 
 SENTINEL_NAME = ".coder-gave-up.md"
 
@@ -32,16 +32,8 @@ def handle_giveup(repo: str, issue: int, pr: int | None, workspace: str, *, run_
     with open(sentinel) as f:
         reason = f.read().strip() or "_(no reason given)_"
 
-    if pr is not None:
-        labels.set_pr_pipeline_label(repo, pr)
-    labels.set_issue_status(repo, issue, labels.STATUS_NEEDS_ATTENTION)
-    gh.issue_comment(
-        repo, issue,
-        "The coder fix round declined this task and set `status:needs-attention` "
-        "— it was not handed back to the reviewer.\n\n"
-        f"{reason}\n\n"
-        f"Run: {run_url}",
-    )
+    outcome = lifecycle.decide(lifecycle.Event.CODER_GAVE_UP, lifecycle.Facts(has_issue=True, has_pr=pr is not None))
+    lifecycle_apply.apply(repo, outcome, pr=pr, issue=issue, words=lifecycle_apply.Words(run_url=run_url, detail=reason))
     cli.write_output("gave_up", True)
     return True
 

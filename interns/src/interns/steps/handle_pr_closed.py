@@ -12,28 +12,15 @@ Either way, clear any stale pr:* label from the PR.
 
 from __future__ import annotations
 
-from .. import cli, gh
-from ..domain import labels
+from .. import cli
 from ..ctx import ActionsCtx
+from ..domain import lifecycle, lifecycle_apply
 
 
 def handle_pr_closed(repo: str, pr: int, issue: int | None, merged: bool, *, server_url: str, run_url: str) -> None:
-    labels.set_pr_pipeline_label(repo, pr)
-
-    if issue is None:
-        return
-
-    if merged:
-        # The issue is already closed by `Closes #N`; just retire the run label.
-        labels.edit_issue_labels(repo, issue, remove=[labels.STATUS_IN_PROGRESS])
-        return
-
-    labels.set_issue_status(repo, issue, labels.STATUS_NEEDS_ATTENTION)
-    gh.issue_comment(
-        repo, issue,
-        f"[PR #{pr}]({server_url}/{repo}/pull/{pr}) was closed without merging — this issue needs a human to "
-        f"decide whether to re-dispatch the coder (re-apply `status:ready`) or drop it. Run: {run_url}",
-    )
+    event = lifecycle.Event.PR_CLOSED_MERGED if merged else lifecycle.Event.PR_CLOSED_UNMERGED
+    outcome = lifecycle.decide(event, lifecycle.Facts(has_issue=issue is not None, has_pr=True))
+    lifecycle_apply.apply(repo, outcome, pr=pr, issue=issue, words=lifecycle_apply.Words(run_url=run_url, server_url=server_url))
 
 
 def main(ctx: ActionsCtx, argv: list[str]) -> int:
