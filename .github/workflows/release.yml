@@ -16,11 +16,9 @@ jobs:
   release-please:
     runs-on: ubuntu-latest
     steps:
-      # A PAT or App token (not GITHUB_TOKEN) so the release PR triggers ci.yml.
       - uses: googleapis/release-please-action@v4
         id: release
         with:
-          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
