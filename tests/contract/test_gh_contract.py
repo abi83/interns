@@ -15,6 +15,7 @@ from interns.domain import verdict
 from interns.steps import gh_query
 from interns.domain import labels
 from interns.domain import checks as domain_checks
+from interns.domain import routing
 
 from testkit.harness import Scenario
 
@@ -64,6 +65,20 @@ def test_pr_lookups(scenario):
     assert gh_query.head_sha(REPO, 199) == pr["headRefOid"]
     assert gh_query.closing_issue(REPO, 199) == str(pr["closingIssuesReferences"][0]["number"])
     assert labels.pr_labels(REPO, 199) == [label["name"] for label in pr["labels"]]
+
+
+def test_rest_pull_request_parses_into_a_routable_event(scenario):
+    scenario.gh(f"repos/{REPO}/pulls/199", stdout=fixture("pr_rest"))
+    rest = json.loads(fixture("pr_rest"))
+
+    live = gh.pr_rest(REPO, 199)
+    event = routing.pull_request_event("completed", live)
+
+    assert live["state"] == rest["state"]
+    assert event == routing.PullRequestEvent(
+        action="completed", number=rest["number"], draft=rest["draft"], fork=rest["head"]["repo"]["fork"],
+        author_login=rest["user"]["login"], author_type=rest["user"]["type"],
+    )
 
 
 def test_pr_for_issue_finds_the_pr_closing_it(scenario):

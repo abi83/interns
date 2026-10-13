@@ -29,7 +29,7 @@ __all__ = [
     "InvalidInputError", "PushRefusedError",
     # Ops
     "issue_view", "issue_edit", "issue_edit_validated", "issue_list", "issue_comment",
-    "pr_view", "pr_list", "pr_edit", "pr_comment", "pr_diff_names", "pr_checks", "pr_create",
+    "pr_view", "pr_rest", "pr_list", "pr_edit", "pr_comment", "pr_diff_names", "pr_checks", "pr_create",
     "pr_submit_review", "pr_for_head", "pr_ready", "pr_update",
     "issue_with_relations", "pr_reviews", "pr_review_comments", "issue_comments_all",
     "default_branch", "dispatch_workflow",
@@ -136,6 +136,14 @@ def pr_view(repo: str, number: int, fields: list[str]) -> dict:
     """`gh pr view` restricted to `fields`."""
     proc = run(["pr", "view", str(number), "--repo", repo, "--json", ",".join(fields)])
     return json.loads(proc.stdout)
+
+
+def pr_rest(repo: str, number: int) -> dict:
+    """The pull request as the REST API returns it: state, draft flag, head and author (login and type)."""
+    result = api(f"repos/{repo}/pulls/{number}")
+    if not isinstance(result, dict):
+        raise GhCommandError(f"unexpected response from pulls endpoint: {result!r}")
+    return result
 
 
 _PR_LIST_LIMIT = 1000

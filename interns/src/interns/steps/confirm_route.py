@@ -6,10 +6,14 @@ The final `job` is `none` (with the reason) when a gate rejects the run:
   round is dispatched against an already `status:in-progress` issue, so it
   bypasses both.
 - estimate: the issue is a type that can't be sized (an epic).
-- reviewer: PR checks are red (the PR is routed to a human), the PR isn't a
-  pipeline PR, its head is already reviewed, or the automatic review cap is
-  reached. workflow_dispatch is an explicit human override: it skips the check
-  gate and the cap.
+- reviewer: PR checks are red (the PR is routed to a human) or still running
+  (no failure: the next completing check suite triggers the review again), the
+  PR isn't a pipeline PR, its head is already reviewed, or the automatic review
+  cap is reached. workflow_dispatch is an explicit human override: it skips the
+  check gate and the cap.
+
+A check suite event carries no draft flag or author, so its PR is fetched and
+routed again as a pull request event.
 """
 
 from __future__ import annotations
@@ -67,17 +71,19 @@ def _estimate_skip_reason(repo: str, route: Route) -> str:
     return ""
 
 
-def _checks_failure(ctx: ActionsCtx, pr: int) -> str:
+def _checks_skip_reason(ctx: ActionsCtx, pr: int) -> str:
     config_path = ctx.config_path
     cfg = config.checks_config(config.load_raw(config_path), config_path)
-    ok, reason = checks.wait_for_checks(
+    outcome, reason = checks.wait_for_checks(
         ctx.repo, pr, ctx.run_id, cfg.ignore,
         timeout=cfg.timeout_seconds, poll=cfg.poll_seconds, settle=cfg.settle_seconds,
     )
-    if ok:
+    if outcome is checks.Outcome.GREEN:
         return ""
+    if outcome is checks.Outcome.PENDING:
+        return reason
     checks.route_red_checks(ctx.repo, pr, reason, run_url=ctx.run_url())
-    return reason
+    return f"checks are not green: {reason}"
 
 
 def _review_cap_reached(ctx: ActionsCtx, pr: int, review_count: int) -> bool:
@@ -88,13 +94,21 @@ def _review_cap_reached(ctx: ActionsCtx, pr: int, review_count: int) -> bool:
     )
 
 
-def _reviewer_skip_reason(ctx: ActionsCtx, event: routing.GithubEvent, route: Route) -> str:
+def _is_push_rereview(event: routing.GithubEvent, trigger: config.ReviewerTrigger, reviews: list[verdict.FullReview]) -> bool:
+    # A completed check suite replaces the old synchronize trigger; a suite for an already reviewed PR is a push.
+    return isinstance(event, routing.PullRequestEvent) and event.action == "completed" and bool(reviews) \
+        and not trigger.rereview_on_push
+
+
+def _reviewer_skip_reason(
+    ctx: ActionsCtx, event: routing.GithubEvent, route: Route, trigger: config.ReviewerTrigger,
+) -> str:
     pr = _pr(route)
     dispatched = isinstance(event, routing.Dispatch)
     if not dispatched:
-        failure = _checks_failure(ctx, pr)
-        if failure:
-            return f"checks are not green: {failure}"
+        reason = _checks_skip_reason(ctx, pr)
+        if reason:
+            return reason
 
     if isinstance(event, routing.PullRequestEvent):
         coder_bot = cli.require_env("CODER_BOT")
@@ -106,19 +120,35 @@ def _reviewer_skip_reason(ctx: ActionsCtx, event: routing.GithubEvent, route: Ro
     if verdict.verdict_for_head(reviews, head_sha) is not None:
         return f"head commit {head_sha} is already reviewed: duplicate event"
 
+    if _is_push_rereview(event, trigger, reviews):
+        return "PR already reviewed and agents.reviewer.trigger.rereview_on_push is false"
+
     if not dispatched and _review_cap_reached(ctx, pr, len(reviews)):
         return "automatic review cap reached"
     return ""
 
 
-def _skip_reason(ctx: ActionsCtx, event: routing.GithubEvent, route: Route) -> str:
+def _live_review_target(
+    ctx: ActionsCtx, event: routing.CheckSuiteEvent, route: Route, config: routing.RouteConfig,
+) -> tuple[routing.GithubEvent, Route]:
+    pr = _pr(route)
+    live = gh.pr_rest(ctx.repo, pr)
+    if live["state"] != "open":
+        return event, Route(Job.NONE, pr=pr, skip_reason="PR is not open")
+    if live["head"]["sha"] != event.head_sha:
+        return event, Route(Job.NONE, pr=pr, skip_reason="PR head moved past this check suite")
+    live_event = routing.pull_request_event("completed", live)
+    return live_event, routing.route(live_event, config)
+
+
+def _skip_reason(ctx: ActionsCtx, event: routing.GithubEvent, route: Route, trigger: config.ReviewerTrigger) -> str:
     match route.job:
         case Job.CODER:
             return _coder_skip_reason(ctx.repo, route)
         case Job.ESTIMATE:
             return _estimate_skip_reason(ctx.repo, route)
         case Job.REVIEWER:
-            return _reviewer_skip_reason(ctx, event, route)
+            return _reviewer_skip_reason(ctx, event, route, trigger)
         case _:
             return ""
 
@@ -129,8 +159,11 @@ def main(ctx: ActionsCtx, argv: list[str]) -> int:
     args = parser.parse_args(argv)
 
     event = ctx.event()
-    route = routing.route(event, ctx.route_config(args.handles))
-    reason = _skip_reason(ctx, event, route)
+    route_config = ctx.route_config(args.handles)
+    route = routing.route(event, route_config)
+    if isinstance(event, routing.CheckSuiteEvent) and route.job is Job.REVIEWER:
+        event, route = _live_review_target(ctx, event, route, route_config)
+    reason = _skip_reason(ctx, event, route, route_config.trigger)
     final = replace(route, job=Job.NONE, skip_reason=reason) if reason else route
     if final.skip_reason:
         print(f"No job: {final.skip_reason}")

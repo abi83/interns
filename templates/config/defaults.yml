@@ -18,14 +18,16 @@ wiki:
   enabled: false
   # url: owner/repo.wiki
 
-# The reviewer waits for every PR check to be green before it runs. List any
+# The reviewer needs every PR check to be green before it runs. List any
 # non-blocking advisory checks here (preview deploys, coverage deltas) to keep
 # them out of that gate.
 checks:
   ignore: []
   #  - preview-deploy
-  # How long (in seconds) the reviewer waits for all PR checks to finish.
-  timeout_seconds: 1200
+  # How long (in seconds) a review waits for stragglers when a check suite
+  # completes. Checks still running after that skip the review; the next suite
+  # to complete triggers it again.
+  timeout_seconds: 120
   poll_seconds: 20
   settle_seconds: 30
 

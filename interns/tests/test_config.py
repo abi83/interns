@@ -91,7 +91,7 @@ class LoadRawTests(unittest.TestCase):
 _BUILTIN_FIXTURE = {
     "debug": False,
     "wiki": {"enabled": False},
-    "checks": {"ignore": [], "timeout_seconds": 1200, "poll_seconds": 20, "settle_seconds": 30},
+    "checks": {"ignore": [], "timeout_seconds": 120, "poll_seconds": 20, "settle_seconds": 30},
     "review_loop": {"max_fix_rounds": 1, "max_automatic_reviews": 5},
     "auto_proceed": {"XS": True, "S": True, "M": True, "L": False, "XL": False},
     "defaults": {
@@ -355,7 +355,7 @@ class ChecksConfigTests(unittest.TestCase):
     def test_defaults_to_empty_ignore_and_builtin_timing(self):
         cfg = config.checks_config({}, "interns.yml")
         self.assertEqual(cfg.ignore, [])
-        self.assertEqual(cfg.timeout_seconds, 1200)
+        self.assertEqual(cfg.timeout_seconds, 120)
         self.assertEqual(cfg.poll_seconds, 20)
         self.assertEqual(cfg.settle_seconds, 30)
 

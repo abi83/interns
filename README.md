@@ -381,8 +381,12 @@ override it deliberately; everything else follows interns' defaults as they
 change. A value can only come from your file or those defaults — there is no
 second, overlapping source.
 
-The reviewer waits for **all** of a PR's checks to be green before it runs — a
-red or cancelled check on anything routes the PR to a human instead. Name any
+The reviewer needs **all** of a PR's checks to be green before it runs — a
+red or cancelled check on anything routes the PR to a human instead. It is
+triggered when a check suite completes (`check_suite: completed` in the caller
+workflow), so no runner sits idle polling CI; checks still running after the
+short `checks.timeout_seconds` wait just skip that run, and the next suite to
+complete triggers the review again. Name any
 non-blocking advisory checks (preview deploys, coverage deltas) under
 `checks.ignore` in `.github/interns.yml` to keep them out of that gate.
 Gate timing (`checks.timeout_seconds` / `poll_seconds` / `settle_seconds`)
