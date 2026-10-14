@@ -23,7 +23,7 @@ import time
 from interns import gh
 
 from . import credentials, dashboard, gh_admin, install_files, safety
-from .apps import APPS, provision_app, request_install, secret_mutation, write_secret
+from .apps import APPS, provision_app, secret_mutation, write_secret
 from .console import Console
 
 WORKFLOW = install_files.WORKFLOW
@@ -94,10 +94,6 @@ def _secrets_scope_ok(con: Console, existing_secrets: list[str] | None) -> bool:
 
 def _write_oauth_token(con: Console, repo: gh_admin.Repo, existing_secrets: list[str] | None) -> None:
     con.step("Claude Code OAuth token")
-    # Separate App from the interns-* ones above: without it installed, the
-    # OAuth token exchange 401s and every coder/reviewer/refiner run fails.
-    request_install(con, repo, "claude", "Claude Code GitHub App")
-
     if con.dry_run:
         secret_mutation(con, "CLAUDE_CODE_OAUTH_TOKEN", existing_secrets)
         return

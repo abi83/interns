@@ -4,10 +4,10 @@ Each test runs a real entrypoint against fake `gh` and asserts on the labels
 and comments it leaves behind.
 """
 
-import json
 
 import pytest
 
+from testkit.execution_log import jsonl
 from testkit.harness import REPO, Scenario, labels_payload
 
 ISSUE = "7"
@@ -171,7 +171,7 @@ def test_estimation_crash_with_no_pr_comments_the_issue_directly(scenario):
 
 def _write_exec_log(scenario, *, subtype, errors, denied_commands):
     path = scenario.dir / "execution.json"
-    path.write_text(json.dumps([{
+    path.write_text(jsonl([{
         "type": "result", "subtype": subtype, "errors": errors,
         "permission_denials": [
             {"tool_name": "Bash", "tool_use_id": f"tu-{i}", "tool_input": {"command": cmd}}

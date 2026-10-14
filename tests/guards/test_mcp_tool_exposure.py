@@ -1,4 +1,4 @@
-"""Each phase's exposed gh-issues tools (`tools:` input) must match its `--allowedTools` MCP entries.
+"""Each phase's exposed gh-issues tools (`tools:` input) must match its allowed-tools MCP entries.
 
 Exposed but not allowed: the model sees a tool headless mode will deny.
 Allowed but not exposed: the allowlist entry is dead and the model can't call it.
@@ -19,14 +19,14 @@ def allowed_env(text: str) -> dict[str, str]:
 
 
 def phases(text: str) -> list[tuple[set[str], set[str]]]:
-    """(exposed, allowed) per setup step; allowed spans every --allowedTools line up to the next setup step."""
+    """(exposed, allowed) per setup step; allowed spans every AGENT_ALLOWED_TOOLS line up to the next setup step."""
     env = allowed_env(text)
     result = []
     for chunk in text.split(f"uses: {SETUP_ACTION}")[1:]:
         tools_line = re.search(r"^\s+tools: (\S+)$", chunk, re.MULTILINE)
         assert tools_line, "setup-gh-issues-mcp step without a `tools:` input"
         exposed = set(tools_line.group(1).split(","))
-        refs = re.findall(r"--allowedTools \"(.*)\"", chunk)
+        refs = re.findall(r"AGENT_ALLOWED_TOOLS: (.*)$", chunk, re.MULTILINE)
         allowed = {env[name] for line in refs for name in re.findall(r"env\.(ALLOWED_\w+)", line) if name in env}
         result.append((exposed, allowed))
     return result

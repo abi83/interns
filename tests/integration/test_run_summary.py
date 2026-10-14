@@ -4,10 +4,10 @@ summary must still land (best-effort) with a plain fallback line rather
 than crash the `if: always()` step that writes it.
 """
 
-import json
 
 import pytest
 
+from testkit.execution_log import jsonl
 from testkit.harness import REPO, Scenario, labels_payload
 
 ISSUE = "7"
@@ -22,7 +22,7 @@ def scenario(tmp_path) -> Scenario:
 
 def exec_file(scenario, **result_fields) -> str:
     path = scenario.dir / "execution.json"
-    path.write_text(json.dumps([{"type": "result", **result_fields}]))
+    path.write_text(jsonl([{"type": "result", **result_fields}]))
     return str(path)
 
 

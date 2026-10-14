@@ -1,4 +1,4 @@
-"""The reviewer's Bash allowlist is read-only and identical on both agent paths; its `gh` calls run as the reviewer App."""
+"""The reviewer's Bash allowlist is read-only; its `gh` calls run as the reviewer App."""
 
 import re
 from pathlib import Path
@@ -14,8 +14,7 @@ READ_ONLY_COMMANDS = {
     "gh pr checks",
     "gh run view",
 }
-LAUNCHER_STEP = "Run Claude reviewer (launcher)"
-ACTION_STEP = "Run Claude reviewer"
+REVIEWER_STEP = "Run Claude reviewer"
 
 
 def step(name: str) -> str:
@@ -35,32 +34,22 @@ def bash_commands(allowed_tools: str) -> set[str]:
     return set(re.findall(r"Bash\((.+?):\*\)", expanded))
 
 
-def action_allowed_tools() -> str:
-    match = re.search(r'--allowedTools "(.*)"', step(ACTION_STEP))
+def allowed_tools() -> str:
+    match = re.search(r"AGENT_ALLOWED_TOOLS: (.*)", step(REVIEWER_STEP))
     assert match
     return match.group(1)
 
 
-def launcher_allowed_tools() -> str:
-    match = re.search(r"AGENT_ALLOWED_TOOLS: (.*)", step(LAUNCHER_STEP))
-    assert match
-    return match.group(1)
+def test_allowlist_is_read_only():
+    assert bash_commands(allowed_tools()) == READ_ONLY_COMMANDS
 
 
-def test_action_allowlist_is_read_only():
-    assert bash_commands(action_allowed_tools()) == READ_ONLY_COMMANDS
-
-
-def test_launcher_allowlist_matches_the_action_allowlist():
-    assert launcher_allowed_tools() == action_allowed_tools()
-
-
-def test_launcher_pins_builtin_tools_and_appends_consumer_additions():
-    block = step(LAUNCHER_STEP)
+def test_pins_builtin_tools_and_appends_consumer_additions():
+    block = step(REVIEWER_STEP)
     assert "AGENT_TOOLS: Read,Grep,Glob,Bash${{ steps.cfg.outputs.tools_suffix }}" in block
-    assert launcher_allowed_tools().endswith("${{ steps.cfg.outputs.allowed_tools_suffix }}")
+    assert allowed_tools().endswith("${{ steps.cfg.outputs.allowed_tools_suffix }}")
     assert "AGENT_DISALLOWED_TOOLS: ${{ steps.cfg.outputs.disallowed_tools }}" in block
 
 
-def test_launcher_runs_gh_as_the_reviewer_app():
-    assert "GH_TOKEN: ${{ steps.reviewer_token.outputs.token }}" in step(LAUNCHER_STEP)
+def test_runs_gh_as_the_reviewer_app():
+    assert "GH_TOKEN: ${{ steps.reviewer_token.outputs.token }}" in step(REVIEWER_STEP)

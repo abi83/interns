@@ -1,9 +1,6 @@
-"""Parsing of an agent execution file: the launcher's JSONL event stream, or
-the JSON array claude-code-action writes.
+"""Parsing of an agent execution file: the launcher's JSONL event stream.
 
-Shared by interns.steps.report_run and interns.steps.run_summary, which both
-previously hand-duplicated the same `result`-entry extraction (interns#157).
-"""
+Shared by interns.steps.report_run and interns.steps.run_summary."""
 
 from __future__ import annotations
 
@@ -14,8 +11,6 @@ from . import best_effort
 
 
 def parse_events(text: str) -> list[dict]:
-    if text.lstrip().startswith("["):
-        return json.loads(text)
     return [json.loads(line) for line in text.splitlines() if line.strip()]
 
 
@@ -28,7 +23,7 @@ def events(exec_file: str) -> list[dict]:
 
 def result_entry(exec_file: str | None) -> dict | None:
     """The log's result-type entry, or None when the file is missing, not
-    valid JSON/JSONL, or has no result entry."""
+    valid JSONL, or has no result entry."""
     if not exec_file:
         return None
     path = Path(exec_file)
@@ -47,7 +42,7 @@ def result_field(exec_file: str | None, field: str) -> str | None:
     """Value of `field` on the log's `result`-type entry -- the one written
     when the agent run finished normally. None when there is no execution
     file (a timed-out run is SIGKILLed before writing one), the file isn't
-    valid JSON (a partial write under disk pressure), or there's no result
+    valid JSONL (a partial write under disk pressure), or there's no result
     entry -- every caller treats "we have no reliable data" the same way,
     regardless of which of these produced it."""
     entry = result_entry(exec_file)

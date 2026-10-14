@@ -4,10 +4,10 @@ Each test runs real entrypoints against fake `gh`/`git` and asserts on the
 commands issued, the labels they leave behind and the step outputs.
 """
 
-import json
 
 import pytest
 
+from testkit.execution_log import jsonl
 from testkit.harness import REPO, Scenario, labels_payload
 
 ISSUE = "7"
@@ -41,7 +41,7 @@ def test_coder_success_squashes_pushes_opens_pr_and_reports_cost(scenario):
     scenario.gh("pr", "create", stdout=f"https://github.example/{REPO}/pull/{PR}\n")
     scenario.gh("pr", "view", "labels", stdout=labels_payload("pr:coding"))
     exec_file = scenario.dir / "execution.json"
-    exec_file.write_text(json.dumps([{"type": "result", "total_cost_usd": 0.1234}]))
+    exec_file.write_text(jsonl([{"type": "result", "total_cost_usd": 0.1234}]))
 
     pushed = scenario.run_tool("push_branch")
     opened = scenario.run_tool("open_pr", issue_number=int(ISSUE), title="feat: add thing",

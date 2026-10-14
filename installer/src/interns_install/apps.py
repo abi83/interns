@@ -56,7 +56,7 @@ APPS = [
         name_base="interns-reviewer",
         client_id_var="INTERNS_REVIEWER_CLIENT_ID",
         key_secret="INTERNS_REVIEWER_APP_PRIVATE_KEY",
-        description="submits PR reviews for the interns pipeline (claude[bot] can't approve its own PR)",
+        description="submits PR reviews for the interns pipeline (an identity can't approve its own PR)",
     ),
     AppSpec(
         key="coder",

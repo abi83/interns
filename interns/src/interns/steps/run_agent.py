@@ -1,6 +1,6 @@
-"""`run-agent` command: runs one agent phase through `claude -p` instead of
-claude-code-action, and leaves the execution file (stream-json, one event per
-line) and the debug file for the later report, metrics and upload steps.
+"""`run-agent` command: runs one agent phase through `claude -p` and leaves the
+execution file (stream-json, one event per line) and the debug file for the later
+report, metrics and upload steps.
 
 Reads the prompt from INTERNS_AGENT_PROMPT, the GitHub token from GH_TOKEN.
 """

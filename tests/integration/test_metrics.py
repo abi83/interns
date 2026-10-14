@@ -10,6 +10,7 @@ import json
 import pytest
 
 from interns.steps.append_metrics import BRANCH as METRICS_BRANCH
+from testkit.execution_log import jsonl
 from testkit.harness import REPO, Scenario
 
 
@@ -25,7 +26,7 @@ REF = "refs/tags/v0.1.8"
 
 def test_extract_metrics_builds_a_record_from_the_result_event(scenario):
     exec_file = scenario.dir / "execution.json"
-    exec_file.write_text(json.dumps([
+    exec_file.write_text(jsonl([
         {"type": "system"},
         {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "push_branch"}]}},
         {"type": "assistant", "isSidechain": True,
@@ -54,7 +55,7 @@ def test_extract_metrics_builds_a_record_from_the_result_event(scenario):
 
 def test_extract_metrics_records_interns_ref(scenario):
     exec_file = scenario.dir / "execution.json"
-    exec_file.write_text(json.dumps([{"type": "result"}]))
+    exec_file.write_text(jsonl([{"type": "result"}]))
 
     result = scenario.run("interns.entrypoint", "extract-metrics",
                           "--exec-file", str(exec_file), "--job", "refiner",
@@ -66,7 +67,7 @@ def test_extract_metrics_records_interns_ref(scenario):
 
 def test_extract_metrics_sub_labels_bash_tool_calls(scenario):
     exec_file = scenario.dir / "execution.json"
-    exec_file.write_text(json.dumps([
+    exec_file.write_text(jsonl([
         {"type": "assistant", "message": {"content": [
             {"type": "tool_use", "name": "Bash",
              "input": {"command": "/path/to/comment-issue.sh 7 'hello'"}},
@@ -89,7 +90,7 @@ def test_extract_metrics_sub_labels_bash_tool_calls(scenario):
 
 def test_extract_metrics_captures_permission_denials(scenario):
     exec_file = scenario.dir / "execution.json"
-    exec_file.write_text(json.dumps([
+    exec_file.write_text(jsonl([
         {"type": "result", "permission_denials": [
             {"tool_name": "Bash", "tool_use_id": "tu-1", "tool_input": {"command": "rm -rf /"}},
             {"tool_name": "Edit", "tool_use_id": "tu-2", "tool_input": {"file_path": "a.py"}},
@@ -108,7 +109,7 @@ def test_extract_metrics_captures_permission_denials(scenario):
 
 def test_extract_metrics_treats_missing_issue_and_pr_as_null(scenario):
     exec_file = scenario.dir / "execution.json"
-    exec_file.write_text(json.dumps([{"type": "result", "session_id": "sess-1"}]))
+    exec_file.write_text(jsonl([{"type": "result", "session_id": "sess-1"}]))
 
     result = scenario.run("interns.entrypoint", "extract-metrics",
                           "--exec-file", str(exec_file), "--job", "estimator", "--ref", REF)
@@ -129,7 +130,7 @@ def test_extract_metrics_fails_when_the_execution_file_is_missing(scenario):
 
 def test_extract_metrics_fails_when_there_is_no_result_event(scenario):
     exec_file = scenario.dir / "execution.json"
-    exec_file.write_text(json.dumps([{"type": "system"}]))
+    exec_file.write_text(jsonl([{"type": "system"}]))
 
     result = scenario.run("interns.entrypoint", "extract-metrics",
                           "--exec-file", str(exec_file), "--job", "coder", "--ref", REF)

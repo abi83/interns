@@ -19,8 +19,8 @@ def bash_commands(patterns: str) -> set[str]:
 
 
 def coder_allowed_tools() -> list[str]:
-    """The coder's allowlist as claude-code-action and as the launcher receive it."""
-    lines = re.findall(r"(?:--allowedTools \"|AGENT_ALLOWED_TOOLS: )(.*?)\"?$", WORKFLOW.read_text(), re.MULTILINE)
+    """The coder's allowlist, one line per round."""
+    lines = re.findall(r"AGENT_ALLOWED_TOOLS: (.*)$", WORKFLOW.read_text(), re.MULTILINE)
     return [line for line in lines if "Write,Edit" in line]
 
 
@@ -33,11 +33,7 @@ def test_no_write_capable_command_is_allowed_for_the_coder():
         assert bash_commands(line) & WRITE_CAPABLE == set()
 
 
-def test_initial_and_fix_round_both_get_fs_read_on_both_paths():
+def test_initial_and_fix_round_both_get_fs_read():
     lines = coder_allowed_tools()
-    assert len(lines) == 4
+    assert len(lines) == 2
     assert all("${{ env.ALLOWED_FS_READ }}" in line for line in lines)
-
-
-def test_launcher_and_action_get_the_same_allowlist_per_round():
-    assert len(set(coder_allowed_tools())) == 2

@@ -36,7 +36,7 @@ on:
         default: false
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN:
-        description: OAuth token for anthropics/claude-code-action
+        description: OAuth token for the Claude CLI
         required: true
       INTERNS_REVIEWER_APP_PRIVATE_KEY:
         description: Private key for the reviewer GitHub App (paired with vars.INTERNS_REVIEWER_CLIENT_ID); reviewer job only
@@ -44,15 +44,11 @@ on:
       INTERNS_CODER_APP_PRIVATE_KEY:
         description: Private key for the coder GitHub App (paired with vars.INTERNS_CODER_CLIENT_ID); coder job only
         required: true
-      INTERNS_TRIAGE_APP_PRIVATE_KEY:
-        description: Private key for the triage GitHub App (paired with vars.INTERNS_TRIAGE_CLIENT_ID); coder job only, to allowlist it as a trigger actor
-        required: true
 
 permissions:
   contents: write
   pull-requests: write
   issues: write
-  id-token: write
 
 env:
   ALLOWED_COMMENT_ISSUE: "mcp__gh-issues__comment_issue"
@@ -74,9 +70,8 @@ env:
   # same regardless of the consumer repo's language. See templates/config/Makefile.
   ALLOWED_BUILD_TEST: "Bash(make test:*),Bash(make build:*)"
   ALLOWED_CI_READ: "Bash(gh pr checks:*),Bash(gh run view:*)"
-  # The reviewer's sanctioned diff source. `gh pr diff` returns the API diff,
-  # which includes paths (e.g. .github/workflows/**) that claude-code-action
-  # relocates out of the working tree, so `git diff` alone can't see them (#13).
+  # The reviewer's sanctioned diff source: the API diff includes paths (e.g.
+  # .github/workflows/**) that a working-tree diff may not show.
   ALLOWED_PR_READ: "Bash(gh pr diff:*),Bash(gh pr view:*)"
 
 jobs:
@@ -101,7 +96,6 @@ jobs:
       pr: ${{ steps.confirm.outputs.pr }}
       fix_round: ${{ steps.confirm.outputs.fix_round }}
       reviewer_bot: ${{ steps.reviewer_token.outputs.app-slug }}[bot]
-      coder_bot: ${{ steps.coder_token.outputs.app-slug }}[bot]
     steps:
       - name: Checkout pipeline assets
         uses: actions/checkout@v5
@@ -174,18 +168,6 @@ jobs:
         with:
           client-id: ${{ vars.INTERNS_CODER_CLIENT_ID }}
           private-key: ${{ secrets.INTERNS_CODER_APP_PRIVATE_KEY }}
-
-      # auto_proceed applies `status:ready` as the triage App; allowed_bots needs its login.
-      - name: Generate triage app token
-        id: triage_token
-        uses: actions/create-github-app-token@v3
-        with:
-          client-id: ${{ vars.INTERNS_TRIAGE_CLIENT_ID }}
-          private-key: ${{ secrets.INTERNS_TRIAGE_APP_PRIVATE_KEY }}
-
-      - name: Resolve triage identity
-        id: triage_ident
-        run: echo "bot=${{ steps.triage_token.outputs.app-slug }}[bot]" >> "$GITHUB_OUTPUT"
 
       - name: Checkout
         uses: actions/checkout@v5
@@ -305,11 +287,9 @@ jobs:
           tools: push_branch,open_pr,comment_issue,comment_pr
 
       - name: Install Claude CLI
-        if: steps.cfg.outputs.launcher == 'true'
         uses: ./.interns/.github/actions/install-claude-cli
 
       - name: Prepare agent git (identity, no checkout credential)
-        if: steps.cfg.outputs.launcher == 'true'
         uses: ./.interns/.github/actions/prepare-agent-git
         with:
           name: interns-coder
@@ -317,7 +297,6 @@ jobs:
 
       # push_branch (MCP) and the draft-PR step push with the coder token via gh's credential helper.
       - name: Authenticate git pushes with the coder token
-        if: steps.cfg.outputs.launcher == 'true'
         env:
           GH_TOKEN: ${{ steps.coder_token.outputs.token }}
         run: gh auth setup-git --hostname github.com
@@ -328,9 +307,9 @@ jobs:
       - name: Install dependencies (make setup)
         run: python3 -m interns.entrypoint run-setup "$GITHUB_WORKSPACE"
 
-      - name: Run Claude coder (initial implementation, launcher)
-        id: launcher_initial
-        if: steps.cfg.outputs.launcher == 'true' && needs.plan.outputs.fix_round != 'true'
+      - name: Run Claude coder (initial implementation)
+        id: coder_initial
+        if: needs.plan.outputs.fix_round != 'true'
         timeout-minutes: ${{ fromJSON(steps.cfg.outputs.timeout_minutes) }}
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -372,51 +351,14 @@ jobs:
           --debug-file "${{ runner.temp }}/debug-coder-initial.log"
           --debug "$AGENT_DEBUG"
 
-      - name: Run Claude coder (initial implementation)
-        id: claude_initial
-        if: steps.cfg.outputs.launcher != 'true' && needs.plan.outputs.fix_round != 'true'
-        timeout-minutes: ${{ fromJSON(steps.cfg.outputs.timeout_minutes) }}
-        uses: anthropics/claude-code-action@v1
-        env:
-          CLAUDE_CODE_MAX_OUTPUT_TOKENS: ${{ steps.cfg.outputs.max_output_tokens }}
-        with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          github_token: ${{ steps.coder_token.outputs.token }}
-          show_full_output: ${{ inputs.debug == true || steps.cfg.outputs.debug == 'true' }}
-          allowed_bots: "claude[bot],${{ steps.triage_ident.outputs.bot }}"
-          prompt: |
-            REPO: ${{ github.repository }}
-            ISSUE NUMBER: ${{ steps.issue.outputs.number }}
-            TITLE: ${{ steps.issue.outputs.title }}
-            OWNER: @${{ github.repository_owner }}
-            COMMIT_TYPE_HINT: ${{ steps.hints.outputs.commit_type_hint }}
-            BRANCH: ${{ steps.hints.outputs.branch }}
-            BODY:
-            ${{ steps.issue.outputs.body }}
-
-            ${{ steps.issue.outputs.comments }}
-
-            INSTRUCTIONS:
-            ${{ steps.instructions.outputs.text }}
-
-            Apply the instructions above to the issue above.
-          claude_args: |
-            --model ${{ steps.cfg.outputs.model }}
-            --max-turns ${{ steps.cfg.outputs.max_turns }}
-            --mcp-config /tmp/mcp-config-gh-issues.json
-            --tools "Read,Grep,Glob,Write,Edit,Bash${{ steps.cfg.outputs.tools_suffix }}"
-            --allowedTools "Read,Grep,Glob,Write,Edit,${{ env.ALLOWED_FS_READ }},${{ env.ALLOWED_GIT_WRITE }},${{ env.ALLOWED_BUILD_TEST }},${{ env.ALLOWED_PUSH_BRANCH }},${{ env.ALLOWED_OPEN_PR }},${{ env.ALLOWED_COMMENT_ISSUE }}${{ steps.cfg.outputs.allowed_tools_suffix }}"
-            ${{ steps.cfg.outputs.add_dir_arg }}
-            ${{ steps.cfg.outputs.disallowed_tools_arg }}
-
       - name: Load coder fix-round instructions
         id: fix_instructions
         if: needs.plan.outputs.fix_round == 'true'
         run: python3 -m interns.entrypoint prompt .interns/.github/prompts/_shared.md .interns/.github/prompts/_shared-coder.md .interns/.github/prompts/code-fix.md
 
-      - name: Run Claude coder (fix round, launcher)
-        id: launcher_fix
-        if: steps.cfg.outputs.launcher == 'true' && needs.plan.outputs.fix_round == 'true'
+      - name: Run Claude coder (fix round)
+        id: coder_fix
+        if: needs.plan.outputs.fix_round == 'true'
         timeout-minutes: ${{ fromJSON(steps.cfg.outputs.timeout_minutes) }}
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -457,56 +399,22 @@ jobs:
           --debug-file "${{ runner.temp }}/debug-coder-fix.log"
           --debug "$AGENT_DEBUG"
 
-      - name: Run Claude coder (fix round)
-        id: claude_fix
-        if: steps.cfg.outputs.launcher != 'true' && needs.plan.outputs.fix_round == 'true'
-        timeout-minutes: ${{ fromJSON(steps.cfg.outputs.timeout_minutes) }}
-        uses: anthropics/claude-code-action@v1
-        env:
-          PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
-          CLAUDE_CODE_MAX_OUTPUT_TOKENS: ${{ steps.cfg.outputs.max_output_tokens }}
-        with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          github_token: ${{ steps.coder_token.outputs.token }}
-          show_full_output: ${{ inputs.debug == true || steps.cfg.outputs.debug == 'true' }}
-          # The fix round is dispatched by the reviewer job via `gh workflow run`
-          # with the default token, so the triggering actor is github-actions[bot],
-          # not a human label event — claude-code-action refuses it unless the bot
-          # is allowlisted here.
-          allowed_bots: "claude[bot],github-actions[bot]"
-          prompt: |
-            REPO: ${{ github.repository }}
-            ISSUE NUMBER: ${{ steps.issue.outputs.number }}
-            TITLE: ${{ steps.issue.outputs.title }}
-            PR NUMBER: ${{ steps.pr.outputs.pr_number }}
-            BRANCH: ${{ steps.pr.outputs.head_ref }} (already checked out)
-
-            REVIEWER FEEDBACK:
-            ${{ steps.feedback.outputs.text }}
-
-            INSTRUCTIONS:
-            ${{ steps.fix_instructions.outputs.text }}
-
-            Apply the instructions above to the feedback above.
-          claude_args: |
-            --model ${{ steps.cfg.outputs.model }}
-            --max-turns ${{ steps.cfg.outputs.max_turns }}
-            --mcp-config /tmp/mcp-config-gh-issues.json
-            --tools "Read,Grep,Glob,Write,Edit,Bash${{ steps.cfg.outputs.tools_suffix }}"
-            --allowedTools "Read,Grep,Glob,Write,Edit,${{ env.ALLOWED_FS_READ }},${{ env.ALLOWED_GIT_WRITE }},${{ env.ALLOWED_BUILD_TEST }},${{ env.ALLOWED_PUSH_BRANCH }},${{ env.ALLOWED_COMMENT_PR }}${{ steps.cfg.outputs.allowed_tools_suffix }}"
-            ${{ steps.cfg.outputs.add_dir_arg }}
-            ${{ steps.cfg.outputs.disallowed_tools_arg }}
-
-      - name: Resolve agent result
+      - name: Resolve coder round result
         id: agent
         if: always()
-        uses: ./.interns/.github/actions/agent-result
-        with:
-          action_outcome: ${{ steps.claude_initial.outcome != 'skipped' && steps.claude_initial.outcome || steps.claude_fix.outcome }}
-          action_execution_file: ${{ steps.claude_initial.outputs.execution_file }}${{ steps.claude_fix.outputs.execution_file }}
-          launcher_outcome: ${{ steps.launcher_initial.outcome != 'skipped' && steps.launcher_initial.outcome || steps.launcher_fix.outcome }}
-          launcher_execution_file: ${{ steps.launcher_initial.outputs.execution_file }}${{ steps.launcher_fix.outputs.execution_file }}
-          launcher_debug_file: ${{ steps.launcher_initial.outputs.debug_file }}${{ steps.launcher_fix.outputs.debug_file }}
+        env:
+          INITIAL_OUTCOME: ${{ steps.coder_initial.outcome }}
+          FIX_OUTCOME: ${{ steps.coder_fix.outcome }}
+          EXECUTION_FILE: ${{ steps.coder_initial.outputs.execution_file }}${{ steps.coder_fix.outputs.execution_file }}
+          DEBUG_FILE: ${{ steps.coder_initial.outputs.debug_file }}${{ steps.coder_fix.outputs.debug_file }}
+        run: |
+          outcome=$INITIAL_OUTCOME
+          if [ "$outcome" = "skipped" ]; then outcome=$FIX_OUTCOME; fi
+          {
+            echo "outcome=$outcome"
+            echo "execution_file=$EXECUTION_FILE"
+            echo "debug_file=$DEBUG_FILE"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Upload coder execution log (debug)
         if: (inputs.debug == true || steps.cfg.outputs.debug == 'true') && always() && steps.agent.outputs.execution_file != ''
@@ -662,7 +570,6 @@ jobs:
       pull-requests: write
       issues: write
       actions: write
-      id-token: write
     concurrency:
       group: reviewer-pr-${{ needs.plan.outputs.pr }}
     steps:
@@ -732,12 +639,10 @@ jobs:
           tools: view_issue,submit_pr_review,comment_pr
 
       - name: Install Claude CLI
-        if: steps.cfg.outputs.launcher == 'true'
         uses: ./.interns/.github/actions/install-claude-cli
 
-      - name: Run Claude reviewer (launcher)
-        id: launcher
-        if: steps.cfg.outputs.launcher == 'true'
+      - name: Run Claude reviewer
+        id: agent
         timeout-minutes: ${{ fromJSON(steps.cfg.outputs.timeout_minutes) }}
         env:
           PR_NUMBER: ${{ needs.plan.outputs.pr }}
@@ -772,48 +677,6 @@ jobs:
           --execution-file "${{ runner.temp }}/execution-reviewer.jsonl"
           --debug-file "${{ runner.temp }}/debug-reviewer.log"
           --debug "$AGENT_DEBUG"
-
-      - name: Run Claude reviewer
-        id: claude
-        if: steps.cfg.outputs.launcher != 'true'
-        timeout-minutes: ${{ fromJSON(steps.cfg.outputs.timeout_minutes) }}
-        uses: anthropics/claude-code-action@v1
-        env:
-          PR_NUMBER: ${{ needs.plan.outputs.pr }}
-          CLAUDE_CODE_MAX_OUTPUT_TOKENS: ${{ steps.cfg.outputs.max_output_tokens }}
-        with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          github_token: ${{ steps.reviewer_token.outputs.token }}
-          show_full_output: ${{ inputs.debug == true || steps.cfg.outputs.debug == 'true' }}
-          allowed_bots: "${{ needs.plan.outputs.coder_bot }}"
-          prompt: |
-            REPO: ${{ github.repository }}
-            PR NUMBER: ${{ needs.plan.outputs.pr }}
-            LINKED ISSUE: ${{ steps.linked.outputs.issue_number }}
-
-            INSTRUCTIONS:
-            ${{ steps.instructions.outputs.text }}
-
-            Review this PR's diff against the linked issue's Acceptance Criteria.
-          claude_args: |
-            --model ${{ steps.cfg.outputs.model }}
-            --max-turns ${{ steps.cfg.outputs.max_turns }}
-            --mcp-config /tmp/mcp-config-gh-issues.json
-            --tools "Read,Grep,Glob,Bash${{ steps.cfg.outputs.tools_suffix }}"
-            --allowedTools "Read,Grep,Glob,${{ env.ALLOWED_GIT_READ }},${{ env.ALLOWED_PR_READ }},${{ env.ALLOWED_CI_READ }},${{ env.ALLOWED_VIEW_ISSUE }},${{ env.ALLOWED_SUBMIT_REVIEW }},${{ env.ALLOWED_COMMENT_PR }}${{ steps.cfg.outputs.allowed_tools_suffix }}"
-            ${{ steps.cfg.outputs.add_dir_arg }}
-            ${{ steps.cfg.outputs.disallowed_tools_arg }}
-
-      - name: Resolve agent result
-        id: agent
-        if: always()
-        uses: ./.interns/.github/actions/agent-result
-        with:
-          action_outcome: ${{ steps.claude.outcome }}
-          action_execution_file: ${{ steps.claude.outputs.execution_file }}
-          launcher_outcome: ${{ steps.launcher.outcome }}
-          launcher_execution_file: ${{ steps.launcher.outputs.execution_file }}
-          launcher_debug_file: ${{ steps.launcher.outputs.debug_file }}
 
       - name: Upload reviewer execution log (debug)
         if: (inputs.debug == true || steps.cfg.outputs.debug == 'true') && always() && steps.agent.outputs.execution_file != ''
@@ -870,7 +733,7 @@ jobs:
           --issue "${{ steps.linked.outputs.issue_number }}"
 
       - name: Write run summary
-        if: always() && steps.agent.outputs.outcome != 'skipped'
+        if: always() && steps.agent.outcome != 'skipped'
         env:
           GH_TOKEN: ${{ github.token }}
           REVIEWER_BOT: ${{ needs.plan.outputs.reviewer_bot }}
