@@ -10,48 +10,47 @@ curl -LsSf https://raw.githubusercontent.com/abi83/interns/v0/install.sh | sh
 
 The script installs [`uv`](https://docs.astral.sh/uv/) if missing, then runs `interns-install`
 ([`installer/`](../installer/README.md)). On a fresh repo it opens one PR with the workflow files and starter config;
-merge it and re-run the installer once. The re-run dispatches `install.yml`, which only syncs
-labels, and that workflow exists on the default branch only after the merge.
-The installer is idempotent: re-run any time to fix drift. `interns-install --help` lists every flag.
+merge it. Merging triggers `install.yml`, which syncs the labels.
+The installer is idempotent: re-run it any time to fix drift. `interns-install --help` lists every flag.
 
-TODO: sync labels from the installer and drop the re-run: [#365](https://github.com/abi83/interns/issues/365).
-
-The installer runs locally, not in Actions, because `GITHUB_TOKEN` is never granted admin
-access or `secrets: write`.
-
-Prerequisite for the workflows: the [`yq`](https://github.com/mikefarah/yq) binary on `PATH`.
-GitHub-hosted runners have it; self-hosted runners must provide it.
+**Why it runs on your machine.** The installer creates the three GitHub Apps (account-level, with
+one browser click each), stores their keys and IDs as repo secrets and variables, and sets branch
+protection and Pages. That takes admin rights. A workflow only gets the repo-scoped `GITHUB_TOKEN`
+that Actions issues, which never has admin or `secrets: write`. So the installer runs under your own
+`gh` login, which must be a repo admin.
 
 ## What the installer does
 
 | # | Step | Why |
 |---|---|---|
 | 1 | Check (and fix) default-branch protection | Every agent change must go through a PR. |
-| 2 | Check (and enable) GitHub Pages | Deploy target for the dashboard. |
-| 3 | Check (and create) the `metrics` branch | Orphan branch the pipeline appends run metrics to. |
+| 2 | Check (and enable) GitHub Pages | Serves the [metrics dashboard](metrics.md#dashboard), a static page charting the pipeline's cost, turns and results. |
+| 3 | Check (and create) the `interns-metrics` branch | Orphan branch the pipeline appends [run metrics](metrics.md) to; the dashboard reads it. |
 | 4 | Mint (or reuse) three GitHub Apps | See [GitHub Apps](#github-apps). |
 | 5 | Write App secrets and variables, plus `CLAUDE_CODE_OAUTH_TOKEN` | The workflows authenticate as the Apps and call Claude. |
-| 6 | Open the install PR | Adds the workflow files and starter config if missing or drifted. Merge it, then re-run. |
-| 7 | Dispatch `install.yml` | Once nothing is left to add, the installer runs the workflow for you. |
+| 6 | Open the install PR | Adds the workflow files and starter config if missing or drifted. Merging it triggers `install.yml`. |
+| 7 | Or dispatch `install.yml` | Only when nothing needs adding (a re-run): the installer runs the workflow for you. |
 | 8 | `install.yml`: sync labels | The pipeline routes on labels ([`.github/labels.json`](../.github/labels.json)). |
 
 The PR in step 6 writes under `.github/workflows/`, so a classic `gh` token needs the
-`workflow` scope. The installer checks for it up front.
+`workflow` scope. The installer checks for it up front. `--dry-run` previews every step.
 
 ## Default-branch protection
 
-No pipeline identity (`github-actions[bot]` or the three Apps) may be on the default
-branch's push allowlist.
+`github-actions[bot]` and `claude[bot]` must not be on the default branch's push allowlist.
+Keep the three interns Apps off it too; the installer doesn't check them yet
+([#366](https://github.com/abi83/interns/issues/366)).
 
 | Default branch | Result |
 |---|---|
 | requires a PR review, no bot on the allowlist | passes |
+| protected, but no PR review required | **fails**: require pull request reviews, re-run |
 | unprotected | installer applies the baseline: PR + 1 approval, no force-push, no deletion |
 | protected, but your `gh` session lacks admin | **fails**: re-auth with admin, re-run |
-| a bot identity is on the allowlist | **fails**: remove it, re-run |
+| `github-actions[bot]` or `claude[bot]` is on the allowlist | **fails**: remove it, re-run |
 
 If an org-wide ruleset (or similar) enforces protection where the check can't see it, pass
-`--branch-protection-handled-externally`.
+`--branch-protection-handled-externally`; it applies only when the branch is unprotected.
 
 ## GitHub Apps
 
@@ -74,16 +73,14 @@ install the App on the new repo.
 
 ## Secrets and variables
 
-Written by the installer. For `CLAUDE_CODE_OAUTH_TOKEN`, run `claude setup-token` locally
-(Claude Pro or Max).
+The installer writes them. It prompts you to paste `CLAUDE_CODE_OAUTH_TOKEN` (run
+`claude setup-token` locally; Claude Pro or Max), and an existing secret is left alone.
 
 | Kind | Name |
 |---|---|
 | Secret | `CLAUDE_CODE_OAUTH_TOKEN` |
 | Secret | `INTERNS_{CODER,REVIEWER,TRIAGE}_APP_PRIVATE_KEY` |
 | Variable | `INTERNS_{CODER,REVIEWER,TRIAGE}_CLIENT_ID` |
-
-A missing one fails the pipeline with a clear error on first use.
 
 ## The install PR
 
@@ -98,23 +95,25 @@ scope that `GITHUB_TOKEN` never gets), adding:
 - `Makefile` with `setup` / `test` / `build` stubs (the `setup` stub is appended to an existing Makefile that lacks it).
 - `interns-metrics/index.html`: the metrics dashboard page.
 
-Missing files are added and the three workflow files are re-synced if they drifted.
-Merge the PR, then re-run `interns-install`, which dispatches `install.yml` to sync labels.
+Missing files are added. The three workflow files and the dashboard page are re-synced if they
+drifted; `interns.yml` and the Makefile are never overwritten.
+Merge the PR: the push to `install.yml` triggers it and the labels sync.
 `--issue-templates` also adds the default [issue templates](../templates/issue) when the repo
 has none.
 
 ### Versions
 
-The stubs pin `@v0`, a floating tag moved to every release, like `actions/checkout@v4`.
-Minor and patch releases reach you with no edits; a breaking change would ship as `v1`.
-For a reproducible pin use `vX.Y.Z`. `next` tracks `main` (internal testing; set
+The stubs pin `@v0`, a floating tag moved on every release, like `actions/checkout@v4`, so fixes
+reach you with no edits. Before 1.0, breaking changes also ship as minor releases and move `v0`.
+For a reproducible pin use a specific release tag. `next` tracks `main` (internal testing; set
 `INTERNS_REF=next` when installing). Releases are cut by
 [release-please](https://github.com/googleapis/release-please) from conventional commits.
 
 ## Doing it by hand
 
 Without `interns-install`: create the three Apps with the permissions above and install them,
-add the secrets and variables, set branch protection, and commit the files from
-[`templates/workflows/`](../templates/workflows) yourself. Then run `gh workflow run install.yml`
-to sync labels. `.github/interns.yml` is optional; use only the keys you override, with
+add the secrets and variables, set branch protection, enable Pages, create the
+`interns-metrics` branch ([metrics](metrics.md)), and commit the files from
+[`templates/workflows/`](../templates/workflows) yourself. Then run
+`gh workflow run install.yml` to sync labels. `.github/interns.yml` is optional; use only the keys you override, with
 `defaults.yml` as the reference.

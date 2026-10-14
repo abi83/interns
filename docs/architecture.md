@@ -31,7 +31,8 @@ credentials and the repo's branch policy.
 - **Least privilege per role.** Triage can only edit issues. The reviewer is a different identity
   from the coder, so a PR is never approved by its own author.
 - **Branch policy.** The installer requires a PR with one approval on the default branch,
-  and refuses to install if any pipeline identity can push to it directly.
+  and refuses to install if `github-actions[bot]` or `claude[bot]` can push to it directly
+  (the interns Apps are not checked yet, [#366](https://github.com/abi83/interns/issues/366)).
 - **Contained runs.** The agent's environment is scrubbed of OIDC tokens. Each phase gets only
   its own tools.
 

@@ -6,7 +6,7 @@ Every agent run is recorded, so you can see what the pipeline costs and where it
 
 Each agent job appends one JSON record per `(run, job)` to `metrics.jsonl` on the orphan
 `interns-metrics` branch of your repo: tokens (per model, sub-agents included), cost, turns,
-duration, tool-call counts, permission denials, the `interns` ref and the agent's result.
+duration, tool-call counts (main agent only), permission denials, the `interns` ref and the agent's result.
 The record shape is versioned by `schema_version` and specified in
 [`pipeline-metrics.schema.json`](../.github/pipeline-metrics.schema.json).
 
@@ -23,5 +23,5 @@ versions in use. Pages must be on; the installer checks it.
 
 ## Raw data
 
-One unauthenticated fetch reads the log:
+For a public repo, one unauthenticated fetch reads the log:
 `https://raw.githubusercontent.com/<owner>/<repo>/interns-metrics/metrics.jsonl`

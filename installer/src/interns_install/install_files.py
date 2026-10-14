@@ -74,8 +74,8 @@ INSTALL_PR_BODY = """\
 the pipeline can run — `GITHUB_TOKEN` can't push `.github/workflows/*`, so the
 workflow can't add them itself.
 
-- **`.github/workflows/install.yml`** — thin `workflow_dispatch` caller for the
-  reusable install workflow (label sync + secret checks).
+- **`.github/workflows/install.yml`** — thin caller for the reusable
+  install workflow (label sync).
 - **`.github/workflows/{issue,code}-pipeline.yml`** — caller stubs that own the
   triggers and delegate to the reusable cores in `abi83/interns`, pinned to a
   release tag.
@@ -93,9 +93,8 @@ added when absent — an existing one is left untouched, since it's expected to
 carry consumer-local edits, except that an existing `Makefile` without a
 `setup` target gets the unconfigured `setup` stub appended.
 
-After merging,
-re-run `interns-install` (or dispatch **Install interns** from the Actions tab)
-to sync the label manifest.
+After merging, `install.yml` runs and syncs the label manifest. To re-sync later,
+dispatch **Install interns** from the Actions tab.
 """
 
 
