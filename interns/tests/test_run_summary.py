@@ -3,7 +3,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-from interns import gh
+from interns import cli, gh
 from interns.steps import run_summary
 from interns.steps.run_summary import CoderRun, EstimationRun, RefinementRun, ReviewRun, Round
 from interns.ctx import ActionsCtx
@@ -260,6 +260,10 @@ class CostAndExecFileTests(unittest.TestCase):
         return path
 
 
+def _ctx() -> ActionsCtx:
+    return ActionsCtx(repo=REPO, token="", server_url=SERVER)
+
+
 class PhaseArgumentTests(unittest.TestCase):
     def test_errors_on_an_unknown_phase(self):
         with self.assertRaisesRegex(ValueError, "unknown phase Bogus"):
@@ -273,7 +277,24 @@ class PhaseArgumentTests(unittest.TestCase):
             (run_summary.Phase.ESTIMATION, dict(issue=None, pr=None)),
         ]:
             with self.subTest(phase=phase), self.assertRaisesRegex(ValueError, "is required"):
-                run_summary._phase_run(phase, round_=None, reviewer_bot="bot", **kwargs)
+                run_summary._phase_run(phase, round_=None, ctx=_ctx(), **kwargs)
+
+
+class ReviewerBotScopeTests(unittest.TestCase):
+    def test_only_the_review_phase_requires_the_reviewer_bot(self):
+        with patch.dict(os.environ, {}, clear=True):
+            for phase in (run_summary.Phase.CODER, run_summary.Phase.REFINEMENT, run_summary.Phase.ESTIMATION):
+                with self.subTest(phase=phase):
+                    run_summary._phase_run(phase, issue=7, pr=None, round_=None, ctx=_ctx())
+
+    def test_review_phase_fails_fast_without_the_reviewer_bot(self):
+        with patch.dict(os.environ, {}, clear=True), self.assertRaises(cli.MissingEnvError):
+            run_summary._phase_run(run_summary.Phase.REVIEW, issue=None, pr=5, round_=None, ctx=_ctx())
+
+    def test_review_phase_uses_the_reviewer_bot_from_env(self):
+        with patch.dict(os.environ, {"REVIEWER_BOT": "rev[bot]"}, clear=True):
+            run = run_summary._phase_run(run_summary.Phase.REVIEW, issue=None, pr=5, round_=None, ctx=_ctx())
+        self.assertEqual(run, run_summary.ReviewRun(5, "rev[bot]"))
 
 
 class RoundLineTests(unittest.TestCase):
@@ -300,9 +321,9 @@ class CliTests(unittest.TestCase):
             summary_path = os.path.join(tmp, "summary.md")
             open(summary_path, "w").close()
             ctx = ActionsCtx(repo=REPO, token="", server_url=SERVER)
-            env = {"GITHUB_RUN_ID": "42", "REVIEWER_BOT": "reviewer[bot]", "GITHUB_STEP_SUMMARY": summary_path}
+            env = {"GITHUB_RUN_ID": "42", "GITHUB_STEP_SUMMARY": summary_path}
             patches = _patch(issue_labels=lambda repo, issue: ["status:needs-attention"])
-            with patch.dict(os.environ, env), patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
+            with patch.dict(os.environ, env, clear=True), patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
                 run_summary.main(ctx, ["--phase", "Refinement", "--issue", "7"])
             with open(summary_path) as f:
                 content = f.read()
