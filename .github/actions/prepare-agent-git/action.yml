@@ -1,0 +1,30 @@
+name: prepare-agent-git
+description: >
+  Set the git identity for an agent's commits and drop the credential
+  actions/checkout persisted in the working tree, so nothing the agent can read
+  or run reaches the remote with it.
+
+inputs:
+  name:
+    description: git user.name and committer name
+    required: true
+  email:
+    description: git user.email and committer email
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Configure identity and drop checkout credential
+      shell: bash
+      env:
+        GIT_NAME: ${{ inputs.name }}
+        GIT_EMAIL: ${{ inputs.email }}
+      run: |
+        git config --local user.name "$GIT_NAME"
+        git config --local user.email "$GIT_EMAIL"
+        git config --local --unset-all http.https://github.com/.extraheader
+        if git config --get-regexp 'extraheader' > /dev/null; then
+          echo "credential still configured in the working tree" >&2
+          exit 1
+        fi

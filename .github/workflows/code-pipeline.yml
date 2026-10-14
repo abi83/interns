@@ -304,15 +304,77 @@ jobs:
           gh_token: ${{ steps.coder_token.outputs.token }}
           tools: push_branch,open_pr,comment_issue,comment_pr
 
+      - name: Install Claude CLI
+        if: steps.cfg.outputs.launcher == 'true'
+        uses: ./.interns/.github/actions/install-claude-cli
+
+      - name: Prepare agent git (identity, no checkout credential)
+        if: steps.cfg.outputs.launcher == 'true'
+        uses: ./.interns/.github/actions/prepare-agent-git
+        with:
+          name: interns-coder
+          email: interns-coder@users.noreply.github.com
+
+      # push_branch (MCP) and the draft-PR step push with the coder token via gh's credential helper.
+      - name: Authenticate git pushes with the coder token
+        if: steps.cfg.outputs.launcher == 'true'
+        env:
+          GH_TOKEN: ${{ steps.coder_token.outputs.token }}
+        run: gh auth setup-git --hostname github.com
+
       # Consumer-owned `make setup`, like test/build: the coder runs in a fresh
       # runner and its allowlist can't install anything. A failure here fails
       # the job before any Claude tokens are spent.
       - name: Install dependencies (make setup)
         run: python3 -m interns.entrypoint run-setup "$GITHUB_WORKSPACE"
 
+      - name: Run Claude coder (initial implementation, launcher)
+        id: launcher_initial
+        if: steps.cfg.outputs.launcher == 'true' && needs.plan.outputs.fix_round != 'true'
+        timeout-minutes: ${{ fromJSON(steps.cfg.outputs.timeout_minutes) }}
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_MAX_OUTPUT_TOKENS: ${{ steps.cfg.outputs.max_output_tokens }}
+          GH_TOKEN: ${{ steps.coder_token.outputs.token }}
+          AGENT_MODEL: ${{ steps.cfg.outputs.model }}
+          AGENT_MAX_TURNS: ${{ steps.cfg.outputs.max_turns }}
+          AGENT_TOOLS: Read,Grep,Glob,Write,Edit,Bash${{ steps.cfg.outputs.tools_suffix }}
+          AGENT_ALLOWED_TOOLS: Read,Grep,Glob,Write,Edit,${{ env.ALLOWED_FS_READ }},${{ env.ALLOWED_GIT_WRITE }},${{ env.ALLOWED_BUILD_TEST }},${{ env.ALLOWED_PUSH_BRANCH }},${{ env.ALLOWED_OPEN_PR }},${{ env.ALLOWED_COMMENT_ISSUE }}${{ steps.cfg.outputs.allowed_tools_suffix }}
+          AGENT_DISALLOWED_TOOLS: ${{ steps.cfg.outputs.disallowed_tools }}
+          AGENT_ADD_DIR: ${{ steps.cfg.outputs.wiki_dir }}
+          AGENT_DEBUG: ${{ (inputs.debug == true || steps.cfg.outputs.debug == 'true') && 'true' || 'false' }}
+          INTERNS_AGENT_PROMPT: |
+            REPO: ${{ github.repository }}
+            ISSUE NUMBER: ${{ steps.issue.outputs.number }}
+            TITLE: ${{ steps.issue.outputs.title }}
+            OWNER: @${{ github.repository_owner }}
+            COMMIT_TYPE_HINT: ${{ steps.hints.outputs.commit_type_hint }}
+            BRANCH: ${{ steps.hints.outputs.branch }}
+            BODY:
+            ${{ steps.issue.outputs.body }}
+
+            ${{ steps.issue.outputs.comments }}
+
+            INSTRUCTIONS:
+            ${{ steps.instructions.outputs.text }}
+
+            Apply the instructions above to the issue above.
+        run: >
+          python3 -m interns.entrypoint run-agent
+          --model "$AGENT_MODEL"
+          --max-turns "$AGENT_MAX_TURNS"
+          --mcp-config /tmp/mcp-config-gh-issues.json
+          --tools "$AGENT_TOOLS"
+          --allowed-tools "$AGENT_ALLOWED_TOOLS"
+          --disallowed-tools "$AGENT_DISALLOWED_TOOLS"
+          --add-dir "$AGENT_ADD_DIR"
+          --execution-file "${{ runner.temp }}/execution-coder-initial.jsonl"
+          --debug-file "${{ runner.temp }}/debug-coder-initial.log"
+          --debug "$AGENT_DEBUG"
+
       - name: Run Claude coder (initial implementation)
         id: claude_initial
-        if: needs.plan.outputs.fix_round != 'true'
+        if: steps.cfg.outputs.launcher != 'true' && needs.plan.outputs.fix_round != 'true'
         timeout-minutes: ${{ fromJSON(steps.cfg.outputs.timeout_minutes) }}
         uses: anthropics/claude-code-action@v1
         env:
@@ -347,40 +409,57 @@ jobs:
             ${{ steps.cfg.outputs.add_dir_arg }}
             ${{ steps.cfg.outputs.disallowed_tools_arg }}
 
-      - name: Upload coder-initial execution log (debug)
-        if: (inputs.debug == true || steps.cfg.outputs.debug == 'true') && always() && steps.claude_initial.outputs.execution_file != ''
-        uses: ./.interns/.github/actions/upload-execution-log
-        with:
-          name: execution-log-coder-initial-issue-${{ steps.issue.outputs.number }}
-          path: ${{ steps.claude_initial.outputs.execution_file }}
-
-      # The agent can run out of turns before it ever commits or pushes; keep
-      # its working tree as a draft PR instead of losing it with the runner.
-      - name: Save unfinished work as draft PR
-        id: draft_pr
-        if: failure() && steps.claude_initial.outcome == 'failure'
-        env:
-          GH_TOKEN: ${{ steps.coder_token.outputs.token }}
-          ISSUE_TITLE: ${{ steps.issue.outputs.title }}
-          COMMIT_TYPE_HINT: ${{ steps.hints.outputs.commit_type_hint }}
-          GIT_AUTHOR_NAME: interns-coder
-          GIT_AUTHOR_EMAIL: interns-coder@users.noreply.github.com
-          GIT_COMMITTER_NAME: interns-coder
-          GIT_COMMITTER_EMAIL: interns-coder@users.noreply.github.com
-        run: >
-          python3 -m interns.entrypoint save-draft-pr
-          --issue "${{ steps.issue.outputs.number }}"
-          --issue-title "$ISSUE_TITLE"
-          --commit-type-hint "$COMMIT_TYPE_HINT"
-
       - name: Load coder fix-round instructions
         id: fix_instructions
         if: needs.plan.outputs.fix_round == 'true'
         run: python3 -m interns.entrypoint prompt .interns/.github/prompts/_shared.md .interns/.github/prompts/_shared-coder.md .interns/.github/prompts/code-fix.md
 
+      - name: Run Claude coder (fix round, launcher)
+        id: launcher_fix
+        if: steps.cfg.outputs.launcher == 'true' && needs.plan.outputs.fix_round == 'true'
+        timeout-minutes: ${{ fromJSON(steps.cfg.outputs.timeout_minutes) }}
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_MAX_OUTPUT_TOKENS: ${{ steps.cfg.outputs.max_output_tokens }}
+          GH_TOKEN: ${{ steps.coder_token.outputs.token }}
+          PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
+          AGENT_MODEL: ${{ steps.cfg.outputs.model }}
+          AGENT_MAX_TURNS: ${{ steps.cfg.outputs.max_turns }}
+          AGENT_TOOLS: Read,Grep,Glob,Write,Edit,Bash${{ steps.cfg.outputs.tools_suffix }}
+          AGENT_ALLOWED_TOOLS: Read,Grep,Glob,Write,Edit,${{ env.ALLOWED_FS_READ }},${{ env.ALLOWED_GIT_WRITE }},${{ env.ALLOWED_BUILD_TEST }},${{ env.ALLOWED_PUSH_BRANCH }},${{ env.ALLOWED_COMMENT_PR }}${{ steps.cfg.outputs.allowed_tools_suffix }}
+          AGENT_DISALLOWED_TOOLS: ${{ steps.cfg.outputs.disallowed_tools }}
+          AGENT_ADD_DIR: ${{ steps.cfg.outputs.wiki_dir }}
+          AGENT_DEBUG: ${{ (inputs.debug == true || steps.cfg.outputs.debug == 'true') && 'true' || 'false' }}
+          INTERNS_AGENT_PROMPT: |
+            REPO: ${{ github.repository }}
+            ISSUE NUMBER: ${{ steps.issue.outputs.number }}
+            TITLE: ${{ steps.issue.outputs.title }}
+            PR NUMBER: ${{ steps.pr.outputs.pr_number }}
+            BRANCH: ${{ steps.pr.outputs.head_ref }} (already checked out)
+
+            REVIEWER FEEDBACK:
+            ${{ steps.feedback.outputs.text }}
+
+            INSTRUCTIONS:
+            ${{ steps.fix_instructions.outputs.text }}
+
+            Apply the instructions above to the feedback above.
+        run: >
+          python3 -m interns.entrypoint run-agent
+          --model "$AGENT_MODEL"
+          --max-turns "$AGENT_MAX_TURNS"
+          --mcp-config /tmp/mcp-config-gh-issues.json
+          --tools "$AGENT_TOOLS"
+          --allowed-tools "$AGENT_ALLOWED_TOOLS"
+          --disallowed-tools "$AGENT_DISALLOWED_TOOLS"
+          --add-dir "$AGENT_ADD_DIR"
+          --execution-file "${{ runner.temp }}/execution-coder-fix.jsonl"
+          --debug-file "${{ runner.temp }}/debug-coder-fix.log"
+          --debug "$AGENT_DEBUG"
+
       - name: Run Claude coder (fix round)
         id: claude_fix
-        if: needs.plan.outputs.fix_round == 'true'
+        if: steps.cfg.outputs.launcher != 'true' && needs.plan.outputs.fix_round == 'true'
         timeout-minutes: ${{ fromJSON(steps.cfg.outputs.timeout_minutes) }}
         uses: anthropics/claude-code-action@v1
         env:
@@ -418,12 +497,44 @@ jobs:
             ${{ steps.cfg.outputs.add_dir_arg }}
             ${{ steps.cfg.outputs.disallowed_tools_arg }}
 
-      - name: Upload coder-fix execution log (debug)
-        if: (inputs.debug == true || steps.cfg.outputs.debug == 'true') && always() && steps.claude_fix.outputs.execution_file != ''
+      - name: Resolve agent result
+        id: agent
+        if: always()
+        uses: ./.interns/.github/actions/agent-result
+        with:
+          action_outcome: ${{ steps.claude_initial.outcome != 'skipped' && steps.claude_initial.outcome || steps.claude_fix.outcome }}
+          action_execution_file: ${{ steps.claude_initial.outputs.execution_file }}${{ steps.claude_fix.outputs.execution_file }}
+          launcher_outcome: ${{ steps.launcher_initial.outcome != 'skipped' && steps.launcher_initial.outcome || steps.launcher_fix.outcome }}
+          launcher_execution_file: ${{ steps.launcher_initial.outputs.execution_file }}${{ steps.launcher_fix.outputs.execution_file }}
+          launcher_debug_file: ${{ steps.launcher_initial.outputs.debug_file }}${{ steps.launcher_fix.outputs.debug_file }}
+
+      - name: Upload coder execution log (debug)
+        if: (inputs.debug == true || steps.cfg.outputs.debug == 'true') && always() && steps.agent.outputs.execution_file != ''
         uses: ./.interns/.github/actions/upload-execution-log
         with:
-          name: execution-log-coder-fix-issue-${{ steps.issue.outputs.number }}
-          path: ${{ steps.claude_fix.outputs.execution_file }}
+          name: execution-log-coder-${{ needs.plan.outputs.fix_round == 'true' && 'fix' || 'initial' }}-issue-${{ steps.issue.outputs.number }}
+          path: |
+            ${{ steps.agent.outputs.execution_file }}
+            ${{ steps.agent.outputs.debug_file }}
+
+      # The agent can run out of turns before it ever commits or pushes; keep
+      # its working tree as a draft PR instead of losing it with the runner.
+      - name: Save unfinished work as draft PR
+        id: draft_pr
+        if: failure() && needs.plan.outputs.fix_round != 'true' && steps.agent.outputs.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ steps.coder_token.outputs.token }}
+          ISSUE_TITLE: ${{ steps.issue.outputs.title }}
+          COMMIT_TYPE_HINT: ${{ steps.hints.outputs.commit_type_hint }}
+          GIT_AUTHOR_NAME: interns-coder
+          GIT_AUTHOR_EMAIL: interns-coder@users.noreply.github.com
+          GIT_COMMITTER_NAME: interns-coder
+          GIT_COMMITTER_EMAIL: interns-coder@users.noreply.github.com
+        run: >
+          python3 -m interns.entrypoint save-draft-pr
+          --issue "${{ steps.issue.outputs.number }}"
+          --issue-title "$ISSUE_TITLE"
+          --commit-type-hint "$COMMIT_TYPE_HINT"
 
       # Deterministic, independent of what the coder did or said this run --
       # greps the Makefile on disk rather than trusting the agent's word for
@@ -434,7 +545,7 @@ jobs:
         run: python3 -m interns.entrypoint check-build-config "$GITHUB_WORKSPACE"
 
       - name: Report run cost
-        if: always() && (steps.claude_initial.outputs.execution_file != '' || steps.claude_fix.outputs.execution_file != '')
+        if: always() && steps.agent.outputs.execution_file != ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -444,7 +555,7 @@ jobs:
           fi
           python3 -m interns.entrypoint report-run \
             --phase Coder \
-            --exec-file "${{ steps.claude_initial.outputs.execution_file }}${{ steps.claude_fix.outputs.execution_file }}" \
+            --exec-file "${{ steps.agent.outputs.execution_file }}" \
             --issue "${{ steps.issue.outputs.number }}" \
             "${warn_args[@]}"
 
@@ -474,12 +585,12 @@ jobs:
       - name: Extract run metrics
         id: metrics
         continue-on-error: true
-        if: always() && (steps.claude_initial.outputs.execution_file != '' || steps.claude_fix.outputs.execution_file != '')
+        if: always() && steps.agent.outputs.execution_file != ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
           python3 -m interns.entrypoint extract-metrics
-          --exec-file "${{ steps.claude_initial.outputs.execution_file }}${{ steps.claude_fix.outputs.execution_file }}"
+          --exec-file "${{ steps.agent.outputs.execution_file }}"
           --job coder
           --ref "${{ inputs.pipeline_ref }}"
           --issue "${{ steps.issue.outputs.number }}"
@@ -505,13 +616,13 @@ jobs:
           --pr "${{ steps.verify_pr.outputs.pr_number }}"
 
       - name: Write run summary
-        if: always() && (steps.claude_initial.outcome != 'skipped' || steps.claude_fix.outcome != 'skipped')
+        if: always() && steps.agent.outputs.outcome != 'skipped'
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
           python3 -m interns.entrypoint run-summary
           --phase Coder
-          --exec-file "${{ steps.claude_initial.outputs.execution_file }}${{ steps.claude_fix.outputs.execution_file }}"
+          --exec-file "${{ steps.agent.outputs.execution_file }}"
           --issue "${{ steps.issue.outputs.number }}"
           --pr "${{ steps.verify_pr.outputs.pr_number || steps.pr.outputs.pr_number }}"
           --round ${{ needs.plan.outputs.fix_round == 'true' && 'fix' || 'initial' }}
@@ -525,12 +636,12 @@ jobs:
         run: |
           if [[ "$FIX_ROUND" == "true" ]]; then
             python3 -m interns.entrypoint flag-failure --noun implementation \
-              --exec-file "${{ steps.claude_initial.outputs.execution_file }}${{ steps.claude_fix.outputs.execution_file }}" \
+              --exec-file "${{ steps.agent.outputs.execution_file }}" \
               --issue "${{ steps.issue.outputs.number }}" \
               --pr "${{ steps.pr.outputs.pr_number }}" --fix-round
           else
             python3 -m interns.entrypoint flag-failure --noun implementation \
-              --exec-file "${{ steps.claude_initial.outputs.execution_file }}${{ steps.claude_fix.outputs.execution_file }}" \
+              --exec-file "${{ steps.agent.outputs.execution_file }}" \
               --issue "${{ steps.issue.outputs.number }}" \
               --draft-pr-url "${{ steps.draft_pr.outputs.draft_pr_url }}"
           fi
