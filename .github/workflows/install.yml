@@ -1,22 +1,7 @@
 name: Install interns
 
-# Provisions a consumer repo for the interns pipeline:
-#   - syncs the versioned label manifest (unconditional)
-#
-# The caller stubs (issue-pipeline.yml, code-pipeline.yml, interns.yml) and the
-# issue templates are staged by interns-install itself: github.token cannot
-# create or update .github/workflows/*, so this workflow can never open that PR.
-#
-# Branch protection and Pages are NOT checked here -- both need admin access
-# to read or write, which github.token can never be granted. interns-install
-# checks and fixes them locally, with the operator's own admin-scoped `gh`
-# session, before it ever dispatches this workflow.
-#
-# Callable two ways:
-#   - workflow_call, pinned to a tag, from a consumer repo's own wrapper
-#   - workflow_dispatch, from this repo, to (re-)sync abi83/interns' own labels
-#
-# Idempotent: re-running just re-syncs label drift.
+# github.token can't write .github/workflows/*, so interns-install stages the caller stubs itself.
+# Branch protection and Pages need admin access github.token never has; interns-install checks them locally.
 
 on:
   workflow_dispatch:
@@ -48,12 +33,8 @@ jobs:
     steps:
       - name: Resolve the interns ref
         id: ref
-        # Precedence: explicit input (the wrapper defaults this to its own
-        # pinned tag) > the ref the caller pinned this reusable workflow to
-        # (github.job_workflow_ref, ".../install.yml@<ref>") > this run's own
-        # ref (the workflow_dispatch-on-this-repo case). Never github.sha --
-        # in a workflow_call that is the *consumer's* commit, never an interns
-        # ref.
+        # Precedence: explicit input > the ref the caller pinned (job_workflow_ref) > this run's ref.
+        # Never github.sha: in a workflow_call it is the consumer's commit.
         env:
           INPUT_REF: ${{ inputs.ref }}
           JOB_WORKFLOW_REF: ${{ github.job_workflow_ref }}
@@ -63,9 +44,7 @@ jobs:
           if [[ -n "$INPUT_REF" ]]; then
             ref="$INPUT_REF"
           elif [[ -n "$JOB_WORKFLOW_REF" ]]; then
-            # "owner/repo/.github/workflows/install.yml@<ref>" -- <ref> is
-            # either a bare tag/branch (wrapper pinned "@v0.1.0") or a fully
-            # qualified "refs/tags/vX" / "refs/heads/x".
+            # job_workflow_ref ends in @<ref>, either bare or fully qualified (refs/tags/...).
             ref="${JOB_WORKFLOW_REF##*@}"
           else
             ref="$RUN_REF"
@@ -74,10 +53,7 @@ jobs:
           echo "Using interns ref: $ref"
 
       - name: Check out interns (manifest + scripts)
-        # github.token must be able to read abi83/interns — true for a
-        # workflow_dispatch run in this repo, and for consumers in the same
-        # org with Actions repo-access configured. A cross-org consumer
-        # passes a PAT or App token here instead.
+        # Needs read access to this repo; a cross-org consumer must pass a PAT or App token.
         uses: actions/checkout@v5
         with:
           repository: abi83/interns

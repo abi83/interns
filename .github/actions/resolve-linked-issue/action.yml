@@ -20,8 +20,5 @@ runs:
         PR: ${{ inputs.pr_number }}
       run: |
         NUM=$(python3 -m interns.entrypoint gh-query --query closing-issue --number "$PR")
-        # A PR with no linked issue is expected, not an error — any human-
-        # opened PR without a "Closes #N" still gets reviewed (see wiki's
-        # Contributing.md), it just has no issue to tag. Leave the output
-        # empty and let callers decide what to skip.
+        # A human-opened PR with no linked issue is expected, not an error: leave the output empty.
         echo "issue_number=$NUM" >> "$GITHUB_OUTPUT"

@@ -1,10 +1,7 @@
 name: Code & review (reusable)
 
-# Reusable core of the coder/reviewer pipeline. Triggered only via
-# code-pipeline.yml, which owns the `issues` / `pull_request` /
-# `workflow_dispatch` triggers. The plan job routes the triggering event itself
-# (from its payload); the dispatch inputs below are only still declared so an
-# older caller that passes them keeps working.
+# Reusable core of the coder/reviewer pipeline, called from the caller's code-pipeline.yml.
+# Dispatch inputs are declared only so older callers that pass them keep working.
 on:
   workflow_call:
     inputs:
@@ -57,30 +54,21 @@ env:
   ALLOWED_SUBMIT_REVIEW: "mcp__gh-issues__submit_pr_review"
   ALLOWED_PUSH_BRANCH: "mcp__gh-issues__push_branch"
   ALLOWED_VIEW_ISSUE: "mcp__gh-issues__view_issue"
-  # In-sandbox git only. git push is deliberately absent — reaching the shared remote goes through mcp__gh-issues__push_branch.
-  # Branch checkout is a workflow step now (Create coder branch / Checkout PR
-  # branch below), not something the coder does itself, so checkout/switch
-  # aren't in this list.
+  # git push is deliberately absent: the remote is reached via mcp__gh-issues__push_branch.
   ALLOWED_GIT_WRITE: "Bash(git add:*),Bash(git commit:*),Bash(git rm:*),Bash(git mv:*)"
   ALLOWED_GIT_READ: "Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git status:*)"
-  # Read-only filesystem inspection for the coder; Write/Edit stay the only
-  # write path. No sed: no uniqueness check like Edit, easy to over-match.
+  # Write/Edit stay the only write path; no sed (no uniqueness check, easy to over-match).
   ALLOWED_FS_READ: "Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(wc:*)"
-  # `make` targets, not a package-manager-specific command, so this stays the
-  # same regardless of the consumer repo's language. See templates/config/Makefile.
+  # make targets keep this independent of the consumer repo's language.
   ALLOWED_BUILD_TEST: "Bash(make test:*),Bash(make build:*)"
   ALLOWED_CI_READ: "Bash(gh pr checks:*),Bash(gh run view:*)"
-  # The reviewer's sanctioned diff source: the API diff includes paths (e.g.
-  # .github/workflows/**) that a working-tree diff may not show.
+  # The API diff includes paths (e.g. .github/workflows/**) a working-tree diff may not show.
   ALLOWED_PR_READ: "Bash(gh pr diff:*),Bash(gh pr view:*)"
 
 jobs:
   plan:
-    # Every trigger-to-job and skip/run decision is made here, in Python
-    # (domain/routing.py plus the gates in steps/confirm_route.py); the jobs
-    # below gate only on `needs.plan.outputs.job`. This coarse filter keeps
-    # unrelated label events, and workflow runs with no PR or of this
-    # pipeline itself, from spending a runner.
+    # Routing lives in Python (domain/routing.py, steps/confirm_route.py); this coarse filter
+    # only avoids spending a runner on unrelated events.
     if: >
       (github.event_name != 'issues' || github.event.label.name == 'status:ready') &&
       (github.event_name != 'workflow_run' ||
@@ -113,10 +101,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: python3 -m interns.entrypoint route-event --handles coder,reviewer,pr_closed
 
-      # Reviewer-only below: the consumer's .github/interns.yml for the review
-      # gate (a subdirectory, so the .interns checkout survives), and both App
-      # logins -- the reviewer's to find its own reviews, the coder's to tell a
-      # pipeline PR from another bot's. Forks have no secrets to mint them with.
+      # Reviewer-only: interns.yml sits in a subdirectory so the .interns checkout survives;
+      # forks have no secrets to mint the App logins with.
       - name: Checkout consumer repo
         if: steps.route.outputs.job == 'reviewer'
         uses: actions/checkout@v5
@@ -155,13 +141,8 @@ jobs:
     concurrency:
       group: coder-issue-${{ needs.plan.outputs.issue }}
     steps:
-      # The coder pushes branches and opens PRs under its own GitHub App
-      # identity (interns-coder: pull_requests/issues write, contents write), so
-      # authorship, audit trail, and branch-protection rules can treat it
-      # separately from the reviewer's identity and from github-actions[bot].
-      # The installer's safety check requires vars.INTERNS_CODER_CLIENT_ID +
-      # secrets.INTERNS_CODER_APP_PRIVATE_KEY, so this is unconditional like the
-      # reviewer's equivalent.
+      # Own App identity so authorship and branch protection can tell the coder apart from the
+      # reviewer and github-actions[bot].
       - name: Generate coder app token
         id: coder_token
         uses: actions/create-github-app-token@v3
@@ -176,8 +157,7 @@ jobs:
           # Persisted so the agent's push_branch MCP tool reaches origin as the coder App.
           token: ${{ steps.coder_token.outputs.token }}
 
-      # After the main checkout (it wipes the workspace) and `if: always()`, so
-      # Flag failure still has .interns/ when an earlier step fails.
+      # After the main checkout (it wipes the workspace) and always(): Flag failure still needs .interns/.
       - name: Checkout pipeline assets
         if: always()
         uses: actions/checkout@v5
@@ -201,9 +181,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # set-issue-status also clears status:needs-attention so a human
-          # re-dispatch after a failed run (initial or fix round) leaves no
-          # contradictory labels.
           python3 -m interns.entrypoint labels set-issue-status "${{ steps.issue.outputs.number }}" status:in-progress
 
       - name: Resolve agent config
@@ -245,10 +222,6 @@ jobs:
           --head-ref "$HEAD_REF"
           --issue "${{ steps.issue.outputs.number }}"
 
-      # Both the Conventional Commit prefix and the branch name are derivable
-      # from the issue's type:* label and title before the agent runs — the
-      # coder shouldn't spend reasoning inventing them. Initial round only; a
-      # fix round reuses the existing PR branch.
       - name: Derive commit-type and branch hints
         id: hints
         if: needs.plan.outputs.fix_round != 'true'
@@ -259,16 +232,12 @@ jobs:
           python3 -m interns.entrypoint derive-code-hints
           --issue "${{ steps.issue.outputs.number }}"
 
-      # Creating the branch is as mechanical as naming it -- do it here rather
-      # than have the coder spend a tool call discovering it's still on the
-      # checked-out default branch and switching itself.
       - name: Create coder branch
         if: needs.plan.outputs.fix_round != 'true'
         env:
           BRANCH: ${{ steps.hints.outputs.branch }}
         run: |
-          # A failed earlier run may have saved its work as a draft PR on this
-          # branch: resume from it instead of starting over (and colliding on push).
+          # A failed earlier run may have left a draft PR on this branch: resume from it, avoiding a push collision.
           if git show-ref --verify --quiet "refs/remotes/origin/$BRANCH"; then
             git checkout -B "$BRANCH" "origin/$BRANCH"
           else
@@ -301,9 +270,7 @@ jobs:
           GH_TOKEN: ${{ steps.coder_token.outputs.token }}
         run: gh auth setup-git --hostname github.com
 
-      # Consumer-owned `make setup`, like test/build: the coder runs in a fresh
-      # runner and its allowlist can't install anything. A failure here fails
-      # the job before any Claude tokens are spent.
+      # Consumer-owned `make setup`: the allowlist can't install anything, and failing here spends no Claude tokens.
       - name: Install dependencies (make setup)
         run: python3 -m interns.entrypoint run-setup "$GITHUB_WORKSPACE"
 
@@ -425,8 +392,7 @@ jobs:
             ${{ steps.agent.outputs.execution_file }}
             ${{ steps.agent.outputs.debug_file }}
 
-      # The agent can run out of turns before it ever commits or pushes; keep
-      # its working tree as a draft PR instead of losing it with the runner.
+      # The agent can run out of turns before committing; keep its tree as a draft PR.
       - name: Save unfinished work as draft PR
         id: draft_pr
         if: failure() && needs.plan.outputs.fix_round != 'true' && steps.agent.outputs.outcome == 'failure'
@@ -444,9 +410,7 @@ jobs:
           --issue-title "$ISSUE_TITLE"
           --commit-type-hint "$COMMIT_TYPE_HINT"
 
-      # Deterministic, independent of what the coder did or said this run --
-      # greps the Makefile on disk rather than trusting the agent's word for
-      # it, so the nudge below fires even on a run that failed outright.
+      # Greps the Makefile rather than trusting the agent, so the nudge fires even on a failed run.
       - name: Check test/build configuration
         id: build_config
         if: always()
@@ -467,12 +431,8 @@ jobs:
             --issue "${{ steps.issue.outputs.number }}" \
             "${warn_args[@]}"
 
-      # A fix round that can't do the work (protected path, out-of-scope or
-      # contradictory feedback, needs an owner decision) leaves a
-      # ./.coder-gave-up.md sentinel instead of pushing. Escalate straight to a
-      # human rather than handing the PR back to the reviewer for a wasted
-      # round. Exit 0 is kept — the agent isn't failing, it's reporting it
-      # can't proceed — so this is distinct from `Flag failure`.
+      # Exit 0 on purpose: the agent isn't failing, it's reporting it can't proceed (./.coder-gave-up.md).
+      # Escalate to a human instead of wasting a reviewer round.
       - name: Check for coder give-up (fix round)
         id: giveup
         if: needs.plan.outputs.fix_round == 'true' && success()
@@ -558,13 +518,8 @@ jobs:
     needs: plan
     if: needs.plan.outputs.job == 'reviewer'
     runs-on: ubuntu-latest
-    # GITHUB_TOKEN-authored label edits don't fire new workflow runs (GitHub's
-    # anti-recursion rule for the default token), so a label alone would never
-    # re-trigger the coder job for a fix round. actions: write lets this job
-    # explicitly dispatch it instead (see "Apply verdict" below) — an
-    # intentional workflow_dispatch call, which is exempt from that restriction.
-    # Overriding permissions at job level means every permission this job needs
-    # must be listed here, not just the new one.
+    # GITHUB_TOKEN-authored label edits don't trigger runs, so Apply verdict dispatches the coder explicitly (actions: write).
+    # Job-level permissions replace the top-level ones: list every permission this job needs.
     permissions:
       contents: read
       pull-requests: write
@@ -588,11 +543,8 @@ jobs:
       - name: Set up pipeline Python
         uses: ./.interns/.github/actions/setup-pipeline-python
 
-      # A `pull_request` event checks out GitHub's synthetic merge-preview
-      # ref by default, and a `workflow_dispatch` re-run (no --ref) leaves us
-      # on the default branch instead — neither is the PR's actual head. The
-      # coder job hits the same gap for its fix round (see "Checkout PR
-      # branch (fix round)" above) and fixes it the same way.
+      # pull_request checks out the merge-preview ref and a dispatch re-run the default branch; neither is the
+      # PR head (the coder's fix-round checkout fixes it the same way).
       - name: Checkout PR branch
         env:
           GH_TOKEN: ${{ github.token }}
@@ -756,11 +708,7 @@ jobs:
           --issue "${{ steps.linked.outputs.issue_number }}"
 
   pr_closed:
-    # Nothing else in the pipeline reacts to a PR closing, so the linked issue
-    # would keep status:in-progress forever. On merge, drop the label from
-    # the already-closed issue; on an unmerged close, move it to
-    # status:needs-attention with a comment. Clears any stale pr:* label either
-    # way. No agent, no secrets — just label bookkeeping.
+    # Nothing else reacts to a PR closing; without this the issue keeps status:in-progress forever.
     needs: plan
     if: needs.plan.outputs.job == 'pr_closed'
     runs-on: ubuntu-latest
@@ -797,8 +745,6 @@ jobs:
           --merged "${{ github.event.pull_request.merged }}"
 
   metrics:
-    # One commit per workflow run: append the records the agent jobs uploaded to
-    # the metrics branch. The concurrency group serialises appends across runs.
     needs: [plan, coder, reviewer]
     if: always()
     runs-on: ubuntu-latest
