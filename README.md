@@ -1,5 +1,8 @@
 # interns
 
+[![unit coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/abi83/interns/badges/unit.json)](https://github.com/abi83/interns/actions/workflows/coverage-badges.yml)
+[![integration coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/abi83/interns/badges/integration.json)](https://github.com/abi83/interns/actions/workflows/coverage-badges.yml)
+
 A tireless team of interns that refine issues, estimate them, open PRs, and review each other's work — with a human in
 the loop when really needed.
 
