@@ -1,13 +1,9 @@
 """Issue/PR pipeline label state machine.
 
-Label edits here are best-effort: a transient `gh` failure (rate limit, a
-concurrent edit) shouldn't abort the calling workflow step over a label that a
-later run will just re-set. Each edit call routes through `best_effort.call`
-with `gh.GhCommandError` -- the repo-wide single mechanism that logs a warning
-and continues rather than raising.
+Every label edit is strict: a failed `gh` call raises, so a stalled issue is
+never hidden.
 
-That's also what makes the "target label not already present" case cheap:
-every transition reads current labels first and only issues `--add-label` /
+Each transition reads current labels first and only issues `--add-label` /
 `--remove-label` for labels that actually need to change, so removing an
 absent label -- which `gh` would reject -- never happens in the first place.
 """
@@ -18,7 +14,7 @@ from collections.abc import Sequence
 from enum import StrEnum
 from typing import NamedTuple
 
-from .. import best_effort, gh
+from .. import gh
 from .size import Estimation
 
 STATUS_NEEDS_REFINEMENT = "status:needs-refinement"
@@ -109,7 +105,7 @@ def _changed_labels(current: Sequence[str], add: Sequence[str], remove: Sequence
     return [label for label in add if label not in have], [label for label in remove if label in have]
 
 
-def edit_issue_labels_strict(repo: str, issue: int, add: Sequence[str] = (), remove: Sequence[str] = ()) -> None:
+def edit_issue_labels(repo: str, issue: int, add: Sequence[str] = (), remove: Sequence[str] = ()) -> None:
     """Add/remove specific issue labels, skipping any already in the wanted
     state -- in particular a `remove` that isn't present, which `gh` would
     otherwise reject. `gh` failures propagate."""
@@ -118,22 +114,17 @@ def edit_issue_labels_strict(repo: str, issue: int, add: Sequence[str] = (), rem
         gh.issue_edit(repo, issue, add_labels=add_labels, remove_labels=remove_labels)
 
 
-def edit_issue_labels(repo: str, issue: int, add: Sequence[str] = (), remove: Sequence[str] = ()) -> None:
-    """Best-effort `edit_issue_labels_strict`."""
-    best_effort.call("issue label edit", gh.GhCommandError, edit_issue_labels_strict, repo, issue, add, remove)
-
-
 def edit_pr_labels(repo: str, pr: int, add: Sequence[str] = (), remove: Sequence[str] = ()) -> None:
-    """PR counterpart of `edit_issue_labels` (always best-effort)."""
+    """PR counterpart of `edit_issue_labels`."""
     add_labels, remove_labels = _changed_labels(pr_labels(repo, pr), add, remove)
     if add_labels or remove_labels:
-        best_effort.call("PR label edit", gh.GhCommandError, gh.pr_edit, repo, pr, add_labels=add_labels, remove_labels=remove_labels)
+        gh.pr_edit(repo, pr, add_labels=add_labels, remove_labels=remove_labels)
 
 
 def apply_transition(repo: str, issue: int, transition: Transition) -> None:
-    """Strict: a failed edit raises, so the calling agent learns the
-    lifecycle didn't advance."""
-    edit_issue_labels_strict(repo, issue, add=transition.add, remove=transition.remove)
+    """A failed edit raises, so the calling agent learns the lifecycle didn't
+    advance."""
+    edit_issue_labels(repo, issue, add=transition.add, remove=transition.remove)
 
 
 def set_issue_status(repo: str, issue: int, target: str) -> None:
@@ -165,9 +156,9 @@ def set_issue_type(repo: str, issue: int, type_label: TypeLabel) -> str:
     """Make `type_label` the issue's only `type:*` label.
 
     The only label write an agent gets besides the outcome tools: it can
-    never touch status:*, pr:* or size:*. Strict: a failed edit raises.
+    never touch status:*, pr:* or size:*.
     """
-    edit_issue_labels_strict(repo, issue, add=[type_label], remove=[t for t in TYPE_LABELS if t != type_label])
+    edit_issue_labels(repo, issue, add=[type_label], remove=[t for t in TYPE_LABELS if t != type_label])
     return f"Issue #{issue} type set to {type_label}"
 
 
