@@ -319,9 +319,57 @@ jobs:
           gh_token: ${{ secrets.GITHUB_TOKEN }}
           tools: comment_issue,apply_estimation_outcome
 
+      - name: Install Claude CLI
+        if: steps.cfg.outputs.launcher == 'true'
+        uses: ./.interns/.github/actions/install-claude-cli
+
+      - name: Run Claude estimation (launcher)
+        id: launcher
+        if: steps.cfg.outputs.launcher == 'true'
+        timeout-minutes: ${{ fromJSON(steps.cfg.outputs.timeout_minutes) }}
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_MAX_OUTPUT_TOKENS: ${{ steps.cfg.outputs.max_output_tokens }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AGENT_MODEL: ${{ steps.cfg.outputs.model }}
+          AGENT_MAX_TURNS: ${{ steps.cfg.outputs.max_turns }}
+          AGENT_TOOLS: Read,Grep,Glob${{ steps.cfg.outputs.tools_suffix }}
+          AGENT_ALLOWED_TOOLS: Read,Grep,Glob,${{ env.ALLOWED_COMMENT }},${{ env.ALLOWED_APPLY_ESTIMATION }}${{ steps.cfg.outputs.allowed_tools_suffix }}
+          AGENT_DISALLOWED_TOOLS: ${{ steps.cfg.outputs.disallowed_tools }}
+          AGENT_ADD_DIR: ${{ steps.cfg.outputs.wiki_dir }}
+          AGENT_DEBUG: ${{ (inputs.debug == true || steps.cfg.outputs.debug == 'true') && 'true' || 'false' }}
+          INTERNS_AGENT_PROMPT: |
+            REPO: ${{ github.repository }}
+            ISSUE NUMBER: ${{ steps.issue.outputs.number }}
+            TITLE: ${{ steps.issue.outputs.title }}
+            OWNER: @${{ github.repository_owner }}
+            LABELS: ${{ steps.issue.outputs.labels }}
+            BODY:
+            ${{ steps.issue.outputs.body }}
+
+            ${{ steps.issue.outputs.comments }}
+
+            INSTRUCTIONS:
+            ${{ steps.instructions.outputs.text }}
+
+            Apply the instructions above to the refined issue and comments above.
+        run: >
+          python3 -m interns.entrypoint run-agent
+          --model "$AGENT_MODEL"
+          --max-turns "$AGENT_MAX_TURNS"
+          --mcp-config /tmp/mcp-config-gh-issues.json
+          --tools "$AGENT_TOOLS"
+          --allowed-tools "$AGENT_ALLOWED_TOOLS"
+          --disallowed-tools "$AGENT_DISALLOWED_TOOLS"
+          --add-dir "$AGENT_ADD_DIR"
+          --execution-file "${{ runner.temp }}/execution-estimator.jsonl"
+          --debug-file "${{ runner.temp }}/debug-estimator.log"
+          --debug "$AGENT_DEBUG"
+
       - name: Run Claude estimation
         id: claude
         timeout-minutes: ${{ fromJSON(steps.cfg.outputs.timeout_minutes) }}
+        if: steps.cfg.outputs.launcher != 'true'
         uses: anthropics/claude-code-action@v1
         env:
           CLAUDE_CODE_MAX_OUTPUT_TOKENS: ${{ steps.cfg.outputs.max_output_tokens }}
@@ -353,14 +401,25 @@ jobs:
             ${{ steps.cfg.outputs.add_dir_arg }}
             ${{ steps.cfg.outputs.disallowed_tools_arg }}
 
+      - name: Resolve agent result
+        id: agent
+        if: always()
+        uses: ./.interns/.github/actions/agent-result
+        with:
+          action_outcome: ${{ steps.claude.outcome }}
+          action_execution_file: ${{ steps.claude.outputs.execution_file }}
+          launcher_outcome: ${{ steps.launcher.outcome }}
+          launcher_execution_file: ${{ steps.launcher.outputs.execution_file }}
+          launcher_debug_file: ${{ steps.launcher.outputs.debug_file }}
+
       - name: Spike advisory
-        if: steps.claude.outcome == 'success'
+        if: steps.agent.outputs.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 -m interns.entrypoint spike-advisory --issue "${{ steps.issue.outputs.number }}"
 
       - name: Verify estimation outcome applied
-        if: steps.claude.outcome == 'success'
+        if: steps.agent.outputs.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -376,37 +435,39 @@ jobs:
       # Triage token, not GITHUB_TOKEN: a status:ready edit by GITHUB_TOKEN
       # would not trigger the coder workflow.
       - name: Auto-proceed to coder
-        if: steps.claude.outcome == 'success'
+        if: steps.agent.outputs.outcome == 'success'
         env:
           GH_TOKEN: ${{ steps.triage_token.outputs.token }}
         run: python3 -m interns.entrypoint auto-proceed --issue "${{ steps.issue.outputs.number }}"
 
       - name: Upload estimator execution log (debug)
-        if: (inputs.debug == true || steps.cfg.outputs.debug == 'true') && always() && steps.claude.outputs.execution_file != ''
+        if: (inputs.debug == true || steps.cfg.outputs.debug == 'true') && always() && steps.agent.outputs.execution_file != ''
         uses: ./.interns/.github/actions/upload-execution-log
         with:
           name: execution-log-estimator-issue-${{ steps.issue.outputs.number }}
-          path: ${{ steps.claude.outputs.execution_file }}
+          path: |
+            ${{ steps.agent.outputs.execution_file }}
+            ${{ steps.agent.outputs.debug_file }}
 
       - name: Report run cost
-        if: always() && steps.claude.outputs.execution_file != ''
+        if: always() && steps.agent.outputs.execution_file != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
           python3 -m interns.entrypoint report-run
           --phase Estimation
-          --exec-file "${{ steps.claude.outputs.execution_file }}"
+          --exec-file "${{ steps.agent.outputs.execution_file }}"
           --issue "${{ steps.issue.outputs.number }}"
 
       - name: Extract run metrics
         id: metrics
         continue-on-error: true
-        if: always() && steps.claude.outputs.execution_file != ''
+        if: always() && steps.agent.outputs.execution_file != ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
           python3 -m interns.entrypoint extract-metrics
-          --exec-file "${{ steps.claude.outputs.execution_file }}"
+          --exec-file "${{ steps.agent.outputs.execution_file }}"
           --job estimator
           --ref "${{ inputs.pipeline_ref }}"
           --issue "${{ steps.issue.outputs.number }}"
@@ -422,13 +483,13 @@ jobs:
           retention-days: 2
 
       - name: Write run summary
-        if: always() && steps.claude.outcome != 'skipped'
+        if: always() && steps.agent.outputs.outcome != 'skipped'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
           python3 -m interns.entrypoint run-summary
           --phase Estimation
-          --exec-file "${{ steps.claude.outputs.execution_file }}"
+          --exec-file "${{ steps.agent.outputs.execution_file }}"
           --issue "${{ steps.issue.outputs.number }}"
           --cost-warn "${{ steps.cfg.outputs.cost_warn_usd }}"
 
@@ -438,7 +499,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
           python3 -m interns.entrypoint flag-failure --noun estimation
-          --exec-file "${{ steps.claude.outputs.execution_file }}"
+          --exec-file "${{ steps.agent.outputs.execution_file }}"
           --issue "${{ steps.issue.outputs.number }}"
 
   metrics:

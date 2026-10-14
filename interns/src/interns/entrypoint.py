@@ -33,6 +33,7 @@ from .steps import (
     report_run,
     route_event,
     resolve_issue_template,
+    run_agent,
     run_setup,
     run_summary,
     save_draft_pr,
@@ -77,6 +78,7 @@ _ENV_FREE_COMMANDS: dict[str, _EnvFreeCommand] = {
     "config": show_config.main,
     "prompt": prompt.main,
     "resolve-issue-template": resolve_issue_template.main,
+    "run-agent": run_agent.main,
     "run-setup": run_setup.main,
 }
 

@@ -80,6 +80,7 @@
         "cost_warn_usd": { "$ref": "#/definitions/limits/properties/cost_warn_usd" },
         "allowed_tools": { "$ref": "#/definitions/limits/properties/allowed_tools" },
         "disallowed_tools": { "$ref": "#/definitions/limits/properties/disallowed_tools" },
+        "launcher": { "$ref": "#/definitions/limits/properties/launcher" },
         "trigger": {
           "type": "object",
           "additionalProperties": false,
@@ -105,6 +106,10 @@
           "description": "Safety ceiling, not a cost lever. Lowering it truncates edits and review bodies mid-write."
         },
         "cost_warn_usd": { "type": "number", "exclusiveMinimum": 0 },
+        "launcher": {
+          "type": "boolean",
+          "description": "Run the agent through interns' own claude launcher instead of anthropics/claude-code-action. Honoured by phases that have been moved over."
+        },
         "allowed_tools": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },

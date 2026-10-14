@@ -1,4 +1,4 @@
-"""Parses one claude-code-action execution file into a single
+"""Parses one agent execution file into a single
 pipeline-metrics record (one JSON object), for append_metrics to persist.
 
 Bump SCHEMA_VERSION and .github/pipeline-metrics.schema.json together on any
@@ -64,7 +64,7 @@ def build_record(exec_file: str, *, job: str, issue: int | None, pr: int | None,
     try:
         evts = execution.events(exec_file)
     except json.JSONDecodeError as exc:
-        # A killed run can leave a truncated (invalid-JSON) file -- treat it
+        # A killed run can leave a truncated (invalid JSON/JSONL) file -- treat it
         # the same as a well-formed file with no result event, matching the
         # bash version's `jq -e` failing the same way on either.
         raise NoResultEventError(f"no result event in {exec_file}") from exc

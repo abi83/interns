@@ -100,6 +100,7 @@ _BUILTIN_FIXTURE = {
         "timeout_minutes": 20,
         "max_output_tokens": 32000,
         "cost_warn_usd": 2.0,
+        "launcher": False,
     },
     "agents": {
         "refiner": {
@@ -187,6 +188,15 @@ class ResolveAgentConfigTests(unittest.TestCase):
         self.assertEqual(cfg.allowed_tools, [])
         self.assertEqual(cfg.disallowed_tools, [])
 
+    def test_launcher_is_off_by_default_and_switches_per_agent(self):
+        data = {"agents": {"estimator": {"launcher": True}}}
+        self.assertFalse(config.resolve_agent_config(data, "coder", "interns.yml").launcher)
+        self.assertTrue(config.resolve_agent_config(data, "estimator", "interns.yml").launcher)
+
+    def test_non_boolean_launcher_is_rejected(self):
+        with self.assertRaisesRegex(config.ConfigError, "launcher must be true or false"):
+            config.resolve_agent_config({"defaults": {"launcher": "yes"}}, "coder", "interns.yml")
+
     def test_agent_tools_add_to_defaults_without_duplicates(self):
         data = {
             "defaults": {"allowed_tools": ["Bash(npm run *)", "WebFetch"]},
@@ -254,6 +264,12 @@ class AgentConfigOutputTests(unittest.TestCase):
         self.assertEqual(outputs["tools_suffix"], ",Bash,WebFetch")
         self.assertEqual(outputs["allowed_tools_suffix"], ",Bash(npm run *),WebFetch")
         self.assertEqual(outputs["disallowed_tools_arg"], '--disallowedTools "Write,Edit"')
+
+    def test_launcher_inputs_are_emitted_as_plain_values(self):
+        data = {"agents": {"estimator": {"launcher": True, "disallowed_tools": ["Write", "Edit"]}}}
+        outputs = self._outputs(data, "estimator")
+        self.assertEqual(outputs["launcher"], "true")
+        self.assertEqual(outputs["disallowed_tools"], "Write,Edit")
 
     def test_wiki_disabled_emits_no_dir_and_no_add_dir_flag(self):
         outputs = self._outputs({}, "coder")

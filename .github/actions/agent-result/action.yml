@@ -1,0 +1,54 @@
+name: agent-result
+description: >
+  Give one agent job a single `outcome` and `execution_file`, whether the
+  phase ran through claude-code-action or the launcher. Run it with
+  `if: always()`; the agent step itself already fails the job.
+
+inputs:
+  action_outcome:
+    description: steps.<action step>.outcome
+    required: true
+  action_execution_file:
+    description: steps.<action step>.outputs.execution_file
+    required: true
+  launcher_outcome:
+    description: steps.<launcher step>.outcome
+    required: true
+  launcher_execution_file:
+    description: steps.<launcher step>.outputs.execution_file
+    required: true
+  launcher_debug_file:
+    description: steps.<launcher step>.outputs.debug_file
+    required: true
+
+outputs:
+  outcome:
+    value: ${{ steps.pick.outputs.outcome }}
+  execution_file:
+    value: ${{ steps.pick.outputs.execution_file }}
+  debug_file:
+    value: ${{ steps.pick.outputs.debug_file }}
+
+runs:
+  using: composite
+  steps:
+    - name: Pick the path that ran
+      id: pick
+      shell: bash
+      env:
+        ACTION_OUTCOME: ${{ inputs.action_outcome }}
+        ACTION_FILE: ${{ inputs.action_execution_file }}
+        LAUNCHER_OUTCOME: ${{ inputs.launcher_outcome }}
+        LAUNCHER_FILE: ${{ inputs.launcher_execution_file }}
+        LAUNCHER_DEBUG_FILE: ${{ inputs.launcher_debug_file }}
+      run: |
+        if [ "$LAUNCHER_OUTCOME" != "skipped" ]; then
+          outcome=$LAUNCHER_OUTCOME
+          echo "execution_file=$LAUNCHER_FILE" >> "$GITHUB_OUTPUT"
+          echo "debug_file=$LAUNCHER_DEBUG_FILE" >> "$GITHUB_OUTPUT"
+        else
+          outcome=$ACTION_OUTCOME
+          echo "execution_file=$ACTION_FILE" >> "$GITHUB_OUTPUT"
+          echo "debug_file=" >> "$GITHUB_OUTPUT"
+        fi
+        echo "outcome=$outcome" >> "$GITHUB_OUTPUT"

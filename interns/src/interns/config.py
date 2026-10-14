@@ -42,6 +42,7 @@ class AgentConfig:
     cost_warn_usd: float
     allowed_tools: list[str]
     disallowed_tools: list[str]
+    launcher: bool
     wiki_enabled: bool
     wiki_repo: str
     debug: bool
@@ -239,6 +240,10 @@ def resolve_agent_config(data: dict, agent: str, path: str) -> AgentConfig:
 
     allowed_tools, disallowed_tools = _resolve_tool_lists(defaults_block, agent_block, agent)
 
+    launcher = resolve("launcher")
+    if not isinstance(launcher, bool):
+        raise ConfigError(f"launcher must be true or false (got '{launcher}')")
+
     wiki = data.get("wiki") or {}
     wiki_enabled = bool(wiki.get("enabled", False))
     wiki_repo = str(wiki.get("url") or "")
@@ -252,6 +257,7 @@ def resolve_agent_config(data: dict, agent: str, path: str) -> AgentConfig:
         **limits,
         allowed_tools=allowed_tools,
         disallowed_tools=disallowed_tools,
+        launcher=launcher,
         wiki_enabled=wiki_enabled,
         wiki_repo=wiki_repo,
         debug=debug,

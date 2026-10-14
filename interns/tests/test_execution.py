@@ -41,6 +41,17 @@ class ResultFieldTests(unittest.TestCase):
         exec_file.write_text('[{"type": "result", "total')
         self.assertIsNone(execution.result_field(str(exec_file), "total_cost_usd"))
 
+    def test_reads_a_jsonl_stream(self):
+        exec_file = self.tmp_path / "exec.jsonl"
+        exec_file.write_text('{"type": "system"}\n{"type": "result", "total_cost_usd": 0.25}\n')
+        self.assertEqual(execution.result_field(str(exec_file), "total_cost_usd"), "0.25")
+        self.assertEqual([e["type"] for e in execution.events(str(exec_file))], ["system", "result"])
+
+    def test_truncated_jsonl_is_none(self):
+        exec_file = self.tmp_path / "exec.jsonl"
+        exec_file.write_text('{"type": "system"}\n{"type": "result", "tot')
+        self.assertIsNone(execution.result_field(str(exec_file), "total_cost_usd"))
+
     def test_no_result_entry_is_none(self):
         exec_file = _write(self.tmp_path, [{"type": "assistant", "message": "hi"}])
         self.assertIsNone(execution.result_field(exec_file, "total_cost_usd"))
