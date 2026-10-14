@@ -103,9 +103,10 @@ has none.
 
 The stubs pin `@v0`, a floating tag moved on every release, like `actions/checkout@v4`, so fixes
 reach you with no edits. Before 1.0, breaking changes also ship as minor releases and move `v0`.
-For a reproducible pin use a specific release tag. `next` tracks `main` (internal testing; set
-`INTERNS_REF=next` when installing). Releases are cut by
-[release-please](https://github.com/googleapis/release-please) from conventional commits.
+For a reproducible pin, use a release tag (`vX.Y.Z`). To change the version, edit the ref in the
+`uses:` and `pipeline_ref:` lines of the workflow files the installer added.
+Releases are cut by [release-please](https://github.com/googleapis/release-please) from
+conventional commits.
 
 ## Doing it by hand
 
