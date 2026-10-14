@@ -1,4 +1,4 @@
-"""Renders the README's PR-loop lifecycle section from `lifecycle.SCENARIOS`,
+"""Renders the PR-loop lifecycle section of docs/architecture.md from `lifecycle.SCENARIOS`,
 so the documented transitions cannot drift from `lifecycle.decide`.
 
 Regenerate with `PYTHONPATH=interns/src uv run --frozen python -m interns.domain.lifecycle_docs`.
@@ -6,16 +6,15 @@ Regenerate with `PYTHONPATH=interns/src uv run --frozen python -m interns.domain
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 from . import labels
-from .lifecycle import SCENARIOS, Event, IssueChange, Outcome, Scenario, decide
+from .lifecycle import SCENARIOS, IssueChange, Outcome, Scenario, decide
 
 START = "<!-- lifecycle:start -->"
 END = "<!-- lifecycle:end -->"
 
-README = Path(__file__).resolve().parents[4] / "README.md"
+DOC = Path(__file__).resolve().parents[4] / "docs" / "architecture.md"
 
 _ISSUE_TEXT = {
     IssueChange.UNCHANGED: "unchanged",
@@ -54,36 +53,15 @@ def _table(rows: list[tuple[Scenario, Outcome]]) -> str:
     return "\n".join(lines)
 
 
-def _node_id(text: str) -> str:
-    return re.sub(r"\W", "_", text)
-
-
-def _diagram(rows: list[tuple[Scenario, Outcome]]) -> str:
-    lines = ["```mermaid", "flowchart LR"]
-    for event in Event:
-        lines.append(f'    {event}(["{event}"])')
-    edges: list[str] = []
-    for scenario, outcome in rows:
-        pr = _pr_text(outcome).strip("`")
-        pr_node = f"pr_{_node_id(pr)}"
-        edges.append(f'    {scenario.event} -->|"{scenario.name}"| {pr_node}["PR: {pr}"]')
-        if outcome.issue is not IssueChange.UNCHANGED:
-            issue = _ISSUE_TEXT[outcome.issue].replace("`", "")
-            edges.append(f'    {scenario.event} -.->|"{scenario.name}"| issue_{_node_id(issue)}["issue: {issue}"]')
-    lines.extend(dict.fromkeys(edges))
-    lines.append("```")
-    return "\n".join(lines)
-
-
 def render() -> str:
     rows = [(scenario, decide(scenario.event, scenario.facts)) for scenario in SCENARIOS]
-    return f"{START}\n{_table(rows)}\n\n{_diagram(rows)}\n{END}"
+    return f"{START}\n{_table(rows)}\n{END}"
 
 
-def splice(readme: str) -> str:
-    start, end = readme.index(START), readme.index(END) + len(END)
-    return readme[:start] + render() + readme[end:]
+def splice(doc: str) -> str:
+    start, end = doc.index(START), doc.index(END) + len(END)
+    return doc[:start] + render() + doc[end:]
 
 
 if __name__ == "__main__":
-    README.write_text(splice(README.read_text()))
+    DOC.write_text(splice(DOC.read_text()))
