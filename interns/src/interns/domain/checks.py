@@ -2,7 +2,7 @@
 red or still pending. A red check routes the PR to a human with no coder retry
 (#133); only the PR is escalated, the issue keeps its status because the work
 is in a PR awaiting a human (#289). Checks still pending when the wait ends are
-not a failure: the review is skipped and the next check suite to complete
+not a failure: the review is skipped and the next workflow run to complete
 triggers it again.
 
 Two things are excluded from the wait: this workflow run's own checks (they
