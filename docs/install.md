@@ -15,9 +15,9 @@ The installer is idempotent: re-run it any time to fix drift. `interns-install -
 
 **Why it runs on your machine.** The installer creates the three GitHub Apps (account-level, with
 one browser click each), stores their keys and IDs as repo secrets and variables, and sets branch
-protection and Pages. That takes admin rights. A workflow only gets the repo-scoped `GITHUB_TOKEN`
-that Actions issues, which never has admin or `secrets: write`. So the installer runs under your own
-`gh` login, which must be a repo admin.
+protection and Pages. That takes admin rights. Nothing a workflow holds has them: `GITHUB_TOKEN` can't be granted admin or
+`secrets: write`, and the pipeline's Apps are created without them. So the installer runs under your
+own `gh` login, which must be a repo admin.
 
 ## What the installer does
 
