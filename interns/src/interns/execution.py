@@ -1,4 +1,5 @@
-"""Parsing of the claude-code-action execution-log JSON.
+"""Parsing of an agent execution file: the launcher's JSONL event stream, or
+the JSON array claude-code-action writes.
 
 Shared by interns.steps.report_run and interns.steps.run_summary, which both
 previously hand-duplicated the same `result`-entry extraction (interns#157).
@@ -12,22 +13,28 @@ from pathlib import Path
 from . import best_effort
 
 
+def parse_events(text: str) -> list[dict]:
+    if text.lstrip().startswith("["):
+        return json.loads(text)
+    return [json.loads(line) for line in text.splitlines() if line.strip()]
+
+
 def events(exec_file: str) -> list[dict]:
     """Parse an execution log file into the event list. Raises
     json.JSONDecodeError on an invalid or truncated file; callers that treat
     this as a soft failure should catch it themselves."""
-    return json.loads(Path(exec_file).read_text())
+    return parse_events(Path(exec_file).read_text())
 
 
 def result_entry(exec_file: str | None) -> dict | None:
     """The log's result-type entry, or None when the file is missing, not
-    valid JSON, or has no result entry."""
+    valid JSON/JSONL, or has no result entry."""
     if not exec_file:
         return None
     path = Path(exec_file)
     if not path.is_file():
         return None
-    entries = best_effort.call("exec log parse", json.JSONDecodeError, json.loads, path.read_text())
+    entries = best_effort.call("exec log parse", json.JSONDecodeError, events, exec_file)
     if entries is None:
         return None
     for entry in entries:

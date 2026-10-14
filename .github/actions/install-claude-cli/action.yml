@@ -1,0 +1,17 @@
+name: install-claude-cli
+description: Install a pinned Claude Code CLI with npm (about 4s on a hosted runner)
+
+inputs:
+  version:
+    description: Exact @anthropic-ai/claude-code version
+    required: false
+    default: "2.1.299"
+
+runs:
+  using: composite
+  steps:
+    - name: Install Claude Code CLI
+      shell: bash
+      env:
+        CLI_VERSION: ${{ inputs.version }}
+      run: npm install --global "@anthropic-ai/claude-code@${CLI_VERSION}"

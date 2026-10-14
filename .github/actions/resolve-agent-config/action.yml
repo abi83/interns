@@ -36,6 +36,10 @@ outputs:
     value: ${{ steps.resolve.outputs.add_dir_arg }}
   debug:
     value: ${{ steps.resolve.outputs.debug }}
+  launcher:
+    value: ${{ steps.resolve.outputs.launcher }}
+  disallowed_tools:
+    value: ${{ steps.resolve.outputs.disallowed_tools }}
 
 runs:
   using: composite

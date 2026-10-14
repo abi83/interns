@@ -44,6 +44,9 @@ defaults:
   timeout_minutes: 20
   max_output_tokens: 32000
   cost_warn_usd: 2.0
+  # Run agents through interns' own claude launcher instead of
+  # anthropics/claude-code-action. Only phases already moved over honour it.
+  launcher: false
   # Tools on top of interns' own, for every agent (Claude Code permission
   # patterns). Keep them narrow: "Bash(npm run *)" runs any package script.
   # allowed_tools:

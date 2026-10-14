@@ -56,6 +56,8 @@ def _agent_fields(cfg: AgentConfig, wiki_path: str) -> list[_Field]:
         _Field("wiki_dir", wiki_path, None),
         _Field("add_dir_arg", f"--add-dir {wiki_path}" if wiki_path else "", None),
         _plain("debug", _bool(cfg.debug)),
+        _plain("launcher", _bool(cfg.launcher)),
+        _Field("disallowed_tools", ",".join(cfg.disallowed_tools), None),
     ]
 
 
