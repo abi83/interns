@@ -235,87 +235,9 @@ it. `interns-install` appends the `setup` stub to an existing `Makefile` that
 lacks the target.
 
 
-## Troubleshooting
+## Operating
 
-<details>
-<summary><b>A label change didn't start a run.</b></summary>
-
-Label edits made by `GITHUB_TOKEN` (or any action using it) don't trigger new
-workflow runs — GitHub's anti-recursion rule. The `status:estimated` →
-`status:ready` approval must be a **human** label edit for the coder to fire
-(`auto_proceed` applies it with the triage App's token, which does fire it).
-The pipeline works around this internally by dispatching the coder fix round
-with an explicit `workflow_dispatch` instead of a label. To re-run a phase by
-hand, use the `workflow_dispatch` on the caller workflow
-(`phase: refine|estimate` / `phase: coder|reviewer`).
-
-</details>
-
-<details>
-<summary><b>The coder failed and a draft PR appeared.</b></summary>
-
-The pipeline saves a failed initial coder run's working tree as a draft PR
-that `Refs` the issue (see [`save_draft_pr.py`](interns/src/interns/steps/save_draft_pr.py));
-the reviewer skips drafts. To retry, clear `status:needs-attention` first, then
-re-apply `status:ready`: the rerun resumes on the draft's branch and `open_pr`
-marks that PR ready. Resume finds the draft by the deterministic branch name
-`<prefix>/issue-<n>-<title slug>`, so editing the issue title or type label
-between runs starts a fresh branch.
-
-</details>
-
-<details>
-<summary><b>A fork PR got no review.</b></summary>
-
-The reviewer job skips PRs from forks — forked runs have no access to secrets,
-so the app token and OAuth token would be empty. Review fork PRs manually. The
-same skip applies to bot PRs other than the coder App's own
-(Dependabot, etc.).
-
-</details>
-
-<details>
-<summary><b>The installer's safety check failed.</b></summary>
-
-| Failure | Fix |
-|---|---|
-| `can't read branch protection … needs admin access` | re-run `gh auth login` (or refresh your PAT) with admin access on the repo, then re-run `interns-install` |
-| `branch '…' push allowlist grants '…[bot]'` | remove that bot from the default branch's push restrictions |
-| `can't read GitHub Pages state … needs admin access` | same as above — `interns-install` needs an admin-scoped `gh` session |
-| `GitHub Pages could not be enabled` | turn it on under Settings → Pages (build type: GitHub Actions) |
-
-</details>
-
-<details>
-<summary><b>An issue on <code>status:ready</code> bounced to <code>status:needs-attention</code>.</b></summary>
-
-It reached the coder without a `type:coding-task` or `type:bug` label — only
-those two are implementable. Add the right type label and re-apply
-`status:ready`.
-
-</details>
-
-<details>
-<summary><b>A PR is stuck on <code>pr:needs-attention</code>.</b></summary>
-
-One of: a PR check went red (the coder is expected to push green — this goes
-straight to a human, no retry), a second review round still
-requested changes (the fix loop didn't converge), or the automatic-review cap
-(5 per PR) was hit. Read the PR comment the pipeline left for which. Re-engage a
-reviewer with the caller's `workflow_dispatch` (`phase: reviewer`,
-`pr_number: N`) once addressed.
-
-</details>
-
-<details>
-<summary><b>The coder declined a fix round.</b></summary>
-
-It left a comment on the issue explaining why (feedback needs a protected path,
-is out of scope, or needs an owner decision) and set `status:needs-attention`.
-The pipeline's own config and scripts under `.github/` are protected — the
-coder can't push a change that touches them.
-
-</details>
+What starts a run, where you step in, how to re-run a phase and what to do when something stalls: [docs/operate.md](docs/operate.md).
 
 ## Pipeline metrics
 
