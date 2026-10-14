@@ -46,9 +46,9 @@ def test_decide_module_does_no_io():
     assert not {"gh", "subprocess", "os", "requests"} & modules, modules
 
 
-def test_readme_lifecycle_section_matches_the_definitions():
-    readme = (ROOT / "README.md").read_text()
-    assert lifecycle_docs.splice(readme) == readme, (
-        "README lifecycle section is stale; run "
+def test_architecture_lifecycle_section_matches_the_definitions():
+    doc = (ROOT / "docs" / "architecture.md").read_text()
+    assert lifecycle_docs.splice(doc) == doc, (
+        "architecture.md lifecycle section is stale; run "
         "`PYTHONPATH=interns/src uv run --frozen python -m interns.domain.lifecycle_docs`"
     )

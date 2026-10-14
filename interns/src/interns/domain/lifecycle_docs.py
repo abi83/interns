@@ -1,4 +1,4 @@
-"""Renders the README's PR-loop lifecycle section from `lifecycle.SCENARIOS`,
+"""Renders the PR-loop lifecycle section of docs/architecture.md from `lifecycle.SCENARIOS`,
 so the documented transitions cannot drift from `lifecycle.decide`.
 
 Regenerate with `PYTHONPATH=interns/src uv run --frozen python -m interns.domain.lifecycle_docs`.
@@ -15,7 +15,7 @@ from .lifecycle import SCENARIOS, Event, IssueChange, Outcome, Scenario, decide
 START = "<!-- lifecycle:start -->"
 END = "<!-- lifecycle:end -->"
 
-README = Path(__file__).resolve().parents[4] / "README.md"
+DOC = Path(__file__).resolve().parents[4] / "docs" / "architecture.md"
 
 _ISSUE_TEXT = {
     IssueChange.UNCHANGED: "unchanged",
@@ -80,10 +80,10 @@ def render() -> str:
     return f"{START}\n{_table(rows)}\n\n{_diagram(rows)}\n{END}"
 
 
-def splice(readme: str) -> str:
-    start, end = readme.index(START), readme.index(END) + len(END)
-    return readme[:start] + render() + readme[end:]
+def splice(doc: str) -> str:
+    start, end = doc.index(START), doc.index(END) + len(END)
+    return doc[:start] + render() + doc[end:]
 
 
 if __name__ == "__main__":
-    README.write_text(splice(README.read_text()))
+    DOC.write_text(splice(DOC.read_text()))

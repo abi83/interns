@@ -55,3 +55,9 @@ branches on each other: a stacked branch conflicts once its base is
 squashed. Either wait for the base to merge and branch from `main`, or
 rebase the dependent branch with `git rebase --onto origin/main <old-base-tip>`
 after the base merges.
+
+## Architecture
+
+Read [docs/architecture.md](docs/architecture.md) before changing the pipeline:
+intent, layers, invariants, the label state machine, and checklists for adding a
+step, label, MCP tool or config key.
