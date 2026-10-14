@@ -2,6 +2,8 @@ name: CI
 
 on:
   pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -72,7 +74,16 @@ jobs:
         run: |
           uv run --frozen python -m coverage run -m pytest interns/tests installer/tests gh_issues_mcp/tests
           uv run --frozen python -m coverage combine
+          {
+            echo "### Unit coverage"
+            uv run --frozen python -m coverage report --format=markdown
+          } >> "$GITHUB_STEP_SUMMARY"
           uv run --frozen python -m coverage report --fail-under=84
+          uv run --frozen python -m coverage report --format=total > unit-total
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-unit
+          path: unit-total
       - name: Guards and contract tests
         run: uv run --frozen python -m pytest tests/guards tests/contract
 
@@ -101,4 +112,65 @@ jobs:
         run: |
           uv run --frozen python -m coverage run -m pytest tests/integration
           uv run --frozen python -m coverage combine
+          {
+            echo "### Integration coverage"
+            uv run --frozen python -m coverage report --format=markdown
+          } >> "$GITHUB_STEP_SUMMARY"
           uv run --frozen python -m coverage report --fail-under=61
+          uv run --frozen python -m coverage report --format=total > integration-total
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-integration
+          path: integration-total
+
+  publish-badges:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [test-unit, test-integration]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: publish-badges
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
+        with:
+          path: totals
+          merge-multiple: true
+      - name: Build badge JSON
+        run: |
+          mkdir badges
+          for tier in unit integration; do
+            total=$(cat "totals/$tier-total")
+            color=red
+            if [ "$total" -ge 90 ]; then color=brightgreen
+            elif [ "$total" -ge 80 ]; then color=green
+            elif [ "$total" -ge 70 ]; then color=yellow
+            elif [ "$total" -ge 60 ]; then color=orange
+            fi
+            printf '{"schemaVersion":1,"label":"%s coverage","message":"%s%%","color":"%s"}\n' \
+              "$tier" "$total" "$color" > "badges/$tier.json"
+          done
+      - name: Publish to the badges branch
+        run: |
+          dir="$RUNNER_TEMP/badges-branch"
+          if git ls-remote --exit-code --heads origin badges >/dev/null; then
+            git fetch --depth 1 origin badges
+            git worktree add "$dir" FETCH_HEAD
+            git -C "$dir" checkout -B badges
+          else
+            git worktree add --detach "$dir"
+            git -C "$dir" checkout --orphan badges
+            git -C "$dir" rm -rfq .
+          fi
+          cp badges/*.json "$dir"/
+          git -C "$dir" add -A
+          if git -C "$dir" diff --cached --quiet; then
+            echo "Badges unchanged."
+            exit 0
+          fi
+          git -C "$dir" -c user.name=github-actions[bot] \
+            -c user.email=41898282+github-actions[bot]@users.noreply.github.com \
+            commit -m "chore: update coverage badges for $GITHUB_SHA"
+          git -C "$dir" push origin badges
