@@ -43,7 +43,7 @@ rework — e.g. the scope is too broad to land in one PR, the estimator flagged 
 huge blast radius, or refinement surfaced blockers and missing prerequisites.
 Approving is a single move: the label `status:estimated` → `status:ready` —
 or skip it for sizes you trust the pipeline with, via `auto_proceed` (see
-[Pipeline configuration](#pipeline-configuration)).
+[docs/configuration.md](docs/configuration.md)).
 Second, give the finished PR — already implemented and reviewer-approved — a
 final look and merge it. Everything in between is automated, and
 anything the automation can't finish — a Claude error, a vague issue
@@ -161,79 +161,9 @@ curl -LsSf https://raw.githubusercontent.com/abi83/interns/v0/install.sh | sh
 
 Full guide, including the GitHub Apps, secrets and the install PR you merge: [docs/install.md](docs/install.md).
 
-### Pipeline configuration
+## Configuration
 
-Interns' defaults live in one file,
-[`templates/config/defaults.yml`](templates/config/defaults.yml). `interns-install`
-renders your `.github/interns.yml` from it with every key **commented out**, so
-you can see what's configurable and at what value without pinning a snapshot
-of it. Uncomment a key only to
-override it deliberately; everything else follows interns' defaults as they
-change. A value can only come from your file or those defaults — there is no
-second, overlapping source.
-
-The reviewer needs **all** of a PR's checks to be green before it runs — a
-red or cancelled check on anything routes the PR to a human instead. It is
-triggered when any workflow of the repo completes (`workflow_run: completed`
-for all workflows in the caller; the pipeline's own is ignored), so no runner
-sits idle polling CI; checks still running after the short
-`checks.timeout_seconds` wait just skip that run, and the next workflow to
-complete triggers the review again. (`check_suite` is no use here: GitHub does
-not deliver it for suites created by Actions.) Name any
-non-blocking advisory checks (preview deploys, coverage deltas) under
-`checks.ignore` in `.github/interns.yml` to keep them out of that gate.
-Gate timing (`checks.timeout_seconds` / `poll_seconds` / `settle_seconds`)
-and the coder–reviewer loop caps (`review_loop.max_fix_rounds` /
-`max_automatic_reviews`) are documented with their defaults in the config
-file.
-
-`agents.reviewer.trigger` narrows which PR events start a review: `coder_prs`
-and `human_prs` select whose PRs are reviewed, and `rereview_on_push: false`
-reviews only when a PR is opened or marked ready. All default to `true`, and a
-manual `workflow_dispatch` (`phase: reviewer`) always runs. Fork PRs and other
-bots' PRs are never reviewed.
-
-`auto_proceed` decides, per size label, whether an estimated
-`type:coding-task` / `type:bug` goes straight to the coder without waiting for
-your `status:estimated` → `status:ready` approval. By default `XS`, `S` and `M`
-proceed; `L` and `XL` wait for you. Override single sizes in
-`.github/interns.yml` — the rest keep their defaults:
-
-```yaml
-auto_proceed:
-  L: true
-```
-
-#### Agent tools
-
-interns gives each agent a fixed tool set. Extend it with `allowed_tools` and
-narrow it with `disallowed_tools` (examples in the config file); both work in
-`defaults` and per agent, and the lists add up. A deny always wins, including
-over interns' own tools.
-
-**A wildcard like `Bash(npm run *)` is effectively arbitrary code execution
-via package scripts.** Keep patterns narrow and put them under the one agent
-that needs them: `defaults` applies to every agent.
-
-#### Wiki
-
-With `wiki.enabled`, the wiki is checked out next to the repo (`../<name>.wiki`) and every agent can read it.
-
-### Makefile targets
-
-The coder runs in a fresh runner, so the consumer repo's
-[`Makefile`](templates/config/Makefile) is the language-agnostic contract:
-
-- `setup` — install dependencies. The pipeline runs `make setup` before the
-  coder starts, in both the initial and fix rounds; a non-zero exit fails the
-  job before any Claude tokens are spent.
-- `test` / `build` — run by the coder before pushing, and by the reviewer.
-
-Each target ships as a stub containing `INTERNS: not configured`. A stubbed (or
-absent) `setup` is skipped with a warning; fill in the real command to enable
-it. `interns-install` appends the `setup` stub to an existing `Makefile` that
-lacks the target.
-
+Defaults, the reviewer CI gate, agent tools, the wiki and the Makefile contract: [docs/configuration.md](docs/configuration.md).
 
 ## Operating
 
