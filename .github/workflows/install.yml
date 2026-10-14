@@ -53,7 +53,7 @@ jobs:
         # (github.job_workflow_ref, ".../install.yml@<ref>") > this run's own
         # ref (the workflow_dispatch-on-this-repo case). Never github.sha --
         # in a workflow_call that is the *consumer's* commit, never an interns
-        # ref (#73).
+        # ref.
         env:
           INPUT_REF: ${{ inputs.ref }}
           JOB_WORKFLOW_REF: ${{ github.job_workflow_ref }}

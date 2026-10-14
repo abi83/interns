@@ -86,10 +86,6 @@ def build_server(tool_names: list[str]) -> MCPServer:
 
 _LABELS_JSON = pathlib.Path(__file__).parent.parent / ".github" / "labels.json"
 
-# ---------------------------------------------------------------------------
-# Input models
-# ---------------------------------------------------------------------------
-
 
 class InlineComment(BaseModel):
     path: str = Field(description="File path relative to repo root.")
@@ -97,19 +93,9 @@ class InlineComment(BaseModel):
     body: str = Field(description="Comment text.", min_length=1, max_length=10000)
 
 
-# ---------------------------------------------------------------------------
-# Label manifest
-# ---------------------------------------------------------------------------
-
-
 def _load_label_names() -> list[str]:
     data = json.loads(_LABELS_JSON.read_text())
     return [entry["name"] for entry in data["labels"]]
-
-
-# ---------------------------------------------------------------------------
-# Issue read tools
-# ---------------------------------------------------------------------------
 
 
 @_tool
@@ -134,11 +120,6 @@ def view_issue(
     of {author, created_at, body} objects.
     """
     return json.dumps(dataclasses.asdict(issues.fetch_issue(_repo(), issue_number)))
-
-
-# ---------------------------------------------------------------------------
-# Issue write tools
-# ---------------------------------------------------------------------------
 
 
 @_tool
@@ -179,11 +160,6 @@ def set_issue_type(
     return labels.set_issue_type(_repo(), issue_number, type_label)
 
 
-# ---------------------------------------------------------------------------
-# PR write tools
-# ---------------------------------------------------------------------------
-
-
 @_tool
 def comment_pr(
     pr_number: Annotated[int, Field(description="PR number to comment on.")],
@@ -222,11 +198,6 @@ def submit_pr_review(
     return json.dumps(gh.pr_submit_review(_repo(), pr_number, event, body, comment_dicts))
 
 
-# ---------------------------------------------------------------------------
-# Branch / push tools
-# ---------------------------------------------------------------------------
-
-
 @_tool
 def push_branch() -> str:
     """Squash the current branch to one commit and push it to origin.
@@ -239,12 +210,7 @@ def push_branch() -> str:
     return push.push_branch(_repo(), _workspace())
 
 
-# ---------------------------------------------------------------------------
-# Outcome tools — apply pipeline lifecycle label transitions directly,
-# so refiner/estimator need no Write access and no marker files on disk.
-# ---------------------------------------------------------------------------
-
-
+# Outcome tools apply lifecycle label transitions directly, so the refiner/estimator need no Write access.
 @_tool
 def apply_refinement_outcome(
     issue_number: Annotated[int, Field(description="Issue number.")],

@@ -20,8 +20,6 @@ def review(state: str, commit: str = HEAD, login: str = "reviewer-bot") -> dict:
     return {"id": 1, "user": {"login": login}, "state": state, "commit_id": commit, "submitted_at": "2026-01-01T00:00:00Z", "body": ""}
 
 
-# --- interns.steps.edit_labels ---------------------------------------------------------
-
 def test_labels_issue_labels_prints_a_comma_joined_list(scenario):
     scenario.gh("issue", "view", "labels", stdout=labels_payload("status:ready", "type:bug"))
 
@@ -85,8 +83,6 @@ def test_labels_escalate_pr_sets_needs_attention(scenario):
     assert result.returncode == 0
     assert scenario.label_edits("pr") == [(PR, {"pr:needs-attention"}, {"pr:coding"})]
 
-
-# --- interns.steps.query_verdict ---------------------------------------------------------
 
 def test_verdict_verdict_for_head_prints_the_latest_state(scenario):
     scenario.gh(f"repos/{REPO}/pulls/{PR}/reviews", stdout=[[review("APPROVED")]])

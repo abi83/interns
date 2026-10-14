@@ -10,7 +10,7 @@ stored in the repo.
 
 The caller-stub PR is opened here too: it adds files under
 `.github/workflows/`, which `GITHUB_TOKEN` cannot push, so `install.yml` could
-never open it (see #74). `install.yml` is left with just label sync and the
+never open it. `install.yml` is left with just label sync and the
 best-effort secret check, both fine under `github.token`.
 """
 

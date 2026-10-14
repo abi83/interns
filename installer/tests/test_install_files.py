@@ -34,7 +34,7 @@ class CollectMissingFilesTests(unittest.TestCase):
 
     def test_collect_flags_drifted_wrapper_file(self):
         """A wrapper file that's present but stale is re-synced, not skipped --
-        this is the #88 fix: presence alone used to mean "nothing to do"."""
+        presence alone must not mean "nothing to do"."""
         src_for_dest = {dest: src for src, dest in install_files.INSTALL_FILES.items()}
 
         def existing(repo, path, ref):

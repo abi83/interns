@@ -97,7 +97,7 @@ jobs:
         uses: ./.interns/.github/actions/setup-pipeline-python
 
       # Resolved before the app-token step so Flag failure has a real issue
-      # number even if that step fails (#90).
+      # number even if that step fails.
       - name: Resolve issue
         id: issue
         uses: ./.interns/.github/actions/resolve-issue
@@ -108,7 +108,7 @@ jobs:
       # default GITHUB_TOKEN: GitHub never fires new workflow runs from
       # GITHUB_TOKEN-authored events (its anti-recursion rule), so a
       # GITHUB_TOKEN label write would silently never trigger the estimate
-      # job (#89). Any App token escapes that restriction -- no self-approval
+      # job. Any App token escapes that restriction -- no self-approval
       # constraint here like coder/reviewer, so one shared App is enough.
       - name: Generate triage app token
         id: triage_token
@@ -143,7 +143,7 @@ jobs:
       # Inlines the actual instructions instead of telling the agent to Read
       # them -- both files are already on disk from "Checkout pipeline
       # assets", so there is nothing to discover at runtime. Saves a
-      # guaranteed tool call per file, every run (#98's investigation).
+      # guaranteed tool call per file, every run.
       - name: Load refiner instructions
         id: instructions
         run: python3 -m interns.entrypoint prompt .interns/.github/prompts/_shared.md .interns/.github/prompts/refine.md

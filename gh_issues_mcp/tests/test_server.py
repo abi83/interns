@@ -2,7 +2,7 @@
 
 Business-logic tests for push_branch, pr_open_for_issue, issue_edit_validated,
 set_issue_type, apply_refinement, and apply_estimation live in
-pipeline/tests/ and tests/contract/test_mcp_contract.py.
+tests/contract/test_mcp_contract.py.
 """
 
 import asyncio
@@ -36,15 +36,11 @@ from server import (
     view_issue,
 )
 
+
 @pytest.fixture(autouse=True)
 def github_env(monkeypatch):
     monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
     monkeypatch.setenv("GITHUB_WORKSPACE", "/workspace")
-
-
-# ---------------------------------------------------------------------------
-# _load_label_names
-# ---------------------------------------------------------------------------
 
 
 def test_load_label_names_missing_file(tmp_path):
@@ -92,11 +88,6 @@ def test_list_issues_advertises_manifest_labels(tmp_path):
     assert "brand-new-label" in description
 
 
-# ---------------------------------------------------------------------------
-# environment is read lazily and required
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.parametrize("missing", ["GITHUB_REPOSITORY", "GITHUB_WORKSPACE"])
 def test_build_server_requires_github_env(monkeypatch, missing):
     monkeypatch.delenv(missing)
@@ -114,11 +105,6 @@ def test_tool_invocation_requires_workspace(monkeypatch):
     monkeypatch.delenv("GITHUB_WORKSPACE")
     with pytest.raises(MissingEnvError, match="GITHUB_WORKSPACE"):
         push_branch()
-
-
-# ---------------------------------------------------------------------------
-# view_issue
-# ---------------------------------------------------------------------------
 
 
 def test_view_issue_returns_flat_json():
@@ -156,11 +142,6 @@ def test_view_issue_excludes_pipeline_comments():
     assert [c["body"] for c in data["comments"]] == ["Human"]
 
 
-# ---------------------------------------------------------------------------
-# edit_issue — dispatches to gh.issue_edit_validated
-# ---------------------------------------------------------------------------
-
-
 def test_edit_issue_dispatches_to_pipeline():
     with patch("server.gh.issue_edit_validated", return_value="Updated body on issue #5") as mock:
         result = edit_issue(issue_number=5, body="New body here", title="New title")
@@ -171,11 +152,6 @@ def test_edit_issue_dispatches_to_pipeline():
 def test_edit_issue_rejects_multiline_title():
     with patch("server.gh.issue_edit_validated", side_effect=InvalidInputError("Title must be a single line")), pytest.raises(InvalidInputError, match="single line"):
         edit_issue(issue_number=5, body="Some body content here", title="Line one\nLine two")
-
-
-# ---------------------------------------------------------------------------
-# set_issue_type — dispatches to labels.set_issue_type
-# ---------------------------------------------------------------------------
 
 
 def test_set_issue_type_dispatches_to_pipeline():
@@ -207,11 +183,6 @@ def test_outcome_schema_admits_exactly_the_documented_values(tool_name, enum_nam
     assert schema["$defs"][enum_name]["enum"] == allowed
 
 
-# ---------------------------------------------------------------------------
-# open_pr — dispatches to push.pr_open_for_issue
-# ---------------------------------------------------------------------------
-
-
 def test_open_pr_dispatches_to_pipeline():
     with patch("server.push.pr_open_for_issue", return_value="https://github.com/owner/repo/pull/1") as mock:
         result = open_pr(issue_number=42, title="feat: add thing", body="Implements the thing")
@@ -226,11 +197,6 @@ def test_open_pr_rejects_detached_head():
         pytest.raises(GhCommandError, match="detached HEAD"),
     ):
         open_pr(issue_number=42, title="feat: add thing", body="Implements the thing")
-
-
-# ---------------------------------------------------------------------------
-# submit_pr_review — dispatches to gh.pr_submit_review
-# ---------------------------------------------------------------------------
 
 
 def test_submit_pr_review_approve():
@@ -261,11 +227,6 @@ def test_submit_pr_review_rejects_bad_event():
         submit_pr_review(pr_number=10, event="COMMENT", body="hi")  # type: ignore[arg-type]
 
 
-# ---------------------------------------------------------------------------
-# push_branch — dispatches to push.push_branch
-# ---------------------------------------------------------------------------
-
-
 def test_push_branch_dispatches_to_pipeline():
     with patch("server.push.push_branch", return_value="Branch 'feat/x' squashed and pushed to origin") as mock:
         result = push_branch()
@@ -276,11 +237,6 @@ def test_push_branch_dispatches_to_pipeline():
 def test_push_branch_raises_push_refused():
     with patch("server.push.push_branch", side_effect=PushRefusedError("Refusing to push main directly")), pytest.raises(PushRefusedError, match="Refusing"):
         push_branch()
-
-
-# ---------------------------------------------------------------------------
-# apply_refinement_outcome — dispatches to labels.apply_refinement
-# ---------------------------------------------------------------------------
 
 
 def test_apply_refinement_outcome_dispatches_to_pipeline():
@@ -301,11 +257,6 @@ def test_apply_refinement_outcome_missing_type_label():
         apply_refinement_outcome(issue_number=5, outcome="refined")
 
 
-# ---------------------------------------------------------------------------
-# apply_estimation_outcome — dispatches to labels.apply_estimation
-# ---------------------------------------------------------------------------
-
-
 def test_apply_estimation_outcome_dispatches_to_pipeline():
     estimation = Estimation(
         blast_radius=Score("Low", "isolated change in src/ghost.ts"),
@@ -323,11 +274,6 @@ def test_apply_estimation_outcome_dispatches_to_pipeline():
 def test_apply_estimation_outcome_missing_scores():
     with pytest.raises(InvalidInputError):
         apply_estimation_outcome(issue_number=7, outcome="estimated")
-
-
-# ---------------------------------------------------------------------------
-# build_server — per-phase tool exposure
-# ---------------------------------------------------------------------------
 
 
 def _exposed(tool_names):
@@ -350,11 +296,6 @@ def test_build_server_rejects_unknown_tool():
 def test_build_server_rejects_empty_list():
     with pytest.raises(ValueError, match="INTERNS_MCP_TOOLS"):
         build_server([])
-
-
-# ---------------------------------------------------------------------------
-# build_server — anticipated errors reach the agent
-# ---------------------------------------------------------------------------
 
 
 def _call(tool_name, arguments=None):

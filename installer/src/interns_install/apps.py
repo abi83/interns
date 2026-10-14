@@ -16,7 +16,7 @@ from . import credentials, gh_admin
 from .console import Console
 from .manifest_server import ManifestServer
 
-# Permission matrix is fixed by the pipeline's needs (see README / #10):
+# Permission matrix is fixed by the pipeline's needs (see README):
 # push branches, open and review PRs, edit issues and labels, read check runs.
 APP_PERMISSIONS = {
     "contents": "write",
@@ -26,7 +26,7 @@ APP_PERMISSIONS = {
     "metadata": "read",
 }
 
-# The triage App only ever edits issue labels (see #89) -- no repo contents or
+# The triage App only ever edits issue labels -- no repo contents or
 # PR access needed.
 TRIAGE_APP_PERMISSIONS = {
     "issues": "write",
@@ -106,7 +106,7 @@ def settings_app_url(repo_owner: str, is_org: bool, slug: str) -> str:
 
 def convert_manifest(code: str) -> dict:
     # Plural "app-manifests", not "app-manifest" -- the singular path 404s on
-    # every call. Root cause of interns#70 (interns#94).
+    # every call.
     data = gh_admin.convert_app_manifest(code)
     if not isinstance(data, dict) or "pem" not in data:
         raise gh.GhError("manifest conversion did not return a private key")

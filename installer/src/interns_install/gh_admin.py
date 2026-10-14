@@ -76,7 +76,7 @@ def secret_verb(name: str, existing: list[str] | None) -> str:
 
 def set_secret(repo: str, name: str, value: str) -> None:
     # `--body -` is a literal value to gh, not a stdin sentinel -- omit it
-    # entirely so gh falls back to reading stdin, i.e. `input_text` (interns#94).
+    # entirely so gh falls back to reading stdin, i.e. `input_text`.
     gh_transport.run(["secret", "set", name, "--repo", repo], input_text=value)
 
 

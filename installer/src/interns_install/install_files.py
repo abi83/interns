@@ -19,13 +19,13 @@ INTERNS_REF = os.environ.get("INTERNS_REF") or "v0"
 
 # Templates leave the interns ref as this placeholder so the pin always tracks
 # the installer version -- both in the `uses:` line and in each wrapper's
-# `ref:` fallback (never the consumer's commit SHA, see #73).
+# `ref:` fallback (never the consumer's commit SHA).
 REF_PLACEHOLDER = "__INTERNS_REF__"
 
 # Caller stubs, source path in INTERNS_REPO -> destination path in the
-# consumer (GITHUB_TOKEN can't push .github/workflows/*, see #74). Meant to
+# consumer (GITHUB_TOKEN can't push .github/workflows/*). Meant to
 # stay identical to the template, so a drifted copy is re-synced, not just
-# added when absent (#88).
+# added when absent.
 WRAPPER_FILES = {
     f"templates/workflows/{WORKFLOW}": f".github/workflows/{WORKFLOW}",
     "templates/workflows/issue-pipeline.yml": ".github/workflows/issue-pipeline.yml",
