@@ -1,10 +1,7 @@
 name: Refine & estimate (reusable)
 
-# Reusable core of the issue refine/estimate pipeline. Triggered only via
-# issue-pipeline.yml, which owns the `issues` / `workflow_dispatch` triggers.
-# The plan job routes the triggering event itself (from its payload); the
-# dispatch inputs below are only still declared so an older caller that passes
-# them keeps working. External repos call this file the same way.
+# Reusable core of the issue refine/estimate pipeline, called from the caller's issue-pipeline.yml.
+# Dispatch inputs are declared only so older callers that pass them keep working.
 on:
   workflow_call:
     inputs:
@@ -47,10 +44,8 @@ env:
 
 jobs:
   plan:
-    # Every trigger-to-job and skip/run decision is made here, in Python
-    # (domain/routing.py plus the gates in steps/confirm_route.py); the jobs
-    # below gate only on `needs.plan.outputs.job`. This coarse filter keeps
-    # unrelated label events from spending a runner.
+    # Routing lives in Python (domain/routing.py, steps/confirm_route.py); this coarse filter
+    # only avoids spending a runner on unrelated label events.
     if: >
       github.event_name != 'issues' ||
       github.event.label.name == 'status:needs-refinement' ||
@@ -96,20 +91,15 @@ jobs:
       - name: Set up pipeline Python
         uses: ./.interns/.github/actions/setup-pipeline-python
 
-      # Resolved before the app-token step so Flag failure has a real issue
-      # number even if that step fails.
+      # Before the app-token step so Flag failure has an issue number if that step fails.
       - name: Resolve issue
         id: issue
         uses: ./.interns/.github/actions/resolve-issue
         with:
           issue_number: ${{ needs.plan.outputs.issue }}
 
-      # status:refined must be applied by a distinct App identity, not the
-      # default GITHUB_TOKEN: GitHub never fires new workflow runs from
-      # GITHUB_TOKEN-authored events (its anti-recursion rule), so a
-      # GITHUB_TOKEN label write would silently never trigger the estimate
-      # job. Any App token escapes that restriction -- no self-approval
-      # constraint here like coder/reviewer, so one shared App is enough.
+      # Distinct App identity: GITHUB_TOKEN-authored events never trigger new runs, so its
+      # status:refined write would not start the estimate job.
       - name: Generate triage app token
         id: triage_token
         uses: actions/create-github-app-token@v3
@@ -140,17 +130,12 @@ jobs:
           ISSUE_BODY: ${{ steps.issue.outputs.body }}
         run: python3 -m interns.entrypoint preserve-issue-body --issue "${{ steps.issue.outputs.number }}"
 
-      # Inlines the actual instructions instead of telling the agent to Read
-      # them -- both files are already on disk from "Checkout pipeline
-      # assets", so there is nothing to discover at runtime. Saves a
-      # guaranteed tool call per file, every run.
+      # Inlined so the agent needn't spend a tool call reading them.
       - name: Load refiner instructions
         id: instructions
         run: python3 -m interns.entrypoint prompt .interns/.github/prompts/_shared.md .interns/.github/prompts/refine.md
 
-      # Triage App token, not GITHUB_TOKEN: the apply_refinement_outcome tool
-      # writes status:refined, which must trigger the estimate job. GitHub's
-      # anti-recursion rule silences GITHUB_TOKEN-authored events.
+      # Triage App token: a GITHUB_TOKEN-authored status:refined would not trigger the estimate job.
       - name: Set up gh-issues MCP server
         uses: ./.interns/.github/actions/setup-gh-issues-mcp
         with:
@@ -387,8 +372,7 @@ jobs:
             exit 1
           fi
 
-      # Triage token, not GITHUB_TOKEN: a status:ready edit by GITHUB_TOKEN
-      # would not trigger the coder workflow.
+      # Triage token: a status:ready edit by GITHUB_TOKEN would not trigger the coder workflow.
       - name: Auto-proceed to coder
         if: steps.agent.outcome == 'success'
         env:
@@ -458,8 +442,6 @@ jobs:
           --issue "${{ steps.issue.outputs.number }}"
 
   metrics:
-    # One commit per workflow run: append the records the agent jobs uploaded to
-    # the metrics branch. The concurrency group serialises appends across runs.
     needs: [plan, refine, estimate]
     if: always()
     runs-on: ubuntu-latest

@@ -1,8 +1,5 @@
-# Thin caller for the interns install workflow.
-# interns-install opens the PR that adds this file (alongside the caller stubs).
-# The push trigger below fires it as soon as that PR merges, so label sync
-# happens without a manual re-run. Re-run any time from the Actions tab to
-# re-sync label drift.
+# Thin caller for the interns install workflow. The push trigger syncs labels once the interns-install
+# PR merges; re-run from the Actions tab to re-sync drift.
 name: Install interns
 
 on:

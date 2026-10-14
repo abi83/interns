@@ -35,18 +35,15 @@ on:
         type: boolean
         default: false
 
-# A workflow_call can never grant the reusable workflow more than this caller
-# itself holds -- must cover its top-level needs plus every nested job's
-# (actions: write is for a nested job, not the top-level permissions block).
+# A workflow_call can't grant more than this caller holds: cover every nested job's needs too
+# (actions: write is for a nested job, not the top-level block).
 permissions:
   contents: write
   pull-requests: write
   issues: write
   actions: write
 
-# Open / ready / workflow-run events for one PR run one at a time, so a duplicate
-# event finds the head already reviewed instead of racing the first review.
-# Every other event gets its own group.
+# Open/ready/workflow-run events for one PR run one at a time, so a duplicate finds the head already reviewed.
 concurrency:
   group: ${{ ((github.event.workflow_run.workflow_id != github.event.workflow.id && github.event.workflow_run.pull_requests[0].number) || (github.event.action != 'closed' && github.event.pull_request.number)) && format('review-pr-{0}', (github.event.workflow_run.workflow_id != github.event.workflow.id && github.event.workflow_run.pull_requests[0].number) || github.event.pull_request.number) || github.run_id }}
 

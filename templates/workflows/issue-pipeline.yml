@@ -21,9 +21,7 @@ on:
         type: boolean
         default: false
 
-# A workflow_call can never grant the reusable workflow more than this caller
-# itself holds -- must cover its top-level needs plus every nested job's
-# (the metrics-append job wants contents: write).
+# A workflow_call can't grant more than this caller holds: cover the top-level needs and every nested job's.
 permissions:
   contents: write
   issues: write
