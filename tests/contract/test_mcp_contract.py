@@ -26,11 +26,6 @@ def scenario(tmp_path, monkeypatch):
     s.assert_all_matched()
 
 
-# ---------------------------------------------------------------------------
-# push_branch
-# ---------------------------------------------------------------------------
-
-
 def test_push_branch_squashes_and_pushes(scenario):
     scenario.gh("api", f"repos/{REPO}", stdout=_API_REPO)
     scenario.git("rev-parse", "--abbrev-ref", "HEAD", stdout="feat/add-thing")
@@ -93,11 +88,6 @@ def test_push_branch_surfaces_git_error(scenario):
         push.push_branch(REPO, "")
 
 
-# ---------------------------------------------------------------------------
-# pr_open_for_issue
-# ---------------------------------------------------------------------------
-
-
 def test_pr_open_for_issue_appends_closes_and_opens_pr(scenario):
     scenario.git("rev-parse", "--abbrev-ref", "HEAD", stdout="feat/issue-42")
     scenario.gh("api", f"repos/{REPO}", stdout=_API_REPO)
@@ -141,11 +131,6 @@ def test_pr_open_for_issue_rejects_detached_head(scenario):
         push.pr_open_for_issue(REPO, "", 42, "feat: add thing", "Body text here.")
 
 
-# ---------------------------------------------------------------------------
-# issue_edit_validated
-# ---------------------------------------------------------------------------
-
-
 def test_issue_edit_validated_forwards_body_and_title(scenario):
     # gh issue edit is QUIET — no stub needed; verify the args it receives.
     result = gh.issue_edit_validated(REPO, 5, body="New body text", title="New title")
@@ -155,7 +140,7 @@ def test_issue_edit_validated_forwards_body_and_title(scenario):
     argv = edits[0]
     assert argv[argv.index("--body") + 1] == "New body text"
     assert argv[argv.index("--title") + 1] == "New title"
-    assert result  # non-empty success string
+    assert result
 
 
 def test_issue_edit_validated_body_only(scenario):
@@ -165,11 +150,6 @@ def test_issue_edit_validated_body_only(scenario):
     assert edits
     assert "--title" not in edits[0]
     assert result
-
-
-# ---------------------------------------------------------------------------
-# pr_submit_review
-# ---------------------------------------------------------------------------
 
 
 def test_pr_submit_review_posts_to_reviews_endpoint(scenario):
@@ -197,11 +177,6 @@ def test_pr_submit_review_includes_inline_comments(scenario):
     assert payload["comments"][0]["path"] == "foo.py"
 
 
-# ---------------------------------------------------------------------------
-# set_issue_type
-# ---------------------------------------------------------------------------
-
-
 def test_set_issue_type_swaps_only_type_labels(scenario):
     scenario.gh("issue", "view", stdout=json.dumps({"labels": [{"name": "type:spike"}, {"name": "status:needs-refinement"}]}))
     # gh issue edit is QUIET
@@ -210,11 +185,6 @@ def test_set_issue_type_swaps_only_type_labels(scenario):
 
     assert result == "Issue #7 type set to type:bug"
     assert scenario.label_edits("issue") == [("7", {"type:bug"}, {"type:spike"})]
-
-
-# ---------------------------------------------------------------------------
-# apply_refinement
-# ---------------------------------------------------------------------------
 
 
 def test_apply_refinement_refined_applies_transition(scenario):
@@ -243,11 +213,6 @@ def test_apply_refinement_needs_attention_applies_transition(scenario):
     added = {argv[i + 1] for i, a in enumerate(argv) if a == "--add-label"}
     assert "status:needs-attention" in added
     assert "needs-attention" in result
-
-
-# ---------------------------------------------------------------------------
-# apply_estimation
-# ---------------------------------------------------------------------------
 
 
 def test_apply_estimation_estimated_applies_size_transition(scenario):

@@ -2,7 +2,7 @@
 sentinel it has *declined* the task -- the feedback needs a protected path
 it can't push, is out of scope for the issue, or needs an owner decision --
 rather than pushing a fix. Escalate straight to a human instead of handing
-the PR back to the reviewer for a wasted round (#9).
+the PR back to the reviewer for a wasted round.
 
 The coder step still exits 0 in this case (it's reporting, not failing), so
 without this check the workflow can't tell "gave up and commented" from

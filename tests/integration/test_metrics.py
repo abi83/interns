@@ -19,8 +19,6 @@ def scenario(tmp_path) -> Scenario:
     return Scenario(tmp_path)
 
 
-# --- extract_metrics --------------------------------------------------------
-
 REF = "refs/tags/v0.1.8"
 
 
@@ -149,8 +147,6 @@ def test_extract_metrics_treats_a_truncated_file_the_same_as_no_result_event(sce
     assert result.returncode == 1
     assert "no result event" in result.stderr
 
-
-# --- append_metrics ----------------------------------------------------------
 
 def _record(path, **fields):
     path.write_text(json.dumps(fields))

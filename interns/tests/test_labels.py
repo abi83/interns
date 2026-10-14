@@ -44,7 +44,7 @@ class SetIssueStatusTests(unittest.TestCase):
     def test_a_failed_edit_does_not_raise(self):
         with patch("interns.gh.issue_view", return_value=_labels_response([])), \
              patch("interns.gh.issue_edit", side_effect=gh.GhCommandError("boom")):
-            labels.set_issue_status("o/r", 7, "status:ready")  # does not raise
+            labels.set_issue_status("o/r", 7, "status:ready")
 
 
 class TransitionTests(unittest.TestCase):
@@ -121,7 +121,7 @@ class SetPrPipelineLabelTests(unittest.TestCase):
     def test_a_failed_edit_does_not_raise(self):
         with patch("interns.gh.pr_view", return_value=_labels_response(["pr:in-review"])), \
              patch("interns.gh.pr_edit", side_effect=gh.GhCommandError("boom")):
-            labels.set_pr_pipeline_label("o/r", 3, "pr:coding")  # does not raise
+            labels.set_pr_pipeline_label("o/r", 3, "pr:coding")
 
 
 class EscalatePrTests(unittest.TestCase):

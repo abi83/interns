@@ -89,7 +89,7 @@ class ReuseAppTests(unittest.TestCase):
 
     def test_provision_reuses_when_operator_confirms_existing_app(self):
         """No API call decides this -- GitHub can't tell us about a private
-        App even for its own owner (confirmed hands-on, see #88 follow-up).
+        App even for its own owner.
         The operator is asked "already have one?" first (not "set up now?"
         first, which read as "create a new one" and made "no" skip the App
         entirely instead of reaching the reuse question) and, on yes, is

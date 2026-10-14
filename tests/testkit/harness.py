@@ -1,9 +1,9 @@
 """Fake-`gh`/`git` harness for integration tests.
 
     scenario = Scenario(tmp_path)
-    scenario.gh("pr", "view", stdout='{"labels": []}')     # canned response
-    result = scenario.run("interns.apply_verdict", "7", "5")
-    assert scenario.pr_label_edits() == [...]
+    scenario.gh("pr", "view", stdout='{"labels": []}')
+    result = scenario.run("interns.entrypoint", "apply-verdict", "--issue", "7", "--pr", "5")
+    assert scenario.label_edits("pr") == [...]
 
 Entrypoints run as real subprocesses with a real env, argv and
 $GITHUB_OUTPUT; only `gh` and `git` are fakes (testkit/fake_cli.py).

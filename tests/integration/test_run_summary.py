@@ -42,8 +42,6 @@ def run_summary(scenario, *args: str) -> str:
     return step_summary.read_text()
 
 
-# --- Coder phase ---------------------------------------------------------
-
 def test_coder_summary_reports_a_new_pr_and_cost(scenario):
     scenario.gh("issue", "view", "title", stdout={"title": "Add CSV export"})
     scenario.gh("pr", "diff", "--name-only", stdout="src/export.py\nsrc/export_test.py\n")
@@ -175,8 +173,6 @@ def test_coder_summary_notes_a_missing_execution_file(scenario):
     assert "_No final message — the run produced no result output._" in body
 
 
-# --- Review phase ---------------------------------------------------------
-
 def test_review_summary_reports_an_approval(scenario):
     scenario.gh("pr", "view", "title", stdout={"title": "Add CSV export"})
     scenario.gh(f"repos/{REPO}/pulls/{PR}/reviews", stdout=[[review("APPROVED")]])
@@ -240,8 +236,6 @@ def test_review_summary_falls_back_when_the_pr_title_lookup_fails(scenario):
     assert "Add CSV export" not in pr_line
 
 
-# --- Refinement phase -------------------------------------------------------
-
 def test_refinement_summary_reports_the_refined_outcome(scenario):
     scenario.gh("issue", "view", "title", stdout={"title": "Add CSV export"})
     scenario.gh("issue", "view", "labels", stdout=labels_payload("status:refined", "type:coding-task"))
@@ -271,8 +265,6 @@ def test_refinement_summary_falls_back_to_no_terminal_state_when_labels_lookup_f
 
     assert "Label lookup failed — see the step log." in body
 
-
-# --- Estimation phase -------------------------------------------------------
 
 def test_estimation_summary_reports_the_size(scenario):
     scenario.gh("issue", "view", "title", stdout={"title": "Add CSV export"})

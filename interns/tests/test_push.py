@@ -24,11 +24,6 @@ def _git_seq(*stdout_values: str) -> list[MagicMock]:
     return [_proc(v) for v in stdout_values]
 
 
-# ---------------------------------------------------------------------------
-# push_branch
-# ---------------------------------------------------------------------------
-
-
 @patch("interns.domain.push.default_branch", return_value="main")
 def test_push_branch_squashes_and_pushes(_):
     seq = _git_seq(
@@ -109,11 +104,6 @@ def test_push_branch_passes_workspace_as_cwd(_):
         push_branch(REPO, WORKSPACE)
     for c in run.call_args_list:
         assert c[1].get("cwd") == WORKSPACE
-
-
-# ---------------------------------------------------------------------------
-# pr_open_for_issue
-# ---------------------------------------------------------------------------
 
 
 @patch("interns.domain.push.pr_for_head", return_value=None)

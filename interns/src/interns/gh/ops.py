@@ -24,10 +24,8 @@ from .transport import (
 )
 
 __all__ = [
-    # Error types shared across ops and adapters
     "GhCommandError", "GhError", "GhNotInstalledError",
     "InvalidInputError", "PushRefusedError",
-    # Ops
     "issue_view", "issue_edit", "issue_edit_validated", "issue_list", "issue_comment",
     "pr_view", "pr_rest", "pr_list", "pr_edit", "pr_comment", "pr_diff_names", "pr_checks", "pr_create",
     "pr_submit_review", "pr_for_head", "pr_ready", "pr_update",

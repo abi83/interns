@@ -1,7 +1,6 @@
 """Reviewer check gate: wait briefly for the PR's checks, then report green,
-red or still pending. A red check routes the PR to a human with no coder retry
-(#133); only the PR is escalated, the issue keeps its status because the work
-is in a PR awaiting a human (#289). Checks still pending when the wait ends are
+red or still pending. A red check routes the PR to a human with no coder retry; only the PR is escalated, the issue keeps its status because
+the work is in a PR awaiting a human. Checks still pending when the wait ends are
 not a failure: the review is skipped and the next workflow run to complete
 triggers it again.
 
