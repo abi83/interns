@@ -319,20 +319,7 @@ coder can't push a change that touches them.
 
 ## Pipeline metrics
 
-Every agent run appends one machine-readable record per `(run, job)` to
-`metrics.jsonl` on an orphan `metrics` branch in your repo — tokens
-(per model, sub-agents included), tool-call counts, `num_turns`, durations,
-cost, and the agent's process result. A final `metrics` job on each workflow
-run gathers the records its agent jobs uploaded and commits them in a single
-push (serialised by a `metrics-append` concurrency group, fetch-rebased on a
-race).
-
-`interns-install` also protects the branch against deletion — no manual
-seeding, and a repo installed before this step existed gets both on the next
-re-run. The record shape is versioned by `schema_version`, specified in
-[`.github/pipeline-metrics.schema.json`](.github/pipeline-metrics.schema.json).
-Read the log from any client with a single unauthenticated fetch of
-`raw.githubusercontent.com/<owner>/<repo>/metrics/metrics.jsonl`.
+Every agent run is recorded to a branch in your repo and charted on a dashboard: see [docs/metrics.md](docs/metrics.md).
 
 ## Code layout
 
