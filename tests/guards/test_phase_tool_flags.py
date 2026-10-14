@@ -30,3 +30,21 @@ def test_every_phase_grants_access_to_the_wiki_dir():
 def test_no_phase_hardcodes_a_denylist():
     for block in claude_args_blocks():
         assert "--disallowedTools" not in block, block
+
+
+def launcher_env_blocks() -> list[str]:
+    return [
+        block
+        for wf in WORKFLOWS
+        for block in re.findall(r"(?m)^          AGENT_TOOLS: .*\n(?:          AGENT_.*\n)+", wf.read_text())
+    ]
+
+
+def test_every_launcher_phase_pins_builtin_tools_and_appends_consumer_additions():
+    blocks = launcher_env_blocks()
+    assert blocks
+    for block in blocks:
+        assert re.search(r"AGENT_TOOLS: [^\n]*\$\{\{ steps\.cfg\.outputs\.tools_suffix \}\}\n", block), block
+        assert re.search(r"AGENT_ALLOWED_TOOLS: [^\n]*\$\{\{ steps\.cfg\.outputs\.allowed_tools_suffix \}\}\n", block), block
+        assert "AGENT_DISALLOWED_TOOLS: ${{ steps.cfg.outputs.disallowed_tools }}\n" in block, block
+        assert "AGENT_ADD_DIR: ${{ steps.cfg.outputs.wiki_dir }}\n" in block, block
