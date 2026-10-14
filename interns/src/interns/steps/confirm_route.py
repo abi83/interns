@@ -2,6 +2,9 @@
 
 The final `job` is `none` (with the reason) when a gate rejects the run:
 
+- every agent job: an actor behind the event (for a workflow run, the upstream
+  run's too) is neither a user with write access nor a pipeline identity.
+  Checked first, before any gate that writes to the issue.
 - coder: the issue type is not implementable, or the trigger is stale. A fix
   round is dispatched against an already `status:in-progress` issue, so it
   bypasses both.
@@ -22,7 +25,7 @@ from dataclasses import replace
 
 from .. import cli, config, gh, plan_outputs
 from ..ctx import ActionsCtx
-from ..domain import checks, labels, plan, review_cap, routing, type_gate, verdict
+from ..domain import actor_guard, checks, labels, plan, review_cap, routing, type_gate, verdict
 from ..domain.routing import Job, Route
 
 CODER_TYPES = [labels.TYPE_CODING_TASK, labels.TYPE_BUG]
@@ -141,6 +144,15 @@ def _live_review_target(
     return live_event, routing.route(live_event, config)
 
 
+GUARDED_JOBS = frozenset({Job.REFINE, Job.ESTIMATE, Job.CODER, Job.REVIEWER})
+
+
+def _actor_refusal(ctx: ActionsCtx, route: Route) -> str:
+    if route.job not in GUARDED_JOBS:
+        return ""
+    return actor_guard.refusal(ctx.repo, ctx.actors())
+
+
 def _skip_reason(ctx: ActionsCtx, event: routing.GithubEvent, route: Route, trigger: config.ReviewerTrigger) -> str:
     match route.job:
         case Job.CODER:
@@ -161,9 +173,10 @@ def main(ctx: ActionsCtx, argv: list[str]) -> int:
     event = ctx.event()
     route_config = ctx.route_config(args.handles)
     route = routing.route(event, route_config)
-    if isinstance(event, routing.WorkflowRunEvent) and route.job is Job.REVIEWER:
+    reason = _actor_refusal(ctx, route)
+    if not reason and isinstance(event, routing.WorkflowRunEvent) and route.job is Job.REVIEWER:
         event, route = _live_review_target(ctx, event, route, route_config)
-    reason = _skip_reason(ctx, event, route, route_config.trigger)
+    reason = reason or _skip_reason(ctx, event, route, route_config.trigger)
     final = replace(route, job=Job.NONE, skip_reason=reason) if reason else route
     if final.skip_reason:
         print(f"No job: {final.skip_reason}")

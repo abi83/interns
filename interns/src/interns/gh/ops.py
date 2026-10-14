@@ -32,7 +32,7 @@ __all__ = [
     "pr_view", "pr_rest", "pr_list", "pr_edit", "pr_comment", "pr_diff_names", "pr_checks", "pr_create",
     "pr_submit_review", "pr_for_head", "pr_ready", "pr_update",
     "issue_with_relations", "pr_reviews", "pr_review_comments", "issue_comments_all",
-    "default_branch", "dispatch_workflow",
+    "default_branch", "dispatch_workflow", "collaborator_permission",
     "label_list", "label_create", "label_edit",
     "list_secret_names", "list_variable_names",
 ]
@@ -144,6 +144,17 @@ def pr_rest(repo: str, number: int) -> dict:
     if not isinstance(result, dict):
         raise GhCommandError(f"unexpected response from pulls endpoint: {result!r}")
     return result
+
+
+def collaborator_permission(repo: str, login: str) -> str:
+    """The user's permission on `repo`: admin, write, read or none. Raises when it cannot be resolved."""
+    try:
+        result = api(f"repos/{repo}/collaborators/{quote(login, safe='')}/permission")
+    except GhCommandError as exc:
+        raise GhError(f"cannot resolve {login}'s permission on {repo}: {exc}") from exc
+    if not isinstance(result, dict) or not isinstance(result.get("permission"), str):
+        raise GhError(f"cannot resolve {login}'s permission on {repo}: unexpected response {result!r}")
+    return result["permission"]
 
 
 _PR_LIST_LIMIT = 1000
