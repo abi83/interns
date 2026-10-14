@@ -41,9 +41,10 @@ class SetIssueStatusTests(unittest.TestCase):
             labels.set_issue_status("o/r", 7, "status:ready")
         mock_edit.assert_not_called()
 
-    def test_a_failed_edit_does_not_raise(self):
+    def test_a_failed_edit_raises(self):
         with patch("interns.gh.issue_view", return_value=_labels_response([])), \
-             patch("interns.gh.issue_edit", side_effect=gh.GhCommandError("boom")):
+             patch("interns.gh.issue_edit", side_effect=gh.GhCommandError("boom")), \
+             self.assertRaises(gh.GhCommandError):
             labels.set_issue_status("o/r", 7, "status:ready")
 
 
@@ -111,17 +112,26 @@ class SetPrPipelineLabelTests(unittest.TestCase):
         mock_edit.assert_called_once_with("o/r", 3, add_labels=["pr:coding"], remove_labels=["pr:needs-attention"])
 
     def test_removing_an_absent_label_is_never_attempted(self):
-        # The label-not-present case `|| true` used to mask: with nothing to
-        # remove, gh_edit isn't even called, so there's no failure to swallow.
+        # With nothing to remove, the edit isn't even issued: gh would reject
+        # removing an absent label.
         with patch("interns.gh.pr_view", return_value=_labels_response([])), \
              patch("interns.gh.pr_edit") as mock_edit:
             labels.set_pr_pipeline_label("o/r", 3)
         mock_edit.assert_not_called()
 
-    def test_a_failed_edit_does_not_raise(self):
+    def test_a_failed_edit_raises(self):
         with patch("interns.gh.pr_view", return_value=_labels_response(["pr:in-review"])), \
-             patch("interns.gh.pr_edit", side_effect=gh.GhCommandError("boom")):
+             patch("interns.gh.pr_edit", side_effect=gh.GhCommandError("boom")), \
+             self.assertRaises(gh.GhCommandError):
             labels.set_pr_pipeline_label("o/r", 3, "pr:coding")
+
+
+class EditIssueLabelsTests(unittest.TestCase):
+    def test_a_failed_cleanup_edit_raises(self):
+        with patch("interns.gh.issue_view", return_value=_labels_response([labels.STATUS_IN_PROGRESS])), \
+             patch("interns.gh.issue_edit", side_effect=gh.GhCommandError("boom")), \
+             self.assertRaises(gh.GhCommandError):
+            labels.edit_issue_labels("o/r", 7, remove=[labels.STATUS_IN_PROGRESS])
 
 
 class EscalatePrTests(unittest.TestCase):
