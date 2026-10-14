@@ -15,10 +15,6 @@ def _suffix(tools: list[str]) -> str:
     return "".join(f",{tool}" for tool in tools)
 
 
-def _flag(name: str, tools: list[str]) -> str:
-    return f'{name} "{",".join(tools)}"' if tools else ""
-
-
 def _bool(value: bool) -> str:
     return "true" if value else "false"
 
@@ -46,18 +42,11 @@ def _agent_fields(cfg: AgentConfig, wiki_path: str) -> list[_Field]:
         _plain("cost_warn_usd", str(cfg.cost_warn_usd)),
         _Field("tools_suffix", _suffix(config.builtin_tool_names(cfg.allowed_tools)), None),
         _Field("allowed_tools_suffix", _suffix(cfg.allowed_tools), ("allowed_tools", ",".join(cfg.allowed_tools))),
-        _Field(
-            "disallowed_tools_arg",
-            _flag("--disallowedTools", cfg.disallowed_tools),
-            ("disallowed_tools", ",".join(cfg.disallowed_tools)),
-        ),
         _plain("wiki_enabled", _bool(cfg.wiki_enabled)),
         _Field("wiki_repo", cfg.wiki_repo, None),
         _Field("wiki_dir", wiki_path, None),
-        _Field("add_dir_arg", f"--add-dir {wiki_path}" if wiki_path else "", None),
         _plain("debug", _bool(cfg.debug)),
-        _plain("launcher", _bool(cfg.launcher)),
-        _Field("disallowed_tools", ",".join(cfg.disallowed_tools), None),
+        _Field("disallowed_tools", ",".join(cfg.disallowed_tools), ("disallowed_tools", ",".join(cfg.disallowed_tools))),
     ]
 
 

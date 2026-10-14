@@ -42,7 +42,6 @@ permissions:
   contents: write
   pull-requests: write
   issues: write
-  id-token: write
   actions: write
 
 # Open / ready / workflow-run events for one PR run one at a time, so a duplicate

@@ -244,7 +244,7 @@ re-run either any time to fix drift.
 | 1 | Check (and fix) default-branch protection | An agent could ignore its instructions and push straight to the default branch; protection forces every change through a PR. |
 | 2 | Check (and enable) GitHub Pages | Deploy target for the visibility dashboard ([#6](https://github.com/abi83/interns/issues/6)). |
 | 3 | Check (and create) the `metrics` branch | Orphan branch the pipeline appends run metrics to — see [Pipeline metrics](#pipeline-metrics). |
-| 4 | Mint (or reuse) the three GitHub Apps | Separate coder/reviewer identities, so the reviewer can approve the coder's PRs (`claude[bot]` can't approve its own); a third triage App applies `status:refined` under its own identity so the estimate phase actually triggers (`GITHUB_TOKEN` label edits never fire new workflow runs). Reused as-is on further repos under the same account — see [GitHub Apps](#github-apps). |
+| 4 | Mint (or reuse) the three GitHub Apps | Separate coder/reviewer identities, so the reviewer can approve the coder's PRs (an identity can't approve its own PR); a third triage App applies `status:refined` under its own identity so the estimate phase actually triggers (`GITHUB_TOKEN` label edits never fire new workflow runs). Reused as-is on further repos under the same account — see [GitHub Apps](#github-apps). |
 | 5 | Write App secrets/variables + `CLAUDE_CODE_OAUTH_TOKEN` | The workflows need these to authenticate as the Apps and call Claude. |
 | 6 | Hand off to `install.yml` | If no caller for it exists yet, open a one-file PR adding `.github/workflows/install.yml` (a thin wrapper) — merge it and re-run the installer. Once present, dispatch it. |
 | 7 | (`install.yml`) Sync labels | The pipeline routes on `status:*` / `type:*` / `pr:*` and can't run without them. |
@@ -253,7 +253,7 @@ re-run either any time to fix drift.
 #### Default-branch protection
 
 The agents push branches with your repo's own credentials, so no bot identity
-(`github-actions[bot]`, `claude[bot]`, the three Apps) may be on the default
+(`github-actions[bot]`, the three Apps) may be on the default
 branch's push allowlist. By starting state:
 
 | Default branch | Result |
@@ -318,13 +318,6 @@ Pro or Max subscription):
 ```
 claude setup-token
 ```
-
-**Also install Anthropic's own Claude Code GitHub App:**
-[github.com/apps/claude](https://github.com/apps/claude). This is separate
-from the `interns-coder-*` / `interns-reviewer-*` Apps minted above —
-`CLAUDE_CODE_OAUTH_TOKEN`'s OIDC token exchange fails with `401 Unauthorized`
-until it's installed on the consumer repo. The installer opens this page for
-you at the same step it asks for `CLAUDE_CODE_OAUTH_TOKEN`.
 
 | Kind | Name | Value |
 |---|---|---|
@@ -506,7 +499,7 @@ between runs starts a fresh branch.
 
 The reviewer job skips PRs from forks — forked runs have no access to secrets,
 so the app token and OAuth token would be empty. Review fork PRs manually. The
-same skip applies to bot PRs other than the coder's `claude[bot]`
+same skip applies to bot PRs other than the coder App's own
 (Dependabot, etc.).
 
 </details>

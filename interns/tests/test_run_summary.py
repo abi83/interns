@@ -7,6 +7,7 @@ from interns import cli, gh
 from interns.steps import run_summary
 from interns.steps.run_summary import CoderRun, EstimationRun, RefinementRun, ReviewRun, Round
 from interns.ctx import ActionsCtx
+from testkit.execution_log import jsonl
 from interns.domain.verdict import Review, ReviewState
 
 REPO = "owner/repo"
@@ -250,12 +251,11 @@ class CostAndExecFileTests(unittest.TestCase):
         self.assertNotIn("warn limit", summary)
 
     def _write_exec(self, result_fields: dict) -> str:
-        import json
         import tempfile
         entry = {"type": "result", **result_fields}
         fd, path = tempfile.mkstemp()
         with os.fdopen(fd, "w") as f:
-            json.dump([entry], f)
+            f.write(jsonl([entry]))
         self.addCleanup(os.remove, path)
         return path
 

@@ -1,12 +1,12 @@
-import json
 import unittest
 
 from interns import execution
+from testkit.execution_log import jsonl
 
 
 def _write(tmp_path, entries) -> str:
     path = tmp_path / "exec.json"
-    path.write_text(json.dumps(entries))
+    path.write_text(jsonl(entries))
     return str(path)
 
 

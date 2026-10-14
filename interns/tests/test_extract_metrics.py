@@ -9,6 +9,7 @@ from unittest.mock import patch
 from interns import cli
 from interns.steps import extract_metrics
 from interns.ctx import ActionsCtx
+from testkit.execution_log import jsonl
 
 REF = "refs/tags/v0.1.8"
 
@@ -41,7 +42,7 @@ class BuildRecordTests(unittest.TestCase):
     def setUp(self):
         self._tmpdir = tempfile.TemporaryDirectory()
         self.exec_file = Path(self._tmpdir.name) / "exec.json"
-        self.exec_file.write_text(json.dumps(EXEC_EVENTS))
+        self.exec_file.write_text(jsonl(EXEC_EVENTS))
 
     def tearDown(self):
         self._tmpdir.cleanup()
@@ -86,7 +87,7 @@ class BuildRecordTests(unittest.TestCase):
 
     def test_no_result_event_raises(self):
         no_result = Path(self._tmpdir.name) / "noresult.json"
-        no_result.write_text(json.dumps([{"type": "system"}]))
+        no_result.write_text(jsonl([{"type": "system"}]))
         with self.assertRaises(extract_metrics.NoResultEventError):
             extract_metrics.build_record(str(no_result), job="coder", issue=None, pr=None,
                                           repo="owner/repo", run_id=42, run_attempt=1,
@@ -115,7 +116,7 @@ class CliTests(unittest.TestCase):
     def setUp(self):
         self._tmpdir = tempfile.TemporaryDirectory()
         self.exec_file = Path(self._tmpdir.name) / "exec.json"
-        self.exec_file.write_text(json.dumps(EXEC_EVENTS))
+        self.exec_file.write_text(jsonl(EXEC_EVENTS))
         self.ctx = ActionsCtx(repo="owner/repo", token="", server_url="")
         env = patch.dict(os.environ, {"GITHUB_RUN_ID": "42", "GITHUB_RUN_ATTEMPT": "2"})
         env.start()
@@ -148,7 +149,7 @@ class CliTests(unittest.TestCase):
 
     def test_fails_when_the_execution_file_has_no_result_event(self):
         no_result = Path(self._tmpdir.name) / "noresult.json"
-        no_result.write_text(json.dumps([{"type": "system"}]))
+        no_result.write_text(jsonl([{"type": "system"}]))
         status, out = self._run_capture(["--exec-file", str(no_result), "--job", "coder", "--ref", REF])
         self.assertNotEqual(status, 0)
         self.assertEqual(out, "")

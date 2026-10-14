@@ -7,32 +7,7 @@ WORKFLOWS = sorted((Path(__file__).resolve().parents[2] / ".github/workflows").g
 PHASE_COUNT = 5  # refiner, estimator, coder initial, coder fix, reviewer
 
 
-def claude_args_blocks() -> list[str]:
-    return [block for wf in WORKFLOWS for block in re.findall(r"claude_args: \|\n((?:\s{12}.*\n)+)", wf.read_text())]
-
-
-def test_every_phase_is_covered():
-    assert len(claude_args_blocks()) == PHASE_COUNT
-
-
-def test_every_phase_pins_builtin_tools_and_appends_consumer_additions():
-    for block in claude_args_blocks():
-        assert re.search(r'--tools "[^"]*\$\{\{ steps\.cfg\.outputs\.tools_suffix \}\}"', block), block
-        assert re.search(r'--allowedTools "[^"]*\$\{\{ steps\.cfg\.outputs\.allowed_tools_suffix \}\}"', block), block
-        assert "${{ steps.cfg.outputs.disallowed_tools_arg }}" in block, block
-
-
-def test_every_phase_grants_access_to_the_wiki_dir():
-    for block in claude_args_blocks():
-        assert "${{ steps.cfg.outputs.add_dir_arg }}" in block, block
-
-
-def test_no_phase_hardcodes_a_denylist():
-    for block in claude_args_blocks():
-        assert "--disallowedTools" not in block, block
-
-
-def launcher_env_blocks() -> list[str]:
+def env_blocks() -> list[str]:
     return [
         block
         for wf in WORKFLOWS
@@ -40,9 +15,9 @@ def launcher_env_blocks() -> list[str]:
     ]
 
 
-def test_every_launcher_phase_pins_builtin_tools_and_appends_consumer_additions():
-    blocks = launcher_env_blocks()
-    assert blocks
+def test_every_phase_pins_builtin_tools_and_appends_consumer_additions():
+    blocks = env_blocks()
+    assert len(blocks) == PHASE_COUNT
     for block in blocks:
         assert re.search(r"AGENT_TOOLS: [^\n]*\$\{\{ steps\.cfg\.outputs\.tools_suffix \}\}\n", block), block
         assert re.search(r"AGENT_ALLOWED_TOOLS: [^\n]*\$\{\{ steps\.cfg\.outputs\.allowed_tools_suffix \}\}\n", block), block

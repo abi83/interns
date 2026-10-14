@@ -1,7 +1,7 @@
 """Posts the "<Phase> [pipeline run](url) -- cost: $X" comment every agent
 phase drops on the ticket. Cost tracking lives on the issue (refine,
 estimate, coder and reviewer all post there) so spend aggregates from one
-place. Cost is parsed from the claude-code-action execution file; "unknown"
+place. Cost is parsed from the execution file; "unknown"
 when the run produced none.
 """
 

@@ -63,6 +63,10 @@ class LoadRawTests(unittest.TestCase):
         with self.assertRaisesRegex(config.ConfigError, "unknown key 'defaults.max_tokens'"):
             _load({"defaults": {"max_tokens": 100}})
 
+    def test_removed_launcher_key_is_rejected(self):
+        with self.assertRaisesRegex(config.ConfigError, "unknown key 'defaults.launcher'"):
+            _load({"defaults": {"launcher": True}})
+
     def test_unknown_agent_block(self):
         with self.assertRaisesRegex(config.ConfigError, "unknown agent 'tester'"):
             _load({"agents": {"tester": {"max_turns": 5}}})
@@ -100,7 +104,6 @@ _BUILTIN_FIXTURE = {
         "timeout_minutes": 20,
         "max_output_tokens": 32000,
         "cost_warn_usd": 2.0,
-        "launcher": False,
     },
     "agents": {
         "refiner": {
@@ -188,15 +191,6 @@ class ResolveAgentConfigTests(unittest.TestCase):
         self.assertEqual(cfg.allowed_tools, [])
         self.assertEqual(cfg.disallowed_tools, [])
 
-    def test_launcher_is_off_by_default_and_switches_per_agent(self):
-        data = {"agents": {"estimator": {"launcher": True}}}
-        self.assertFalse(config.resolve_agent_config(data, "coder", "interns.yml").launcher)
-        self.assertTrue(config.resolve_agent_config(data, "estimator", "interns.yml").launcher)
-
-    def test_non_boolean_launcher_is_rejected(self):
-        with self.assertRaisesRegex(config.ConfigError, "launcher must be true or false"):
-            config.resolve_agent_config({"defaults": {"launcher": "yes"}}, "coder", "interns.yml")
-
     def test_agent_tools_add_to_defaults_without_duplicates(self):
         data = {
             "defaults": {"allowed_tools": ["Bash(npm run *)", "WebFetch"]},
@@ -252,36 +246,28 @@ class AgentConfigOutputTests(unittest.TestCase):
             self.assertEqual(show_config.main(["--config", "interns.yml", "agent-config", agent]), 0)
         return dict(line.split("=", 1) for line in out.getvalue().splitlines())
 
-    def test_no_tool_lists_emit_empty_suffixes_and_no_deny_flag(self):
+    def test_no_tool_lists_emit_empty_suffixes_and_no_denylist(self):
         outputs = self._outputs({}, "coder")
         self.assertEqual(outputs["tools_suffix"], "")
         self.assertEqual(outputs["allowed_tools_suffix"], "")
-        self.assertEqual(outputs["disallowed_tools_arg"], "")
+        self.assertEqual(outputs["disallowed_tools"], "")
 
-    def test_tool_lists_emit_comma_prefixed_suffixes_and_a_quoted_deny_flag(self):
+    def test_tool_lists_emit_comma_prefixed_suffixes_and_a_plain_denylist(self):
         data = {"agents": {"coder": {"allowed_tools": ["Bash(npm run *)", "WebFetch"], "disallowed_tools": ["Write", "Edit"]}}}
         outputs = self._outputs(data, "coder")
         self.assertEqual(outputs["tools_suffix"], ",Bash,WebFetch")
         self.assertEqual(outputs["allowed_tools_suffix"], ",Bash(npm run *),WebFetch")
-        self.assertEqual(outputs["disallowed_tools_arg"], '--disallowedTools "Write,Edit"')
-
-    def test_launcher_inputs_are_emitted_as_plain_values(self):
-        data = {"agents": {"estimator": {"launcher": True, "disallowed_tools": ["Write", "Edit"]}}}
-        outputs = self._outputs(data, "estimator")
-        self.assertEqual(outputs["launcher"], "true")
         self.assertEqual(outputs["disallowed_tools"], "Write,Edit")
 
-    def test_wiki_disabled_emits_no_dir_and_no_add_dir_flag(self):
+    def test_wiki_disabled_emits_no_dir(self):
         outputs = self._outputs({}, "coder")
         self.assertEqual(outputs["wiki_dir"], "")
-        self.assertEqual(outputs["add_dir_arg"], "")
 
-    def test_wiki_enabled_emits_the_dir_and_an_add_dir_flag(self):
+    def test_wiki_enabled_emits_the_dir(self):
         data = {"wiki": {"enabled": True, "url": "owner/repo.wiki"}}
         with patch.dict(os.environ, {"GITHUB_WORKSPACE": "/w/repo/repo"}):
             outputs = self._outputs(data, "coder")
         self.assertEqual(outputs["wiki_dir"], "/w/repo/repo.wiki")
-        self.assertEqual(outputs["add_dir_arg"], "--add-dir /w/repo/repo.wiki")
 
     def test_wiki_enabled_without_a_workspace_fails(self):
         data = {"wiki": {"enabled": True, "url": "owner/repo.wiki"}}
