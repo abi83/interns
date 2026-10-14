@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import cli, config
-from .domain import routing
+from .domain import actor_guard, routing
 
 
 @dataclass
@@ -43,9 +43,14 @@ class ActionsCtx:
         trigger = config.reviewer_trigger_config(config.load_raw(config_path), config_path)
         return routing.RouteConfig.parse(handles, trigger)
 
+    def _payload(self) -> dict:
+        return json.loads(Path(cli.require_env("GITHUB_EVENT_PATH")).read_text())
+
     def event(self) -> routing.GithubEvent:
-        payload = json.loads(Path(cli.require_env("GITHUB_EVENT_PATH")).read_text())
-        return routing.parse_event(cli.require_env("GITHUB_EVENT_NAME"), payload)
+        return routing.parse_event(cli.require_env("GITHUB_EVENT_NAME"), self._payload())
+
+    def actors(self) -> tuple[actor_guard.Actor, ...]:
+        return actor_guard.event_actors(cli.require_env("GITHUB_EVENT_NAME"), self._payload())
 
     @property
     def config_path(self) -> str:

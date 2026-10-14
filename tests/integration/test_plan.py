@@ -417,3 +417,134 @@ def test_rereview_on_push_off_still_reviews_a_workflow_run_for_an_unreviewed_pr(
     result = confirm_run(scenario, events.workflow_run(HEAD), rest_pr(), config_text=trigger(rereview_on_push="false"))
 
     assert result.outputs == routed("reviewer", pr=PR)
+
+
+def permission(scenario: Scenario, login: str, level: str) -> None:
+    scenario.gh(f"repos/{REPO}/collaborators/{login}/permission", stdout={"permission": level})
+
+
+def assert_refused(result: Result, who: str) -> None:
+    assert result.returncode == 0
+    assert result.outputs["job"] == "none"
+    assert result.outputs["skip_reason"].startswith("actor refused")
+    assert who in result.outputs["skip_reason"]
+
+
+def test_label_by_a_user_without_write_access_starts_no_agent_job(scenario):
+    permission(scenario, "mallory", "read")
+
+    for label, handles in (("status:needs-refinement", ISSUES), ("status:refined", ISSUES), ("status:ready", CODE)):
+        result = run(scenario, "confirm-route", "issues", events.issues_labeled(7, label, sender="mallory"), handles=handles)
+        assert_refused(result, "mallory")
+
+    assert scenario.label_edits("issue") == []
+    assert scenario.comments("issue") == []
+
+
+def test_label_by_a_user_with_write_or_admin_access_starts_the_job(scenario):
+    permission(scenario, "alice", "write")
+    permission(scenario, "root", "admin")
+
+    for login in ("alice", "root"):
+        result = run(scenario, "confirm-route", "issues", events.issues_labeled(7, "status:needs-refinement", sender=login),
+                     handles=ISSUES)
+        assert result.outputs == routed("refine", issue=ISSUE)
+
+
+def test_label_by_a_user_without_write_access_does_not_reach_the_type_gate(scenario):
+    permission(scenario, "mallory", "none")
+
+    result = run(scenario, "confirm-route", "issues", events.issues_labeled(7, "status:ready", sender="mallory"))
+
+    assert_refused(result, "mallory")
+    assert scenario.calls("gh", "issue") == []
+
+
+@pytest.mark.parametrize("login", ["interns-coder-acme[bot]", "interns-reviewer-acme[bot]", "interns-triage-acme[bot]",
+                                   "github-actions[bot]"])
+def test_pipeline_identities_start_jobs_without_a_permission_lookup(scenario, login):
+    result = run(scenario, "confirm-route", "issues", events.issues_labeled(7, "status:needs-refinement", sender=login),
+                 handles=ISSUES)
+
+    assert result.outputs == routed("refine", issue=ISSUE)
+    assert scenario.calls("gh") == []
+
+
+def test_a_bot_that_is_not_a_pipeline_identity_is_refused(scenario):
+    result = run(scenario, "confirm-route", "issues", events.issues_labeled(7, "status:needs-refinement", sender="dependabot[bot]"),
+                 handles=ISSUES)
+
+    assert_refused(result, "dependabot[bot]")
+    assert scenario.calls("gh") == []
+
+
+def test_dispatch_by_a_user_without_write_access_is_refused(scenario):
+    permission(scenario, "mallory", "read")
+
+    result = run(scenario, "confirm-route", "workflow_dispatch",
+                 events.dispatch(sender="mallory", phase="coder", issue_number="7", fix_round="true"))
+
+    assert_refused(result, "mallory")
+
+
+def test_pull_request_from_a_user_without_write_access_is_not_reviewed(scenario):
+    permission(scenario, "mallory", "read")
+
+    result = confirm_review(scenario, events.pull_request(sender="mallory"))
+
+    assert_refused(result, "mallory")
+    assert scenario.calls("gh", "pr") == []
+
+
+def test_workflow_run_started_by_a_user_without_write_access_does_not_start_the_reviewer(scenario):
+    permission(scenario, "mallory", "read")
+
+    result = confirm_run(scenario, events.workflow_run(HEAD, run_actor="mallory", triggering_actor="mallory"))
+
+    assert_refused(result, "mallory")
+    assert scenario.calls("gh", "pr") == []
+    assert scenario.calls("gh", f"repos/{REPO}/pulls/{PR}") == []
+
+
+def test_workflow_run_is_refused_when_only_the_upstream_actor_lacks_write_access(scenario):
+    permission(scenario, "alice", "write")
+    permission(scenario, "mallory", "read")
+
+    result = confirm_run(scenario, events.workflow_run(HEAD, sender="alice", run_actor="mallory", triggering_actor="alice"))
+
+    assert_refused(result, "mallory")
+
+
+def test_workflow_run_of_a_coder_app_pr_reviews_it(scenario):
+    pr_state(scenario)
+
+    result = confirm_run(scenario, events.workflow_run(HEAD, run_actor="interns-coder-acme[bot]",
+                                                       triggering_actor="interns-coder-acme[bot]"), rest_pr())
+
+    assert result.outputs == routed("reviewer", pr=PR)
+
+
+def test_an_actor_whose_permission_cannot_be_resolved_fails_the_step(scenario):
+    scenario.gh(f"repos/{REPO}/collaborators/ghost/permission", stderr="HTTP 404: Not Found", code=1)
+
+    result = run(scenario, "confirm-route", "issues", events.issues_labeled(7, "status:ready", sender="ghost"))
+
+    assert result.returncode != 0
+    assert "cannot resolve ghost's permission" in result.stderr
+    assert "job" not in result.outputs
+
+
+def test_an_event_without_an_actor_fails_the_step(scenario):
+    payload = events.issues_labeled(7, "status:ready")
+    del payload["sender"]
+
+    result = run(scenario, "confirm-route", "issues", payload)
+
+    assert result.returncode != 0
+
+
+def test_a_closed_pr_needs_no_actor_check(scenario):
+    result = run(scenario, "confirm-route", "pull_request", events.pull_request("closed", sender="mallory"))
+
+    assert result.outputs == routed("pr_closed", pr=PR)
+    assert scenario.calls("gh") == []

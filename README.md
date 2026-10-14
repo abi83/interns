@@ -601,6 +601,21 @@ decide which job the event starts (and whether its gates pass), and every other
 job gates only on `needs.plan.outputs.job`. The workflow YAML keeps the
 `on:` triggers and a coarse filter on `plan`.
 
+`confirm-route` also guards who may start an agent job (`domain/actor_guard.py`),
+before any other gate. Every actor listed must be a user with write or admin
+access (resolved through the collaborator permission API) or a pipeline identity:
+`github-actions[bot]` or an `interns-{coder,reviewer,triage}-*` App. Anything else
+is refused with `actor refused: ...` and no job starts; an actor whose permission
+cannot be resolved fails the step.
+
+| Event | Starts | Actors checked |
+|---|---|---|
+| `issues: labeled` | refine, estimate, coder | sender |
+| `workflow_dispatch` | refine, estimate, coder (incl. fix round), reviewer | sender |
+| `workflow_run` | reviewer | sender, upstream run's actor and triggering actor |
+| `pull_request` opened / ready / synchronize | reviewer | sender |
+| `pull_request` closed | PR cleanup, no agent | none |
+
 ## License
 
 MIT
