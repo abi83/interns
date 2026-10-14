@@ -1,36 +1,12 @@
 # interns-install
 
-The local CLI half of repo provisioning: creates the three GitHub Apps, writes
-repo secrets and variables, checks default-branch protection and Pages, then
-hands off to `install.yml`. It runs locally because `GITHUB_TOKEN` is never
-granted admin access or `secrets: write`.
+The local CLI that provisions a repo for [interns](../README.md): Apps, secrets, branch
+protection, then a handoff to `install.yml`. Python, stdlib only.
 
-`install.yml` is a reusable workflow in `abi83/interns`, so the handoff needs a
-local caller. If the repo has none, the CLI opens a one-file PR adding
-`.github/workflows/install.yml` (the wrapper from `templates/workflows/`);
-merge it and re-run the CLI, which then dispatches it.
-
-Because that PR writes under `.github/workflows/`, a classic `gh` token needs
-the `workflow` scope; the CLI checks for it up front (unless `--skip-handoff`)
-and stops with a fix hint rather than 404ing at the handoff.
-
-What it does, step by step, and how it fits the rest of setup:
-[the root README](../README.md).
-
-Python, stdlib only. Package root is this directory; it's published straight
-from here via `uvx --from git+…#subdirectory=installer`.
-
-## Run
-
-Via the bootstrap in the root README, or directly with `uv`:
+Guide: [docs/install.md](../docs/install.md). Flags: `interns-install --help`.
 
 ```sh
-uvx --from git+https://github.com/abi83/interns.git@v0.1.0#subdirectory=installer interns-install
+uvx --from git+https://github.com/abi83/interns.git@v0#subdirectory=installer interns-install
 ```
 
-`interns-install --help` lists every flag.
-
-## Develop
-
-Tests, coverage floors and lint run from the repo root; see
-[docs/testing.md](../docs/test-guide.md).
+Tests, coverage floors and lint run from the repo root: [docs/test-guide.md](../docs/test-guide.md).

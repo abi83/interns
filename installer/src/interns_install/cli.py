@@ -10,8 +10,7 @@ stored in the repo.
 
 The caller-stub PR is opened here too: it adds files under
 `.github/workflows/`, which `GITHUB_TOKEN` cannot push, so `install.yml` could
-never open it. `install.yml` is left with just label sync and the
-best-effort secret check, both fine under `github.token`.
+never open it. `install.yml` is left with just label sync, fine under `github.token`.
 """
 
 from __future__ import annotations
@@ -112,7 +111,7 @@ def _stage_install_files(con: Console, repo: gh_admin.Repo, base: str,
     the PR URL, or None when nothing needed changing."""
     if con.dry_run:
         con.mutation(f"open a PR adding/syncing any missing or stale interns install files to {repo.slug}")
-        con.note_manual("merge the interns install PR, then re-run interns-install")
+        con.note_manual("merge the interns install PR; install.yml then syncs the labels")
         return "(dry-run)"
 
     wanted = install_files.collect_missing_files(
@@ -150,14 +149,14 @@ def _stage_install_files(con: Console, repo: gh_admin.Repo, base: str,
 
 
 def _handoff(con: Console, repo: gh_admin.Repo, args: argparse.Namespace) -> None:
-    con.step("Hand off to install.yml (label sync + secret checks)")
+    con.step("Hand off to install.yml (label sync)")
 
     base = gh.default_branch(repo.slug)
     pr_url = _stage_install_files(con, repo, base, args.issue_templates)
     if pr_url is not None:
         con.note_manual(
-            f"merge {pr_url}, then re-run interns-install (or dispatch {WORKFLOW} "
-            f"from the Actions tab) to sync the label manifest"
+            f"merge {pr_url}: the push to {WORKFLOW} then syncs the label manifest "
+            f"(to re-sync later, dispatch {WORKFLOW} from the Actions tab)"
         )
         return
 

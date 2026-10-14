@@ -153,164 +153,13 @@ exist for humans sorting the backlog.
 
 ## Setup
 
-From a local clone of your repo, with the [GitHub CLI](https://cli.github.com/)
-authenticated (`gh auth login`) as an account with **admin access to the
-repo** (needed to create repo secrets and variables):
+From a local clone, with the GitHub CLI authenticated as a repo admin:
 
 ```bash
 curl -LsSf https://raw.githubusercontent.com/abi83/interns/v0/install.sh | sh
 ```
 
-The script installs [`uv`](https://docs.astral.sh/uv/) if it's missing, then
-runs the `interns-install` CLI. On a fresh repo you merge two small PRs it
-opens (the install wrapper, then the caller stubs) and re-run it once in
-between — see the steps below.
-
-The workflows' config parsing needs the [`yq`](https://github.com/mikefarah/yq)
-binary on `PATH`. GitHub-hosted runners ship it preinstalled; self-hosted
-runners must provide it.
-
-### What the installer does
-
-`interns-install` runs the steps below, in order, then hands off to
-`.github/workflows/install.yml` for the rest. Both halves are idempotent —
-re-run either any time to fix drift.
-
-| # | Step | Why |
-|---|---|---|
-| 1 | Check (and fix) default-branch protection | An agent could ignore its instructions and push straight to the default branch; protection forces every change through a PR. |
-| 2 | Check (and enable) GitHub Pages | Deploy target for the visibility dashboard ([#6](https://github.com/abi83/interns/issues/6)). |
-| 3 | Check (and create) the `metrics` branch | Orphan branch the pipeline appends run metrics to — see [Pipeline metrics](#pipeline-metrics). |
-| 4 | Mint (or reuse) the three GitHub Apps | Separate coder/reviewer identities, so the reviewer can approve the coder's PRs (an identity can't approve its own PR); a third triage App applies `status:refined` under its own identity so the estimate phase actually triggers (`GITHUB_TOKEN` label edits never fire new workflow runs). Reused as-is on further repos under the same account — see [GitHub Apps](#github-apps). |
-| 5 | Write App secrets/variables + `CLAUDE_CODE_OAUTH_TOKEN` | The workflows need these to authenticate as the Apps and call Claude. |
-| 6 | Hand off to `install.yml` | If no caller for it exists yet, open a one-file PR adding `.github/workflows/install.yml` (a thin wrapper) — merge it and re-run the installer. Once present, dispatch it. |
-| 7 | (`install.yml`) Sync labels | The pipeline routes on `status:*` / `type:*` / `pr:*` and can't run without them. |
-| 8 | (`install.yml`) Open the caller-stub PR | Adds the pipeline's workflows and starter config; merging it finishes setup. |
-
-#### Default-branch protection
-
-The agents push branches with your repo's own credentials, so no bot identity
-(`github-actions[bot]`, the three Apps) may be on the default
-branch's push allowlist. By starting state:
-
-| Default branch | Result |
-|---|---|
-| already requires a PR review, no bot on the push allowlist | passes |
-| unprotected | installer applies the baseline — require a PR + 1 approval, no force-push, no deletion |
-| protected, but your `gh` session lacks admin on the repo | **install fails** — re-auth with admin access, then re-run |
-| a bot identity is on the push allowlist | **install fails** — remove it, then re-run |
-
-If protection is enforced some other way this check can't see (an org-wide
-ruleset, say), pass `interns-install --branch-protection-handled-externally`
-to skip it.
-
-#### GitHub Apps
-
-`interns-coder-<owner>`, `interns-reviewer-<owner>` and `interns-triage-<owner>`,
-minted via the App Manifest flow, one "Create GitHub App" click each. GitHub App
-names are globally unique, so the minted name carries the owning account.
-Coder and reviewer share one permission set, no webhook:
-
-| Permission | Access | Why |
-|---|---|---|
-| Contents | Read and write | push branches |
-| Pull requests | Read and write | open PRs, submit reviews, comment |
-| Issues | Read and write | edit labels, comment, rewrite the issue title and body (the refiner) |
-| Checks | Read | reviewer reads check results |
-| Metadata | Read | mandatory baseline |
-
-The triage App is scoped down to just what applying `status:refined` needs:
-
-| Permission | Access | Why |
-|---|---|---|
-| Issues | Read and write | apply `status:refined` under a non-`GITHUB_TOKEN` identity |
-| Metadata | Read | mandatory baseline |
-
-Installing each App on the repo is a manual click — the installer prints the
-links.
-
-**One App, many repos.** A GitHub App is per-account (or per-org); only its
-*installation* and the repo's secrets/variables are per-repo. A second consumer
-repo under the same account reuses that account's `interns-*-<owner>` triple
-rather than minting a duplicate:
-
-- Pass `--coder-client-id` / `--reviewer-client-id` / `--triage-client-id` to
-  run the App step non-interactively against the existing Apps.
-- Without the flags, the installer asks whether you already own
-  `interns-<role>-<owner>` — GitHub's API can't see private Apps, so this
-  can't be auto-detected — and asks for its Client ID instead of minting.
-- For the key you can paste the same PEM the first repo already stores, or
-  click **Generate a private key** — an App holds several keys at once and
-  adding one does not revoke the others, so the first repo keeps working.
-  Client secret and webhook secret are account-wide and need no change.
-- Then install the existing App on the new repo (the installer prints the
-  link) and let it write `INTERNS_*_CLIENT_ID` + `INTERNS_*_APP_PRIVATE_KEY`.
-
-#### Secrets and variables
-
-App keys and IDs come from the mint above; for `CLAUDE_CODE_OAUTH_TOKEN` run
-the following command locally with the Claude Code CLI (requires a Claude
-Pro or Max subscription):
-
-```
-claude setup-token
-```
-
-| Kind | Name | Value |
-|---|---|---|
-| Secret | `CLAUDE_CODE_OAUTH_TOKEN` | OAuth token — run `claude setup-token` (Claude Pro/Max required) |
-| Secret | `INTERNS_CODER_APP_PRIVATE_KEY` | coder App private key (PEM) |
-| Secret | `INTERNS_REVIEWER_APP_PRIVATE_KEY` | reviewer App private key (PEM) |
-| Secret | `INTERNS_TRIAGE_APP_PRIVATE_KEY` | triage App private key (PEM) |
-| Variable | `INTERNS_CODER_CLIENT_ID` | coder App Client ID |
-| Variable | `INTERNS_REVIEWER_CLIENT_ID` | reviewer App Client ID |
-| Variable | `INTERNS_TRIAGE_CLIENT_ID` | triage App Client ID |
-
-If a secret or variable is missing the pipeline will fail with a clear error
-when it first tries to use it.
-
-#### Caller-stub PR
-
-`interns-install` opens a single PR that adds the files a consumer repo needs
-to run the pipeline, committing them with the operator's own `gh` session —
-which carries the `workflow` scope that `GITHUB_TOKEN` is never granted, so the
-`.github/workflows/*` files can be pushed:
-
-- [`.github/workflows/install.yml`](templates/workflows/install.yml) — a thin
-  `workflow_dispatch` wrapper for the reusable install workflow, pinned to the
-  installer version.
-- [`.github/workflows/{issue,code}-pipeline.yml`](templates/workflows) — caller
-  stubs that own the triggers and delegate to the reusable cores, pinned to the
-  same version.
-- `.github/interns.yml` — starter config, rendered from
-  [`defaults.yml`](templates/config/defaults.yml) with every key commented out.
-
-The `@version` those wrapper files pin to is `v0`: a floating tag that always
-points at the latest release, the same convention `actions/checkout@v4` and
-friends use. A patch or minor release reaches every consumer with zero file
-edits on their side. A future breaking change would ship as `v1`; existing
-consumers stay on `v0` until they choose to re-pin.
-
-Releases are automated with [release-please](https://github.com/googleapis/release-please).
-Conventional commits on `main` accumulate into a release PR (changelog plus
-version bump); merging it creates the immutable `vX.Y.Z` tag and GitHub
-release and moves `v0` to it. Tags:
-
-| Tag | Moves when | Audience |
-|---|---|---|
-| `vX.Y.Z` | never (created once per release) | consumers who want a reproducible pin |
-| `v0` | the release PR is merged | consumers (stable) |
-| `next` | every merge to `main` | internal testing; set `INTERNS_REF=next` when installing |
-
-Missing files are added; the three wrapper files above are also re-synced if
-an earlier install's copy has drifted from the current template. `interns.yml`
-is only added when absent, since it's expected to carry consumer-local edits.
-Merge the PR (branch protection is already on, so it can't be a direct push),
-then re-run `interns-install`, which dispatches `install.yml` to sync the
-label manifest.
-
-Pass `--issue-templates` to also add the default issue templates
-([`templates/issue/`](templates/issue)) when the repo has none.
+Full guide, including the GitHub Apps, secrets and the install PR you merge: [docs/install.md](docs/install.md).
 
 ### Pipeline configuration
 
@@ -385,22 +234,6 @@ absent) `setup` is skipped with a warning; fill in the real command to enable
 it. `interns-install` appends the `setup` stub to an existing `Makefile` that
 lacks the target.
 
-### Doing it by hand
-
-<details>
-<summary>The manual path, without <code>interns-install</code></summary>
-
-The fully manual path stays supported: create the three Apps (coder, reviewer, triage) with the
-permissions above and install them on the repo, add the secrets and variables, set branch
-protection, and commit the caller stubs from
-[`templates/workflows/`](templates/workflows) yourself —
-including the [`install.yml`](templates/workflows/install.yml) wrapper. With
-that wrapper in place, run it (`gh workflow run install.yml`) to sync labels,
-or sync labels from the manifest by hand. `.github/interns.yml` is optional:
-create it with only the keys you override, using
-[`defaults.yml`](templates/config/defaults.yml) as the reference.
-
-</details>
 
 ## Troubleshooting
 
@@ -486,20 +319,7 @@ coder can't push a change that touches them.
 
 ## Pipeline metrics
 
-Every agent run appends one machine-readable record per `(run, job)` to
-`metrics.jsonl` on an orphan `metrics` branch in your repo — tokens
-(per model, sub-agents included), tool-call counts, `num_turns`, durations,
-cost, and the agent's process result. A final `metrics` job on each workflow
-run gathers the records its agent jobs uploaded and commits them in a single
-push (serialised by a `metrics-append` concurrency group, fetch-rebased on a
-race).
-
-`interns-install` also protects the branch against deletion — no manual
-seeding, and a repo installed before this step existed gets both on the next
-re-run. The record shape is versioned by `schema_version`, specified in
-[`.github/pipeline-metrics.schema.json`](.github/pipeline-metrics.schema.json).
-Read the log from any client with a single unauthenticated fetch of
-`raw.githubusercontent.com/<owner>/<repo>/metrics/metrics.jsonl`.
+Every agent run is recorded to a branch in your repo and charted on a dashboard: see [docs/metrics.md](docs/metrics.md).
 
 ## Code layout
 
