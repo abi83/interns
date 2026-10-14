@@ -8,9 +8,13 @@ change things. Read this before changing the pipeline.
 Agents do the judgment work (refine, estimate, code, review); everything
 deterministic is plain code around them. Three decisions follow:
 
-- **Agents never touch GitHub directly.** Every read and write goes through the
-  MCP server in [`gh_issues_mcp/server.py`](../gh_issues_mcp/server.py), which validates
-  the request. No tool writes an arbitrary label, so an agent cannot leave the state machine.
+- **Agent writes to GitHub go through MCP.** Comments, labels, reviews, PRs and pushes use
+  the server in [`gh_issues_mcp/server.py`](../gh_issues_mcp/server.py), which validates
+  each request. No tool writes an arbitrary label, so an agent cannot leave the state
+  machine. Agents have no `git push`, and the only direct `gh` access is read-only
+  (the reviewer's `gh pr diff/view/checks`, `gh run view`). The boundary is the tool
+  allowlist, not credential isolation: `GH_TOKEN` is in the agent's environment, so a broad
+  `Bash(gh *)` added via `allowed_tools` would bypass it.
 - **Labels are the state machine.** An issue's or PR's labels say where it is; a label
   event is what starts the next job. No external database.
 - **Scripted logic around agents.** Branching, check gating, size roll-up, metrics and
