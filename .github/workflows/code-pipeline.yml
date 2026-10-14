@@ -84,10 +84,12 @@ jobs:
     # Every trigger-to-job and skip/run decision is made here, in Python
     # (domain/routing.py plus the gates in steps/confirm_route.py); the jobs
     # below gate only on `needs.plan.outputs.job`. This coarse filter keeps
-    # unrelated label events and branch check suites from spending a runner.
+    # unrelated label events, and workflow runs with no PR or of this
+    # pipeline itself, from spending a runner.
     if: >
       (github.event_name != 'issues' || github.event.label.name == 'status:ready') &&
-      (github.event_name != 'check_suite' || github.event.check_suite.pull_requests[0].number)
+      (github.event_name != 'workflow_run' ||
+        (github.event.workflow_run.pull_requests[0].number && github.event.workflow_run.workflow_id != github.event.workflow.id))
     runs-on: ubuntu-latest
     permissions:
       contents: read

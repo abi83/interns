@@ -27,6 +27,12 @@ def dispatch(**inputs: str) -> dict:
     return {"inputs": inputs}
 
 
-def check_suite(head_sha: str = "sha-head", *, pr: int | None = 12, pr_head_sha: str | None = None) -> dict:
+def workflow_run(
+    head_sha: str = "sha-head", *, pr: int | None = 12, pr_head_sha: str | None = None, own: bool = False,
+) -> dict:
     pull_requests = [] if pr is None else [{"number": pr, "head": {"sha": pr_head_sha or head_sha}}]
-    return {"action": "completed", "check_suite": {"head_sha": head_sha, "pull_requests": pull_requests}}
+    return {
+        "action": "completed",
+        "workflow": {"id": 100},
+        "workflow_run": {"head_sha": head_sha, "workflow_id": 100 if own else 200, "pull_requests": pull_requests},
+    }

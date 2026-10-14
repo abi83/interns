@@ -7,12 +7,12 @@ The final `job` is `none` (with the reason) when a gate rejects the run:
   bypasses both.
 - estimate: the issue is a type that can't be sized (an epic).
 - reviewer: PR checks are red (the PR is routed to a human) or still running
-  (no failure: the next completing check suite triggers the review again), the
+  (no failure: the next completing workflow run triggers the review again), the
   PR isn't a pipeline PR, its head is already reviewed, or the automatic review
   cap is reached. workflow_dispatch is an explicit human override: it skips the
   check gate and the cap.
 
-A check suite event carries no draft flag or author, so its PR is fetched and
+A workflow run event carries no draft flag or author, so its PR is fetched and
 routed again as a pull request event.
 """
 
@@ -95,7 +95,7 @@ def _review_cap_reached(ctx: ActionsCtx, pr: int, review_count: int) -> bool:
 
 
 def _is_push_rereview(event: routing.GithubEvent, trigger: config.ReviewerTrigger, reviews: list[verdict.FullReview]) -> bool:
-    # A completed check suite replaces the old synchronize trigger; a suite for an already reviewed PR is a push.
+    # A finished workflow run replaces the old synchronize trigger; one for an already reviewed PR is a push.
     return isinstance(event, routing.PullRequestEvent) and event.action == "completed" and bool(reviews) \
         and not trigger.rereview_on_push
 
@@ -129,14 +129,14 @@ def _reviewer_skip_reason(
 
 
 def _live_review_target(
-    ctx: ActionsCtx, event: routing.CheckSuiteEvent, route: Route, config: routing.RouteConfig,
+    ctx: ActionsCtx, event: routing.WorkflowRunEvent, route: Route, config: routing.RouteConfig,
 ) -> tuple[routing.GithubEvent, Route]:
     pr = _pr(route)
     live = gh.pr_rest(ctx.repo, pr)
     if live["state"] != "open":
         return event, Route(Job.NONE, pr=pr, skip_reason="PR is not open")
     if live["head"]["sha"] != event.head_sha:
-        return event, Route(Job.NONE, pr=pr, skip_reason="PR head moved past this check suite")
+        return event, Route(Job.NONE, pr=pr, skip_reason="PR head moved past this workflow run")
     live_event = routing.pull_request_event("completed", live)
     return live_event, routing.route(live_event, config)
 
@@ -161,7 +161,7 @@ def main(ctx: ActionsCtx, argv: list[str]) -> int:
     event = ctx.event()
     route_config = ctx.route_config(args.handles)
     route = routing.route(event, route_config)
-    if isinstance(event, routing.CheckSuiteEvent) and route.job is Job.REVIEWER:
+    if isinstance(event, routing.WorkflowRunEvent) and route.job is Job.REVIEWER:
         event, route = _live_review_target(ctx, event, route, route_config)
     reason = _skip_reason(ctx, event, route, route_config.trigger)
     final = replace(route, job=Job.NONE, skip_reason=reason) if reason else route

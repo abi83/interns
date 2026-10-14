@@ -24,9 +24,9 @@ wiki:
 checks:
   ignore: []
   #  - preview-deploy
-  # How long (in seconds) a review waits for stragglers when a check suite
-  # completes. Checks still running after that skip the review; the next suite
-  # to complete triggers it again.
+  # How long (in seconds) a review waits for stragglers when a workflow
+  # run completes. Checks still running after that skip the review; the next
+  # run to complete triggers it again.
   timeout_seconds: 120
   poll_seconds: 20
   settle_seconds: 30
