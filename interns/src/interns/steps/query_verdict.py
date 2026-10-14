@@ -9,6 +9,23 @@ from .. import cli
 from ..ctx import ActionsCtx
 from ..domain import verdict
 from ..domain.verdict import FullReview
+from ..env_spec import EnvSpec
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = cli.build_parser("verdict")
+    parser.add_argument("--pr", type=int, required=True)
+    parser.add_argument("--login", default="")
+    return parser
+
+
+def _login_source(argv: list[str]) -> list[str]:
+    args, _ = _build_parser().parse_known_args(argv)
+    return [] if args.login else ["bot-login"]
+
+
+# REVIEWER_BOT is the fallback when --login is not given.
+ENV_SPEC = EnvSpec(by_phase={"bot-login": frozenset({"REVIEWER_BOT"})}, phases=_login_source)
 
 
 def _verdict_for_head(reviews: list[FullReview], args: argparse.Namespace) -> list[str]:
@@ -31,9 +48,7 @@ _SUBCOMMANDS: dict[str, Callable[[list[FullReview], argparse.Namespace], list[st
 
 
 def main(ctx: ActionsCtx, argv: list[str]) -> int:
-    parser = cli.build_parser("verdict")
-    parser.add_argument("--pr", type=int, required=True)
-    parser.add_argument("--login", default="")
+    parser = _build_parser()
     sub = parser.add_subparsers(dest="command", required=True)
 
     p = sub.add_parser("verdict-for-head")

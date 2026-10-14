@@ -15,6 +15,9 @@ from pathlib import Path
 from .. import cli, execution
 from ..domain import agent_run
 from ..domain.agent_run import AgentRun
+from ..env_spec import EnvSpec
+
+ENV_SPEC = EnvSpec.of("GH_TOKEN", "GITHUB_OUTPUT", "INTERNS_AGENT_PROMPT")
 
 
 def _stream(command: list[str], env: dict[str, str], prompt: str, exec_file: Path, debug: bool) -> None:

@@ -9,6 +9,9 @@ from enum import StrEnum
 from .. import cli, execution
 from ..ctx import ActionsCtx
 from ..domain import lifecycle, lifecycle_apply
+from ..env_spec import EnvSpec
+
+ENV_SPEC = EnvSpec.of("GITHUB_RUN_ID")
 
 
 class Noun(StrEnum):

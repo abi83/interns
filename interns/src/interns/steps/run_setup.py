@@ -15,6 +15,9 @@ from pathlib import Path
 
 from .. import cli
 from ..domain.build_config import MARKER
+from ..env_spec import EnvSpec
+
+ENV_SPEC = EnvSpec.of()
 
 _SETUP_TARGET = re.compile(rb"^setup\s*:", re.MULTILINE)
 

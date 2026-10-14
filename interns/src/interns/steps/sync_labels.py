@@ -15,6 +15,9 @@ import sys
 
 from .. import gh
 from ..ctx import ActionsCtx
+from ..env_spec import EnvSpec
+
+ENV_SPEC = EnvSpec.of()
 
 
 class ManifestError(ValueError):

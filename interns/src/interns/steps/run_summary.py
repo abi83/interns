@@ -21,6 +21,7 @@ from .. import best_effort, cli, execution, gh
 from ..ctx import ActionsCtx
 from ..domain import labels, verdict
 from ..domain.verdict import ReviewState
+from ..env_spec import EnvSpec
 
 
 class Phase(StrEnum):
@@ -315,6 +316,21 @@ def _phase_run(phase: Phase, issue: int | None, pr: int | None, round_: Round | 
             return RefinementRun(_required(issue, "--issue", phase))
         case Phase.ESTIMATION:
             return EstimationRun(_required(issue, "--issue", phase))
+
+
+def _phase_of(argv: list[str]) -> list[str]:
+    parser = cli.build_parser("run-summary")
+    parser.add_argument("--phase", required=True)
+    args, _ = parser.parse_known_args(argv)
+    return [args.phase]
+
+
+# Only the review phase looks up the reviewer's own reviews.
+ENV_SPEC = EnvSpec(
+    always=frozenset({"GITHUB_RUN_ID", "GITHUB_STEP_SUMMARY"}),
+    by_phase={Phase.REVIEW.value: frozenset({"REVIEWER_BOT"})},
+    phases=_phase_of,
+)
 
 
 def main(ctx: ActionsCtx, argv: list[str]) -> int:

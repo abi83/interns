@@ -16,6 +16,9 @@ import sys
 from .. import cli, gh
 from ..domain import labels
 from ..ctx import ActionsCtx
+from ..env_spec import EnvSpec
+
+ENV_SPEC = EnvSpec.of("GITHUB_OUTPUT")
 
 
 def _slug(title: str) -> str:

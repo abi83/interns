@@ -6,11 +6,13 @@ take `(ctx, argv)` with an ActionsCtx built once. The exception is
 
 from __future__ import annotations
 
+import inspect
 import sys
 from collections.abc import Callable
 
 from . import cli
-from .ctx import ActionsCtx
+from .ctx import CTX_ENV, ActionsCtx
+from .env_spec import EnvSpec
 from .steps import (
     append_metrics,
     apply_verdict,
@@ -81,6 +83,20 @@ _ENV_FREE_COMMANDS: dict[str, _EnvFreeCommand] = {
     "run-agent": run_agent.main,
     "run-setup": run_setup.main,
 }
+
+
+def env_spec(command: str) -> EnvSpec:
+    main = {**_COMMANDS, **_ENV_FREE_COMMANDS}[command]
+    module = inspect.getmodule(main)
+    if module is None:
+        raise RuntimeError(f"no module for command {command}")
+    return module.ENV_SPEC
+
+
+def required_env(command: str, argv: list[str]) -> frozenset[str]:
+    """Env a workflow step must supply for `command` run with `argv`."""
+    base = frozenset() if command in _ENV_FREE_COMMANDS else CTX_ENV
+    return base | env_spec(command).required(argv)
 
 
 def _available() -> str:

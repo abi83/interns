@@ -14,6 +14,9 @@ from .. import cli, config, gh
 from ..ctx import ActionsCtx
 from ..domain import lifecycle, lifecycle_apply, verdict
 from ..domain.verdict import ReviewState
+from ..env_spec import EnvSpec
+
+ENV_SPEC = EnvSpec.of("GITHUB_RUN_ID", "REVIEWER_BOT")
 
 
 def _event(verdict_state: ReviewState | None) -> lifecycle.Event:

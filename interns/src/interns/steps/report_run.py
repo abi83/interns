@@ -10,6 +10,9 @@ from __future__ import annotations
 
 from .. import cli, execution, gh
 from ..ctx import ActionsCtx
+from ..env_spec import EnvSpec
+
+ENV_SPEC = EnvSpec.of("GITHUB_RUN_ID")
 
 
 def report(repo: str, phase: str, exec_file: str | None, issue: int | None,

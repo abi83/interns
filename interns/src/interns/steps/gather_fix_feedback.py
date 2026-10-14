@@ -14,6 +14,9 @@ from .. import cli, gh
 from ..domain import verdict
 from ..domain.verdict import ReviewState
 from ..ctx import ActionsCtx
+from ..env_spec import EnvSpec
+
+ENV_SPEC = EnvSpec.of("GITHUB_OUTPUT")
 
 
 class NoChangesRequestedReviewError(RuntimeError):

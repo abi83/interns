@@ -12,6 +12,9 @@ from . import cli, config
 from .domain import actor_guard, routing
 
 
+CTX_ENV = frozenset({"GITHUB_REPOSITORY", "GH_TOKEN", "GITHUB_SERVER_URL"})
+
+
 @dataclass
 class ActionsCtx:
     repo: str
