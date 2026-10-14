@@ -17,7 +17,8 @@ def test_draft_step_runs_only_when_the_initial_claude_step_failed():
     assert match
     condition = match.group(1)
     assert "failure()" in condition
-    assert "steps.claude_initial.outcome == 'failure'" in condition
+    assert "steps.agent.outputs.outcome == 'failure'" in condition
+    assert "needs.plan.outputs.fix_round != 'true'" in condition
 
 
 def test_draft_step_opens_the_pr_as_the_coder_app_and_passes_the_title_through_env():
