@@ -29,7 +29,9 @@ credentials and the repo's branch policy.
   gets that App's installation token, not `GITHUB_TOKEN`. It is short-lived (about an hour),
   limited to the one repo, and has no `workflows` permission.
 - **Least privilege per role.** Triage can only edit issues. The reviewer is a different identity
-  from the coder, so a PR is never approved by its own author.
+  from the coder, so a PR is never approved by its own author. Triage exists because label edits
+  made with `GITHUB_TOKEN` never start new workflow runs, so a label that must start the next job
+  (`status:refined`, `status:ready` via `auto_proceed`) is set under a separate identity.
 - **Branch policy.** The installer requires a PR with one approval on the default branch,
   and refuses to install if `github-actions[bot]` or `claude[bot]` can push to it directly
   (the interns Apps are not checked yet, [#366](https://github.com/abi83/interns/issues/366)).

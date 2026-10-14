@@ -57,9 +57,7 @@ If an org-wide ruleset (or similar) enforces protection where the check can't se
 Three Apps, `interns-{coder,reviewer,triage}-<owner>`, each minted with one "Create GitHub App"
 click (App Manifest flow). You then install each on the repo; the installer prints the links.
 
-- **Coder and reviewer** are separate identities so the reviewer can approve the coder's PRs.
-- **Triage** applies labels that must start the next job. Label edits by `GITHUB_TOKEN`
-  never trigger new runs.
+Why three: [Trust model](architecture.md#trust-model).
 
 Permissions are fixed in [`apps.py`](../installer/src/interns_install/apps.py): coder and
 reviewer get Contents, Pull requests and Issues (read and write), Checks and Metadata (read);
