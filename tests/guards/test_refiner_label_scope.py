@@ -22,6 +22,18 @@ def refiner_tools() -> set[str]:
     return set(match.group(1).split(","))
 
 
+def refine_job() -> str:
+    return ISSUE_PIPELINE.split("\n  estimate:")[0]
+
+
+def test_launcher_and_action_grant_the_refiner_the_same_tools():
+    job = refine_job()
+    action = re.search(r'--tools "([^"]*)"\n\s+--allowedTools "([^"]*)"', job)
+    launcher = re.search(r"AGENT_TOOLS: (.*)\n\s+AGENT_ALLOWED_TOOLS: (.*)\n", job)
+    assert action and launcher, "refine job lacks the action or launcher tool flags"
+    assert launcher.groups() == action.groups()
+
+
 def test_refiner_tool_set_is_exactly_the_reviewed_one():
     assert refiner_tools() == REFINER_TOOLS
 
