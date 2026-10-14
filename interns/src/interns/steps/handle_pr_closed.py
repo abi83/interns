@@ -15,6 +15,9 @@ from __future__ import annotations
 from .. import cli
 from ..ctx import ActionsCtx
 from ..domain import lifecycle, lifecycle_apply
+from ..env_spec import EnvSpec
+
+ENV_SPEC = EnvSpec.of("GITHUB_RUN_ID")
 
 
 def handle_pr_closed(repo: str, pr: int, issue: int | None, merged: bool, *, server_url: str, run_url: str) -> None:

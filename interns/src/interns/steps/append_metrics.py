@@ -17,6 +17,9 @@ from pathlib import Path
 
 from .. import cli
 from ..ctx import ActionsCtx
+from ..env_spec import EnvSpec
+
+ENV_SPEC = EnvSpec.of("GITHUB_RUN_ID")
 
 BRANCH = "interns-metrics"
 FILE = "metrics.jsonl"

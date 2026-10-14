@@ -8,6 +8,9 @@ from collections.abc import Callable
 from .. import cli
 from ..ctx import ActionsCtx
 from ..domain import labels
+from ..env_spec import EnvSpec
+
+ENV_SPEC = EnvSpec.of()
 
 
 def _parser() -> argparse.ArgumentParser:

@@ -13,6 +13,9 @@ import re
 from .. import cli, gh
 from ..ctx import ActionsCtx
 from ..domain import push
+from ..env_spec import EnvSpec
+
+ENV_SPEC = EnvSpec.of("GITHUB_OUTPUT", "GITHUB_RUN_ID", "GITHUB_WORKSPACE")
 
 PIPELINE_DIR = ".interns"
 CONVENTIONAL_SUBJECT_RE = r"^\w+(\([^)]*\))?!?: "

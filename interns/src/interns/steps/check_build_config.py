@@ -11,6 +11,9 @@ from __future__ import annotations
 
 from .. import cli
 from ..domain import build_config
+from ..env_spec import EnvSpec
+
+ENV_SPEC = EnvSpec.of("GITHUB_OUTPUT")
 
 
 def main(argv: list[str]) -> int:

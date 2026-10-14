@@ -10,6 +10,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from .. import cli
+from ..env_spec import EnvSpec
+
+ENV_SPEC = EnvSpec.of("GITHUB_OUTPUT")
 
 
 def build_output(name: str, files: list[str]) -> bytes:

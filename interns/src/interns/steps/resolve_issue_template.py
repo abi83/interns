@@ -13,6 +13,9 @@ import re
 from pathlib import Path
 
 from .. import cli
+from ..env_spec import EnvSpec
+
+ENV_SPEC = EnvSpec.of("GITHUB_OUTPUT")
 
 HEADING_RE = re.compile(r"^#{1,6} .*$")
 

@@ -11,6 +11,9 @@ from __future__ import annotations
 from .. import cli, plan_outputs
 from ..ctx import ActionsCtx
 from ..domain import routing
+from ..env_spec import EnvSpec
+
+ENV_SPEC = EnvSpec.of("GITHUB_EVENT_NAME", "GITHUB_EVENT_PATH")
 
 
 def main(ctx: ActionsCtx, argv: list[str]) -> int:

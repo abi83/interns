@@ -6,6 +6,9 @@ from __future__ import annotations
 from .. import cli
 from ..ctx import ActionsCtx
 from ..domain import issues
+from ..env_spec import EnvSpec
+
+ENV_SPEC = EnvSpec.of("GITHUB_OUTPUT")
 
 
 def write_github_output(issue: issues.Issue) -> None:

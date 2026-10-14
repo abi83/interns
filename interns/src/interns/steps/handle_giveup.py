@@ -19,6 +19,9 @@ import os
 from .. import cli
 from ..ctx import ActionsCtx
 from ..domain import lifecycle, lifecycle_apply
+from ..env_spec import EnvSpec
+
+ENV_SPEC = EnvSpec.of("GITHUB_OUTPUT", "GITHUB_RUN_ID", "GITHUB_WORKSPACE")
 
 SENTINEL_NAME = ".coder-gave-up.md"
 

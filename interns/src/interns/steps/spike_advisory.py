@@ -12,6 +12,9 @@ from __future__ import annotations
 from .. import cli, gh
 from ..domain import labels
 from ..ctx import ActionsCtx
+from ..env_spec import EnvSpec
+
+ENV_SPEC = EnvSpec.of()
 
 ADVISORY = (
     "This is a spike; no coder picks it up. The estimate above is for your "

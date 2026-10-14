@@ -9,6 +9,9 @@ from dataclasses import dataclass
 
 from .. import cli, config
 from ..config import AgentConfig, ConfigError
+from ..env_spec import EnvSpec
+
+ENV_SPEC = EnvSpec.of("GITHUB_WORKSPACE")
 
 
 def _suffix(tools: list[str]) -> str:

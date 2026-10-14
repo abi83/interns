@@ -11,6 +11,9 @@ from __future__ import annotations
 from .. import cli
 from ..ctx import ActionsCtx
 from ..domain import lifecycle, lifecycle_apply
+from ..env_spec import EnvSpec
+
+ENV_SPEC = EnvSpec.of("GITHUB_RUN_ID")
 
 
 def handoff(repo: str, issue: int, pr: int | None, *, run_url: str = "") -> None:

@@ -7,6 +7,9 @@ import os
 
 from .. import cli, gh
 from ..ctx import ActionsCtx
+from ..env_spec import EnvSpec
+
+ENV_SPEC = EnvSpec.of("ISSUE_BODY")
 
 
 def preserve_issue_body(repo: str, issue: int, body: str) -> None:

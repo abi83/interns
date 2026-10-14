@@ -12,6 +12,9 @@ from __future__ import annotations
 from .. import cli, config, gh
 from ..ctx import ActionsCtx
 from ..domain import labels
+from ..env_spec import EnvSpec
+
+ENV_SPEC = EnvSpec.of()
 
 CODER_TYPES = (labels.TYPE_CODING_TASK, labels.TYPE_BUG)
 

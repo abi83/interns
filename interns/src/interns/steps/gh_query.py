@@ -6,6 +6,9 @@ from __future__ import annotations
 from ..gh import ops as gh
 from .. import cli
 from ..ctx import ActionsCtx
+from ..env_spec import EnvSpec
+
+ENV_SPEC = EnvSpec.of()
 
 
 def head_ref(repo: str, pr: int) -> str:

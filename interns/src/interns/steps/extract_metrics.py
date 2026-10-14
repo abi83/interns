@@ -14,6 +14,9 @@ from pathlib import Path
 
 from .. import cli, execution
 from ..ctx import ActionsCtx
+from ..env_spec import EnvSpec
+
+ENV_SPEC = EnvSpec.of("GITHUB_RUN_ATTEMPT", "GITHUB_RUN_ID")
 
 SCHEMA_VERSION = 2
 JOBS = ("refiner", "estimator", "coder", "reviewer")

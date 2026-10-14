@@ -27,6 +27,21 @@ from .. import cli, config, gh, plan_outputs
 from ..ctx import ActionsCtx
 from ..domain import actor_guard, checks, labels, plan, review_cap, routing, type_gate, verdict
 from ..domain.routing import Job, Route
+from ..env_spec import EnvSpec
+
+
+def _handles(argv: list[str]) -> list[str]:
+    parser = cli.build_parser("confirm-route")
+    parser.add_argument("--handles", required=True)
+    args, _ = parser.parse_known_args(argv)
+    return args.handles.split(",")
+
+
+ENV_SPEC = EnvSpec(
+    always=frozenset({"GITHUB_EVENT_NAME", "GITHUB_EVENT_PATH"}),
+    by_phase={"reviewer": frozenset({"GITHUB_RUN_ID", "REVIEWER_BOT", "CODER_BOT"})},
+    phases=_handles,
+)
 
 CODER_TYPES = [labels.TYPE_CODING_TASK, labels.TYPE_BUG]
 CODER_REJECT_COMMENT = (
