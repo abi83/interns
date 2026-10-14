@@ -8,19 +8,38 @@ change things. Read this before changing the pipeline.
 Agents do the judgment work (refine, estimate, code, review); everything
 deterministic is plain code around them. Three decisions follow:
 
-- **Agent writes to GitHub go through MCP.** Comments, labels, reviews, PRs and pushes use
+- **Agents reach GitHub through MCP.** Comments, labels, reviews, PRs and pushes use
   the server in [`gh_issues_mcp/server.py`](../gh_issues_mcp/server.py), which validates
-  each request. No tool writes an arbitrary label, so an agent cannot leave the state
-  machine. Agents have no `git push`, and the only direct `gh` access is read-only
-  (the reviewer's `gh pr diff/view/checks`, `gh run view`). The boundary is the tool
-  allowlist, not credential isolation: `GH_TOKEN` is in the agent's environment, so a broad
-  `Bash(gh *)` added via `allowed_tools` would bypass it.
+  each request. No tool writes an arbitrary label, so an agent stays inside the state
+  machine. Agents have no `git push`. One known exception: the reviewer reads PR diffs and
+  checks through `gh` in Bash ([#361](https://github.com/abi83/interns/issues/361)).
 - **Labels are the state machine.** An issue's or PR's labels say where it is; a label
   event is what starts the next job. No external database.
 - **Scripted logic around agents.** Branching, check gating, size roll-up, metrics and
   routing run as Python steps, not as agent tokens.
 
 Everything runs in the consumer repo's GitHub Actions: no hosted service.
+
+## Trust model
+
+The MCP layer constrains what an agent *does*. What an agent *can* do is bounded by its
+credentials and the repo's branch policy.
+
+- **Per-role GitHub Apps.** Coder, reviewer and triage each have their own App. The agent
+  gets that App's installation token, not `GITHUB_TOKEN`. It is short-lived (about an hour),
+  limited to the one repo, and has no `workflows` permission.
+- **Least privilege per role.** Triage can only edit issues. The reviewer is a different identity
+  from the coder, so a PR is never approved by its own author.
+- **Branch policy.** The installer requires a PR with one approval on the default branch,
+  and refuses to install if any pipeline identity can push to it directly.
+- **Contained runs.** The agent's environment is scrubbed of OIDC tokens. Each phase gets only
+  its own tools.
+
+What could still go wrong: the coder runs `make test`, which executes repo code, so a prompt
+injection through an issue or PR could read the coder token. It could then edit labels
+directly (skipping MCP validation) or push junk to feature branches. It could not land code
+on the default branch without the reviewer App's approval. Treat repo content as untrusted
+and keep branch protection on.
 
 ## Layers
 
