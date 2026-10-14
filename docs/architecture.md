@@ -65,8 +65,9 @@ access or a pipeline identity, anything else is refused.
 
 - **Fail fast.** Invalid state raises. The only exception is `best_effort.call` with a
   non-empty reason (guarded by `test_no_swallowed_errors.py`).
-- **Label edits are best-effort**, a missed one is re-set by a later run. Everything
-  else is strict.
+- **Label edits should be strict too.** Today some are best-effort (status moves, PR labels),
+  which can hide a stalled issue. TODO: make them all raise,
+  [#363](https://github.com/abi83/interns/issues/363).
 - **Protected paths** (workflows, CI config) cannot be pushed by the coder:
   [`domain/push.py`](../interns/src/interns/domain/push.py).
 - **Each phase gets only its own MCP tools**, and the exposed set must equal the allowed
