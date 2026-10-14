@@ -305,12 +305,12 @@ def _required(value: int | None, flag: str, phase: Phase) -> int:
     return value
 
 
-def _phase_run(phase: Phase, issue: int | None, pr: int | None, round_: Round | None, reviewer_bot: str) -> PhaseRun:
+def _phase_run(phase: Phase, issue: int | None, pr: int | None, round_: Round | None, ctx: ActionsCtx) -> PhaseRun:
     match phase:
         case Phase.CODER:
             return CoderRun(_required(issue, "--issue", phase), pr, round_)
         case Phase.REVIEW:
-            return ReviewRun(_required(pr, "--pr", phase), reviewer_bot)
+            return ReviewRun(_required(pr, "--pr", phase), ctx.reviewer_bot)
         case Phase.REFINEMENT:
             return RefinementRun(_required(issue, "--issue", phase))
         case Phase.ESTIMATION:
@@ -329,7 +329,7 @@ def main(ctx: ActionsCtx, argv: list[str]) -> int:
 
     summary_path = ctx.step_summary
     phase = _parse_phase(args.phase)
-    run = _phase_run(phase, cli.optional_int(args.issue), cli.optional_int(args.pr), args.round_, ctx.reviewer_bot)
+    run = _phase_run(phase, cli.optional_int(args.issue), cli.optional_int(args.pr), args.round_, ctx)
     info = RunInfo(ctx.repo, ctx.server_url, ctx.run_url(), float(args.cost_warn) if args.cost_warn else None)
     summary = build_summary(info, run, args.exec_file or None)
     with open(summary_path, "a") as f:
