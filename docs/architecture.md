@@ -41,6 +41,24 @@ directly (skipping MCP validation) or push junk to feature branches. It could no
 on the default branch without the reviewer App's approval. Treat repo content as untrusted
 and keep branch protection on.
 
+## Configuration boundaries
+
+interns ships its defaults in [`templates/config/defaults.yml`](../templates/config/defaults.yml).
+A consumer overrides them in `.github/interns.yml`, validated by
+[`interns.schema.json`](../.github/interns.schema.json). The split:
+
+- **Tunable:** models, turn and time limits, cost warnings, debug logging, the reviewer's
+  CI gate and loop caps, `auto_proceed` per size, the wiki, and extra agent tools
+  (`allowed_tools` / `disallowed_tools`, per agent or for all).
+- **Project-specific behavior comes from your repo.** The prompts are generic. Agents
+  follow the consumer repo's own `CLAUDE.md` / `AGENTS.md` for stack, conventions and style,
+  and the Makefile (`setup`, `test`, `build`) for how to build and verify.
+- **Fixed:** the label state machine, each phase's MCP tools, the prompts, protected paths
+  and routing. Config can't change these. interns is MIT: to change them, fork it.
+
+Extra tools widen what an agent can do, and a deny always wins. Keep them narrow and per
+agent: E.g. `Bash(npm run *)` is arbitrary code execution (see Trust model).
+
 ## Layers
 
 Imports flow one way, enforced by [`tests/guards/test_layers.py`](../tests/guards/test_layers.py):
@@ -134,48 +152,6 @@ generated from it; regenerate with
 | `JOB_CRASHED_FIX_ROUND` | coder fix round crashed | none | `status:needs-attention` | FIX_ROUND_FAILED on the issue | none |
 | `PR_CLOSED_MERGED` | PR merged | none | drops `status:in-progress` | none | none |
 | `PR_CLOSED_UNMERGED` | PR closed without merging | none | `status:needs-attention` | PR_CLOSED_UNMERGED on the issue | none |
-
-```mermaid
-flowchart LR
-    CODER_HANDOFF(["CODER_HANDOFF"])
-    CODER_NO_PR(["CODER_NO_PR"])
-    CODER_GAVE_UP(["CODER_GAVE_UP"])
-    APPROVED(["APPROVED"])
-    CHANGES_REQUESTED(["CHANGES_REQUESTED"])
-    NO_VERDICT(["NO_VERDICT"])
-    RED_CHECKS(["RED_CHECKS"])
-    REVIEW_CAP_REACHED(["REVIEW_CAP_REACHED"])
-    JOB_CRASHED(["JOB_CRASHED"])
-    JOB_CRASHED_FIX_ROUND(["JOB_CRASHED_FIX_ROUND"])
-    PR_CLOSED_MERGED(["PR_CLOSED_MERGED"])
-    PR_CLOSED_UNMERGED(["PR_CLOSED_UNMERGED"])
-    CODER_HANDOFF -->|"coder left a PR"| pr_pr_in_review["PR: pr:in-review"]
-    CODER_NO_PR -->|"coder left no PR"| pr_none["PR: none"]
-    CODER_NO_PR -.->|"coder left no PR"| issue_status_needs_attention["issue: status:needs-attention"]
-    CODER_GAVE_UP -->|"coder fix round declined the task"| pr_none["PR: none"]
-    CODER_GAVE_UP -.->|"coder fix round declined the task"| issue_status_needs_attention["issue: status:needs-attention"]
-    APPROVED -->|"reviewer approved"| pr_none["PR: none"]
-    APPROVED -->|"reviewer approved, no linked issue"| pr_none["PR: none"]
-    CHANGES_REQUESTED -->|"changes requested, fix round available"| pr_pr_coding["PR: pr:coding"]
-    CHANGES_REQUESTED -->|"changes requested, no linked issue"| pr_none["PR: none"]
-    CHANGES_REQUESTED -->|"changes requested again, fix loop exhausted"| pr_pr_needs_attention["PR: pr:needs-attention"]
-    CHANGES_REQUESTED -.->|"changes requested again, fix loop exhausted"| issue_status_needs_attention["issue: status:needs-attention"]
-    CHANGES_REQUESTED -->|"changes requested again, no linked issue"| pr_pr_needs_attention["PR: pr:needs-attention"]
-    NO_VERDICT -->|"review finished without a verdict"| pr_pr_needs_attention["PR: pr:needs-attention"]
-    NO_VERDICT -.->|"review finished without a verdict"| issue_status_needs_attention["issue: status:needs-attention"]
-    RED_CHECKS -->|"red PR checks"| pr_pr_needs_attention["PR: pr:needs-attention"]
-    REVIEW_CAP_REACHED -->|"automatic review limit reached"| pr_pr_needs_attention["PR: pr:needs-attention"]
-    JOB_CRASHED -->|"agent job crashed on a PR"| pr_pr_needs_attention["PR: pr:needs-attention"]
-    JOB_CRASHED -.->|"agent job crashed on a PR"| issue_status_needs_attention["issue: status:needs-attention"]
-    JOB_CRASHED -->|"agent job crashed, no PR yet"| pr_pr_needs_attention["PR: pr:needs-attention"]
-    JOB_CRASHED -.->|"agent job crashed, no PR yet"| issue_status_needs_attention["issue: status:needs-attention"]
-    JOB_CRASHED_FIX_ROUND -->|"coder fix round crashed"| pr_none["PR: none"]
-    JOB_CRASHED_FIX_ROUND -.->|"coder fix round crashed"| issue_status_needs_attention["issue: status:needs-attention"]
-    PR_CLOSED_MERGED -->|"PR merged"| pr_none["PR: none"]
-    PR_CLOSED_MERGED -.->|"PR merged"| issue_drops_status_in_progress["issue: drops status:in-progress"]
-    PR_CLOSED_UNMERGED -->|"PR closed without merging"| pr_none["PR: none"]
-    PR_CLOSED_UNMERGED -.->|"PR closed without merging"| issue_status_needs_attention["issue: status:needs-attention"]
-```
 <!-- lifecycle:end -->
 
 ## Agent tools
@@ -184,6 +160,11 @@ Agents get Claude Code's built-in read tools (`Read`, `Grep`, `Glob`; the coder 
 edit and shell tools) plus the `gh-issues` MCP tools, exposed per phase through
 `INTERNS_MCP_TOOLS`. Source of truth: `@_tool` functions in
 [`server.py`](../gh_issues_mcp/server.py).
+
+The tools exist to make GitHub work focused, cheap and structured. Each does one job, takes
+validated typed input and returns compact JSON, so agents skip raw `gh` output and extra
+turns. Failures come back as readable messages that say what to fix, and tool descriptions
+carry the valid values (for example, the label names).
 
 | Category | Tools |
 |---|---|
