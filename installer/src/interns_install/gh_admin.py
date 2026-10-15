@@ -91,7 +91,6 @@ def set_variable(repo: str, name: str, value: str) -> None:
 
 
 def get_file(repo: str, path: str, ref: str) -> str:
-    """Text content of `path` in `repo` at `ref`, via the contents API."""
     data = gh_transport.api(f"repos/{repo}/contents/{path}?ref={ref}")
     if not isinstance(data, dict) or "content" not in data:
         raise gh_transport.GhCommandError(f"could not read {path} from {repo}@{ref}")
@@ -99,7 +98,6 @@ def get_file(repo: str, path: str, ref: str) -> str:
 
 
 def path_exists(repo: str, path: str, ref: str) -> bool:
-    """True when `path` (a file or directory) is present in `repo` at `ref`."""
     status, _ = gh_transport.api_status(f"repos/{repo}/contents/{path}?ref={ref}")
     if status == "blocked":
         raise gh_transport.GhCommandError(f"could not check {path} in {repo}@{ref}")
@@ -107,7 +105,6 @@ def path_exists(repo: str, path: str, ref: str) -> bool:
 
 
 def list_dir(repo: str, path: str, ref: str) -> list[str]:
-    """Names of the entries directly under `path` in `repo` at `ref`."""
     data = gh_transport.api(f"repos/{repo}/contents/{path}?ref={ref}")
     if not isinstance(data, list):
         raise gh_transport.GhCommandError(f"{path} in {repo}@{ref} is not a directory")

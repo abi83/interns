@@ -22,10 +22,8 @@ from typing import Any
 _SCHEMA_PATH = Path(__file__).resolve().parents[3] / ".github" / "interns.schema.json"
 _SCHEMA = json.loads(_SCHEMA_PATH.read_text())
 
-# The pipeline's own built-in fallback layer, loaded through the identical
-# schema-validated path as a consumer's file. The installer renders
-# a fresh consumer's starter .github/interns.yml from this file (all keys
-# commented out).
+# Fallback layer, loaded through the same schema-validated path as a consumer's
+# file. The installer also renders the starter .github/interns.yml from it.
 _DEFAULTS_CONFIG_PATH = Path(__file__).resolve().parents[3] / "templates" / "config" / "defaults.yml"
 
 

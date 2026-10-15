@@ -71,8 +71,7 @@ def push_branch(repo: str, workspace: str) -> str:
     changed = git(workspace, "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD")
     protected = [p for p in changed.splitlines() if re.search(PROTECTED_PATHS_RE, p)]
     if protected:
-        # Undo the squash so the branch is left in a pushable state after the
-        # agent drops the offending edits and retries.
+        # Undo the squash so the agent can drop the offending edits and retry.
         git(workspace, "reset", "--soft", head)
         paths = "\n".join(f"  {p}" for p in protected)
         raise PushRefusedError(

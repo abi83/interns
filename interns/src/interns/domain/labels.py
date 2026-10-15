@@ -51,7 +51,7 @@ class EstimationOutcome(StrEnum):
 
 SIZE_PREFIX = "size:"
 
-# Mutually exclusive: an issue carries at most one of these.
+# Each tuple is mutually exclusive.
 ISSUE_STATUS_LABELS = (STATUS_IN_PROGRESS, STATUS_NEEDS_ATTENTION, STATUS_READY)
 PR_PIPELINE_LABELS = (PR_CODING, PR_IN_REVIEW, PR_NEEDS_ATTENTION)
 

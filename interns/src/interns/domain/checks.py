@@ -1,12 +1,10 @@
-"""Reviewer check gate: wait briefly for the PR's checks, then report green,
-red or still pending. A red check routes the PR to a human with no coder retry; only the PR is escalated, the issue keeps its status because
-the work is in a PR awaiting a human. Checks still pending when the wait ends are
-not a failure: the review is skipped and the next workflow run to complete
-triggers it again.
+"""Reviewer check gate: wait briefly for the PR's checks, then report green, red or
+still pending. Red routes the PR to a human with no coder retry (the issue keeps its
+status). Pending is not a failure: the review is skipped and the next completing
+workflow run triggers it again.
 
-Two things are excluded from the wait: this workflow run's own checks (they
-never finish before the gate does) and anything in `checks.ignore` in
-.github/interns.yml (non-blocking advisory checks).
+Excluded from the wait: this run's own checks (they never finish before the gate
+does) and anything in `checks.ignore` (non-blocking advisory checks).
 """
 
 from __future__ import annotations

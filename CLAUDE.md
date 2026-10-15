@@ -11,7 +11,8 @@ exist.
 
 `interns` drives Claude Code over consumer repos' GitHub issues (refine →
 estimate → code → review), running as GitHub Actions workflows. See
-[README.md](README.md) for the full pipeline.
+[README.md](README.md) for the pitch and
+[docs/architecture.md](docs/architecture.md) for how it works.
 
 ## Coding Guidelines
 

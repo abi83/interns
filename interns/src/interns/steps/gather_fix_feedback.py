@@ -29,11 +29,8 @@ def checkout_branch(head_ref: str) -> None:
 
 
 def _latest_changes_requested_review(repo: str, pr: int) -> verdict.FullReview:
-    # Any reviewer's CHANGES_REQUESTED counts here, not just REVIEWER_BOT's --
-    # unlike apply_verdict/review_cap, which only ever act on the bot's
-    # own verdict. Routed through verdict.all_reviews rather than a second,
-    # independent fetch so this and those three stay paginated the same way
-    # and can't disagree about which review is "latest".
+    # Any reviewer's CHANGES_REQUESTED counts, not just REVIEWER_BOT's. Goes through
+    # verdict.all_reviews so "latest" agrees with apply_verdict and review_cap.
     reviews = [r for r in verdict.all_reviews(repo, pr) if r.state == ReviewState.CHANGES_REQUESTED]
     if not reviews:
         raise NoChangesRequestedReviewError(f"no CHANGES_REQUESTED review found for PR #{pr}")

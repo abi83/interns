@@ -143,7 +143,6 @@ def _change_issue(repo: str, issue: int | None, change: IssueChange) -> None:
     if change is IssueChange.NEEDS_ATTENTION:
         labels.set_issue_status(repo, issue, labels.STATUS_NEEDS_ATTENTION)
         return
-    # The issue is already closed by `Closes #N`; just retire the run label.
     labels.edit_issue_labels(repo, issue, remove=[labels.STATUS_IN_PROGRESS])
 
 

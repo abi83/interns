@@ -16,8 +16,6 @@ from . import credentials, gh_admin
 from .console import Console
 from .manifest_server import ManifestServer
 
-# Permission matrix is fixed by the pipeline's needs (see README):
-# push branches, open and review PRs, edit issues and labels, read check runs.
 APP_PERMISSIONS = {
     "contents": "write",
     "pull_requests": "write",
@@ -204,10 +202,9 @@ def provision_app(con: Console, repo: gh_admin.Repo, spec: AppSpec,
         use_existing_app(con, repo, spec, client_id, name, existing_secrets)
         return
 
-    # GET /apps/{slug} 404s on private Apps even for their own owner, so we
-    # can't detect an existing one -- ask instead of risking a name-collision
-    # mint. Ask this before "create a new one?": reversed, "no" read as "no,
-    # don't set one up" and skipped the App entirely.
+    # GET /apps/{slug} 404s on private Apps even for their owner, so ask instead of
+    # risking a name-collision mint. Ask before "create a new one?": reversed, "no"
+    # read as "don't set one up" and skipped the App.
     if not con.assume_yes:
         settings_url = settings_app_url(repo.owner, repo.is_org, name)
         if con.confirm(f"Do you already have a GitHub App named '{name}'? "
@@ -242,8 +239,7 @@ def provision_app(con: Console, repo: gh_admin.Repo, spec: AppSpec,
     slug = conv.get("slug", name)
     pem = conv["pem"]
 
-    # Resilient ordering: the private key is returned exactly once, so it goes
-    # straight into the secret before we do anything else.
+    # The private key is returned exactly once: store it before anything else.
     write_secret(con, repo, spec.key_secret, pem, existing_secrets)
 
     if con.mutation(f"set variable {spec.client_id_var} = {client_id}"):

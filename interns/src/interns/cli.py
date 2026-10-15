@@ -23,15 +23,12 @@ def optional_int(value: str) -> int | None:
 def github_output_block(name: str, content: bytes) -> bytes:
     """A `$GITHUB_OUTPUT`-formatted `name<<DELIM` block holding `content`.
 
-    The delimiter is randomized and resampled until it doesn't collide with
-    the content -- a fixed delimiter would silently truncate (or misparse
-    the rest of $GITHUB_OUTPUT after) a value that happens to contain it.
+    The delimiter is random and resampled on collision: a fixed one would truncate
+    (or corrupt the rest of $GITHUB_OUTPUT after) a value containing it.
 
-    Exactly one newline separates the content from the closing delimiter
-    line (added only if the content doesn't already end in one) -- GitHub
-    Actions' multiline-output parsing treats that newline as the block's own
-    line separator, not part of the value, so adding a second one would
-    leave the parsed value with an extra trailing blank line.
+    Exactly one newline precedes the closing delimiter (added only if missing):
+    Actions treats it as the block's line separator, so a second would leave an
+    extra trailing blank line in the value.
     """
     delim = f"ghadelim_{secrets.token_hex(16)}".encode()
     while delim in content:

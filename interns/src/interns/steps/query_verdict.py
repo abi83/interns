@@ -24,7 +24,6 @@ def _login_source(argv: list[str]) -> list[str]:
     return [] if args.login else ["bot-login"]
 
 
-# REVIEWER_BOT is the fallback when --login is not given.
 ENV_SPEC = EnvSpec(by_phase={"bot-login": frozenset({"REVIEWER_BOT"})}, phases=_login_source)
 
 

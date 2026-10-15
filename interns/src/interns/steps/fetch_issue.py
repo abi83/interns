@@ -12,7 +12,6 @@ ENV_SPEC = EnvSpec.of("GITHUB_OUTPUT")
 
 
 def write_github_output(issue: issues.Issue) -> None:
-    """Write issue fields to $GITHUB_OUTPUT for use in workflow steps."""
     def write(key: str, value: str, multiline: bool = False) -> None:
         entry = cli.github_output_block(key, value.encode()) if multiline else f"{key}={value}\n".encode()
         cli.append_output(entry)

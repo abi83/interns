@@ -1,12 +1,8 @@
-"""Writes a Markdown run summary to $GITHUB_STEP_SUMMARY so the Actions run
-page shows what an agent phase did without opening the turn-by-turn step
-log. Complements report_run.py: same cost figure, but richer detail and on
-the run page only, never the ticket.
+"""Writes a Markdown run summary to $GITHUB_STEP_SUMMARY so the Actions run page
+shows what an agent phase did without opening the step log.
 
-Best-effort -- never raises on a `gh` lookup failure. The caller runs this
-with `if: always()`, so a summary should land even when the Claude step
-itself failed or a `gh` call is rate-limited; every lookup below falls back
-to a plain line instead.
+Best-effort: the caller runs it with `if: always()`, so it must land even when the
+Claude step failed or a `gh` lookup is rate-limited; lookups fall back to a plain line.
 """
 
 from __future__ import annotations
@@ -325,7 +321,6 @@ def _phase_of(argv: list[str]) -> list[str]:
     return [args.phase]
 
 
-# Only the review phase looks up the reviewer's own reviews.
 ENV_SPEC = EnvSpec(
     always=frozenset({"GITHUB_RUN_ID", "GITHUB_STEP_SUMMARY"}),
     by_phase={Phase.REVIEW.value: frozenset({"REVIEWER_BOT"})},
