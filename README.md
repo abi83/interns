@@ -44,7 +44,7 @@ flowchart TD
         C -->|estimator| D["status:estimated + size:*"]
     end
 
-    D -->|owner approves| E
+    D --> M(["owner approves"]) --> E
 
     subgraph P2 ["code &amp; review · automated"]
         E["status:ready"] -->|coder opens PR| F["pr:in-review"]
@@ -53,11 +53,18 @@ flowchart TD
     end
 
     F -->|APPROVE| H["PR approved"]
-    H -->|owner merges| I([issue closed])
+    H -->|owner merges| I([PR merged · issue closed])
 
     P1 -.->|agent can't proceed| J["status:needs-attention"]
     P2 -.->|escalation| K["pr:needs-attention"]
+    D -.->|auto_proceed| E
+
+    classDef human fill:#fde68a,stroke:#b45309,color:#1f2937
+    class A,M,I,J,K human
 ```
+
+Amber marks where a human acts: opening the issue, approving, merging, and picking up
+anything the interns flagged.
 
 ## Quickstart
 
