@@ -1,16 +1,8 @@
-"""`interns-install` — the interactive local half of interns setup.
+"""`interns-install` -- the local half of setup, run with the operator's admin `gh` session.
 
-Covers what a headless `install.yml` run cannot: minting the three bot GitHub
-Apps (an interactive browser click), writing repo secrets/variables
-(`secrets: write` is not grantable to `GITHUB_TOKEN`), and the branch
-protection / Pages safety checks (reading or writing either needs admin
-access, also not grantable to `GITHUB_TOKEN`). All of it runs with the
-operator's own admin-scoped `gh` session, so no admin-capable token has to be
-stored in the repo.
-
-The caller-stub PR is opened here too: it adds files under
-`.github/workflows/`, which `GITHUB_TOKEN` cannot push, so `install.yml` could
-never open it. `install.yml` is left with just label sync, fine under `github.token`.
+It does what a headless `install.yml` cannot: mint the GitHub Apps, write secrets and
+variables, check branch protection and Pages, and push the workflow files
+(`GITHUB_TOKEN` can do none of these).
 """
 
 from __future__ import annotations

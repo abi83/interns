@@ -1,11 +1,8 @@
-"""Issue/PR pipeline label state machine.
+"""Issue/PR pipeline label constants and transitions.
 
-Every label edit is strict: a failed `gh` call raises, so a stalled issue is
-never hidden.
-
-Each transition reads current labels first and only issues `--add-label` /
-`--remove-label` for labels that actually need to change, so removing an
-absent label -- which `gh` would reject -- never happens in the first place.
+Every label edit is strict: a failed `gh` call raises, so a stalled issue is never
+hidden. Edits read current labels first and skip no-op changes, because `gh` rejects
+removing an absent label.
 """
 
 from __future__ import annotations

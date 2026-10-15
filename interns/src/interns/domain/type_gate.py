@@ -1,11 +1,6 @@
-"""Deterministic issue-type gate, shared by the estimate and code jobs. An
-issue whose type:* label isn't in the accepted list never reaches an agent:
-post a comment, park the issue on status:needs-attention, and tell the
-caller to skip the agent run. Running a full agent invocation just to
-execute a fixed check on a label already present when the job starts is
-wasteful and fragile.
-
-Invoked by the plan steps.
+"""Deterministic issue-type gate, shared by the estimate and code jobs. An issue whose
+type:* label isn't accepted never reaches an agent: comment, park it on
+status:needs-attention, and tell the caller to skip the agent run.
 """
 
 from __future__ import annotations

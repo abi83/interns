@@ -1,10 +1,6 @@
-"""Sync the versioned label manifest (.github/labels.json) into a repo,
-idempotently: create labels that are missing, update colour/description
-when they've drifted, leave everything else alone.
-
-Additive by design -- a label that isn't in the manifest is never deleted,
-so a consumer's own labels survive a sync. Re-running with no manifest
-changes is a no-op.
+"""Idempotently sync the label manifest (.github/labels.json) into a repo: create missing
+labels, update drifted colour/description. Additive: labels outside the manifest are
+never deleted.
 """
 
 from __future__ import annotations

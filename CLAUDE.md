@@ -17,7 +17,7 @@ layers, invariants, and checklists for adding a step, label, MCP tool or config 
 
 ## Coding Guidelines
 
-- **Fail fast.** Invalid state throws — no `catch` that swallows and returns
+- **Fail fast.** Invalid state throws — no `except` that swallows and returns
   a default/empty result.
 - **No nested if-else.** Guard clauses / early returns. Still nested after
   that — extract a function.

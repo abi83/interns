@@ -1,9 +1,5 @@
-"""Push-path operations that mix git subprocess calls with gh pipeline ops.
-
-`push_branch` and `pr_open_for_issue` are the two MCP server tools that need
-both a git workspace and GitHub state — they live here rather than in `gh.py`
-to keep the pure-gh ops layer free of subprocess/git concerns.
-"""
+"""Push-path operations that mix git subprocess calls with gh ops, so they live outside
+the pure `interns.gh` layer."""
 
 from __future__ import annotations
 

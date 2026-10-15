@@ -1,11 +1,9 @@
 """`confirm-route`: routes the event, then checks the routed job should really run.
 
-The final `job` is `none` (with the reason) when a gate rejects the run: the actor
-check (first, for every agent job), the coder and estimate type gates, and the
-reviewer gates (checks, pipeline PR, already reviewed, review cap). A coder fix
-round bypasses both coder gates (type and stale trigger): it is dispatched against
-an issue that is already `status:in-progress`. workflow_dispatch (a human override)
-skips the reviewer's check gate and cap.
+The final `job` is `none` (with the reason) when a gate rejects the run. A coder fix
+round bypasses both coder gates (type and stale trigger): its issue is already
+`status:in-progress`. workflow_dispatch (a human override) skips the reviewer's check
+gate and cap.
 
 A workflow run event carries no draft flag or author, so its PR is fetched and
 routed again as a pull request event.
