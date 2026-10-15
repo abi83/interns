@@ -48,27 +48,26 @@ def _result(**fields) -> dict:
 
 class EvaluateTests(unittest.TestCase):
     def test_success(self):
-        outcome = agent_run.evaluate([{"type": "system"}, _result()], max_turns=30)
+        outcome = agent_run.evaluate([{"type": "system"}, _result()])
         self.assertTrue(outcome.success)
         self.assertEqual(outcome.summary, "turns=3 cost_usd=0.1 denied_tools=none")
 
     def test_no_result_event_fails(self):
-        outcome = agent_run.evaluate([{"type": "system"}], max_turns=30)
+        outcome = agent_run.evaluate([{"type": "system"}])
         self.assertEqual((outcome.success, outcome.summary), (False, "no result event"))
 
     def test_error_subtype_fails(self):
-        self.assertFalse(agent_run.evaluate([_result(subtype="error_max_turns", is_error=True)], max_turns=30).success)
+        self.assertFalse(agent_run.evaluate([_result(subtype="error_max_turns", is_error=True)]).success)
 
     def test_success_subtype_with_is_error_fails(self):
-        self.assertFalse(agent_run.evaluate([_result(is_error=True)], max_turns=30).success)
+        self.assertFalse(agent_run.evaluate([_result(is_error=True)]).success)
 
-    def test_turns_above_max_fail(self):
-        self.assertFalse(agent_run.evaluate([_result(num_turns=31)], max_turns=30).success)
-        self.assertTrue(agent_run.evaluate([_result(num_turns=30)], max_turns=30).success)
+    def test_turns_above_max_still_succeed_when_the_result_is_success(self):
+        self.assertTrue(agent_run.evaluate([_result(num_turns=139)]).success)
 
     def test_a_denied_tool_call_is_named_in_the_summary_without_its_input(self):
         denial = {"tool_name": "Bash", "tool_input": {"command": "echo secret > f"}}
-        outcome = agent_run.evaluate([_result(permission_denials=[denial, denial])], max_turns=30)
+        outcome = agent_run.evaluate([_result(permission_denials=[denial, denial])])
         self.assertTrue(outcome.success)
         self.assertIn("denied_tools=Bash", outcome.summary)
         self.assertNotIn("secret", outcome.summary)

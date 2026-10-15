@@ -70,6 +70,6 @@ def main(argv: list[str]) -> int:
 
     _stream(agent_run.build_command(run), env, prompt, exec_file, args.debug == "true")
 
-    outcome = agent_run.evaluate(execution.events(str(exec_file)), run.max_turns)
+    outcome = agent_run.evaluate(execution.events(str(exec_file)))
     print(f"run-agent: {'success' if outcome.success else 'failed'}: {outcome.summary}", file=sys.stderr)
     return 0 if outcome.success else 1
