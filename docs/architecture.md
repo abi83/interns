@@ -8,11 +8,9 @@ change things. Read this before changing the pipeline.
 Agents do the judgment work (refine, estimate, code, review); everything
 deterministic is plain code around them. Three decisions follow:
 
-- **Agents reach GitHub through MCP.** Comments, labels, reviews, PRs and pushes use
-  the server in [`gh_issues_mcp/server.py`](../gh_issues_mcp/server.py), which validates
-  each request. No tool writes an arbitrary label, so an agent stays inside the state
-  machine. Agents have no `git push`. One known exception: the reviewer reads PR diffs and
-  checks through `gh` in Bash ([#361](https://github.com/abi83/interns/issues/361)).
+- **Agents reach GitHub through MCP.** Every GitHub read and write goes through the server in
+  [`gh_issues_mcp/server.py`](../gh_issues_mcp/server.py), which validates each request. No
+  tool writes an arbitrary label, so an agent stays inside the state machine. Agents have no `git push`.
 - **Labels are the state machine.** An issue's or PR's labels say where it is; a label
   event is what starts the next job. No external database.
 - **Scripted logic around agents.** Branching, check gating, size roll-up, metrics and
@@ -157,8 +155,7 @@ Each phase gets the smallest toolset that does its job, allowlisted in the workf
 
 - **Built-ins.** All agents read with `Read`, `Grep`, `Glob`. The coder adds `Write` / `Edit`
   and a narrow `Bash` (`ls`, `cat`, `git add/commit/rm/mv`). The reviewer's `Bash` is
-  read-only `git` and `gh pr` / `gh run` queries. No `git push`, no `gh` writes, no open
-  shell.
+  read-only `git`. No `git push`, no `gh`, no open shell.
 - **Build and test.** The coder runs `make test` and `make build`. The consumer's `Makefile`
   is the only validation interface, so any toolchain plugs in
   ([contract](configuration.md#makefile-contract)).

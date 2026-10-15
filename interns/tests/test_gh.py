@@ -194,6 +194,20 @@ class CommentTests(unittest.TestCase):
         )
 
 
+class PrDiffTests(unittest.TestCase):
+    def test_returns_the_full_diff(self):
+        with patch("interns.gh.transport.subprocess.run", return_value=_proc(stdout="diff --git a/x b/x\n")) as mock_run:
+            self.assertEqual(gh.pr_diff("acme/widgets", 7), "diff --git a/x b/x\n")
+        self.assertEqual(mock_run.call_args[0][0], ["gh", "pr", "diff", "7", "--repo", "acme/widgets"])
+
+
+class JobLogTests(unittest.TestCase):
+    def test_reads_one_jobs_log(self):
+        with patch("interns.gh.transport.subprocess.run", return_value=_proc(stdout="log line\n")) as mock_run:
+            self.assertEqual(gh.job_log("acme/widgets", 55), "log line\n")
+        self.assertEqual(mock_run.call_args[0][0], ["gh", "run", "view", "--repo", "acme/widgets", "--job=55", "--log"])
+
+
 class PrDiffNamesTests(unittest.TestCase):
     def test_lists_changed_files(self):
         with patch("interns.gh.transport.subprocess.run", return_value=_proc(stdout="a.ts\nb.ts\n")) as mock_run:

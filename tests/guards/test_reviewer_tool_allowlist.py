@@ -1,19 +1,10 @@
-"""The reviewer's Bash allowlist is read-only; its `gh` calls run as the reviewer App."""
+"""The reviewer's Bash allowlist is read-only git; its MCP `gh` calls run as the reviewer App."""
 
 import re
 from pathlib import Path
 
 WORKFLOW = Path(__file__).resolve().parents[2] / ".github/workflows/code-pipeline.yml"
-READ_ONLY_COMMANDS = {
-    "git diff",
-    "git log",
-    "git show",
-    "git status",
-    "gh pr diff",
-    "gh pr view",
-    "gh pr checks",
-    "gh run view",
-}
+READ_ONLY_COMMANDS = {"git diff", "git log", "git show", "git status"}
 REVIEWER_STEP = "Run Claude reviewer"
 
 

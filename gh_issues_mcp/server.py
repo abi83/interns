@@ -14,7 +14,7 @@ from typing import Annotated, Literal
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from interns import cli, gh
-from interns.domain import issues, labels, push
+from interns.domain import issues, labels, pull_requests, push
 from interns.domain.size import Estimation
 from interns.gh import GhCommandError, InvalidInputError, PushRefusedError
 from pydantic import BaseModel, Field
@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 __all__ = ["GhCommandError", "InvalidInputError", "PushRefusedError", "build_server"]
 
 TOOLS_ENV = "INTERNS_MCP_TOOLS"
+_JOB_LOG_LIMIT = 30_000
 
 _TOOLS: dict[str, Callable[..., str]] = {}
 
@@ -158,6 +159,61 @@ def set_issue_type(
     Touches no other labels; lifecycle labels change only through the outcome tools.
     """
     return labels.set_issue_type(_repo(), issue_number, type_label)
+
+
+@_tool
+def view_pr(
+    pr_number: Annotated[int, Field(description="PR number to fetch.")],
+) -> str:
+    """Get a pull request's title, description (body) and its latest human comments.
+
+    Returns a JSON object with number, title, body, total_comments (human comments in all)
+    and comments: only the last 5, as {author, created_at, body}. Pipeline comments are excluded.
+    """
+    return json.dumps(dataclasses.asdict(pull_requests.fetch_pull_request(_repo(), pr_number)))
+
+
+@_tool
+def view_pr_diff(
+    pr_number: Annotated[int, Field(description="PR number whose diff to fetch.")],
+    path: Annotated[
+        str | None,
+        Field(description="Glob of changed paths to return, where * also matches /. Omit for the whole diff."),
+    ] = None,
+) -> str:
+    """Get the PR's unified diff as GitHub computes it, covering every changed path
+    (including files a working-tree diff may not show, such as .github/workflows/**).
+
+    A diff over 40k characters comes back as a per-file overview (path, added, removed)
+    instead; call again with `path` to fetch part of it, e.g. 'tests/*' or 'src/components/*'.
+    """
+    return pull_requests.fetch_diff(_repo(), pr_number, path)
+
+
+@_tool
+def pr_checks(
+    pr_number: Annotated[int, Field(description="PR number whose checks to list.")],
+) -> str:
+    """List the PR's checks.
+
+    Returns a JSON array of {name, bucket, link}; empty when none are reported yet.
+    The job ID for `view_job_log` is the number after `/job/` in link.
+    """
+    return json.dumps(gh.pr_checks(_repo(), pr_number))
+
+
+@_tool
+def view_job_log(
+    job_id: Annotated[int, Field(description="Job ID, from a check's link.")],
+) -> str:
+    """Get the log of one CI job, to judge its real output rather than just pass/fail.
+
+    Long logs are cut to their last characters, where failures and plan output usually sit.
+    """
+    log = gh.job_log(_repo(), job_id)
+    if len(log) <= _JOB_LOG_LIMIT:
+        return log
+    return f"[log truncated to its last {_JOB_LOG_LIMIT} characters]\n{log[-_JOB_LOG_LIMIT:]}"
 
 
 @_tool

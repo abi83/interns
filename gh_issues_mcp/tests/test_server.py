@@ -34,6 +34,9 @@ from server import (
     set_issue_type,
     submit_pr_review,
     view_issue,
+    view_job_log,
+    view_pr,
+    view_pr_diff,
 )
 
 
@@ -274,6 +277,115 @@ def test_apply_estimation_outcome_dispatches_to_pipeline():
 def test_apply_estimation_outcome_missing_scores():
     with pytest.raises(InvalidInputError):
         apply_estimation_outcome(issue_number=7, outcome="estimated")
+
+
+def _pr_comment(author, body, n=1):
+    return {"author": {"login": author}, "createdAt": f"2024-01-{n:02d}T00:00:00Z", "body": body}
+
+
+def test_view_pr_returns_title_body_and_human_comments():
+    raw = {"number": 3, "title": "T", "body": "B", "comments": [_pr_comment("alice", "Human")]}
+    with patch("server.gh.pr_view", return_value=raw) as mock_view:
+        data = json.loads(view_pr(pr_number=3))
+    mock_view.assert_called_once_with("owner/repo", 3, ["number", "title", "body", "comments"])
+    assert (data["title"], data["body"], data["total_comments"]) == ("T", "B", 1)
+    assert [c["body"] for c in data["comments"]] == ["Human"]
+
+
+def test_view_pr_excludes_pipeline_comments():
+    raw = {"number": 3, "title": "T", "body": "B", "comments": [
+        _pr_comment("alice", "Human", 1),
+        _pr_comment("github-actions", "Pipeline started", 2),
+    ]}
+    with patch("server.gh.pr_view", return_value=raw):
+        data = json.loads(view_pr(pr_number=3))
+    assert [c["body"] for c in data["comments"]] == ["Human"]
+    assert data["total_comments"] == 1
+
+
+def test_view_pr_keeps_only_the_last_five_comments():
+    raw = {"number": 3, "title": "T", "body": "B", "comments": [_pr_comment("alice", f"c{n}", n) for n in range(1, 9)]}
+    with patch("server.gh.pr_view", return_value=raw):
+        data = json.loads(view_pr(pr_number=3))
+    assert [c["body"] for c in data["comments"]] == ["c4", "c5", "c6", "c7", "c8"]
+    assert data["total_comments"] == 8
+
+
+def _file_diff(path, added=1, removed=1, filler=""):
+    body = "".join(f"+new {i}{filler}\n" for i in range(added)) + "".join(f"-old {i}\n" for i in range(removed))
+    return f"diff --git a/{path} b/{path}\nindex 1..2 100644\n--- a/{path}\n+++ b/{path}\n@@ -1 +1 @@\n{body}"
+
+
+def test_view_pr_diff_returns_small_diff_whole():
+    diff = _file_diff("a.py") + _file_diff("tests/test_a.py")
+    with patch("server.gh.pr_diff", return_value=diff) as mock_diff:
+        assert view_pr_diff(pr_number=3) == diff
+    mock_diff.assert_called_once_with("owner/repo", 3)
+
+
+def test_view_pr_diff_over_limit_returns_overview_with_counts():
+    big = _file_diff("src/big.py", added=3, removed=2, filler="x" * 20_000)
+    diff = big + _file_diff("tests/test_big.py", added=1, removed=0)
+    with patch("server.gh.pr_diff", return_value=diff):
+        result = view_pr_diff(pr_number=3)
+    assert "over the 40000 limit" in result
+    assert "src/big.py +3 -2" in result
+    assert "tests/test_big.py +1 -0" in result
+    assert "+new 0" not in result
+
+
+def test_view_pr_diff_path_glob_selects_a_subtree():
+    diff = _file_diff("src/components/a.tsx") + _file_diff("src/components/ui/b.tsx") + _file_diff("src/lib.ts")
+    with patch("server.gh.pr_diff", return_value=diff):
+        result = view_pr_diff(pr_number=3, path="src/components/*")
+    assert "src/components/a.tsx" in result
+    assert "src/components/ui/b.tsx" in result
+    assert "src/lib.ts" not in result
+
+
+def test_view_pr_diff_path_glob_selects_scattered_files():
+    diff = _file_diff("pkg/a.py") + _file_diff("pkg/test_a.py") + _file_diff("tests/test_b.py")
+    with patch("server.gh.pr_diff", return_value=diff):
+        result = view_pr_diff(pr_number=3, path="*test*")
+    assert "pkg/a.py" not in result.replace("pkg/test_a.py", "")
+    assert "pkg/test_a.py" in result and "tests/test_b.py" in result
+
+
+def test_view_pr_diff_path_without_a_match_is_a_tool_error():
+    with patch("server.gh.pr_diff", return_value=_file_diff("a.py")), pytest.raises(ToolError, match="nothing/\\*"):
+        asyncio.run(build_server(["view_pr_diff"]).call_tool("view_pr_diff", {"pr_number": 3, "path": "nothing/*"}))
+
+
+def test_view_pr_diff_path_match_over_limit_is_a_tool_error():
+    diff = _file_diff("big.py", added=2, filler="x" * 25_000)
+    with patch("server.gh.pr_diff", return_value=diff), pytest.raises(ToolError, match="narrow the pattern"):
+        asyncio.run(build_server(["view_pr_diff"]).call_tool("view_pr_diff", {"pr_number": 3, "path": "big.py"}))
+
+
+def test_pr_checks_returns_json_array():
+    checks = [{"name": "ci", "bucket": "pass", "link": "https://github.com/o/r/actions/runs/1/job/2"}]
+    with patch("server.gh.pr_checks", return_value=checks):
+        assert json.loads(server.pr_checks(pr_number=3)) == checks
+
+
+def test_view_job_log_returns_short_log_whole():
+    with patch("server.gh.job_log", return_value="ok\n") as mock_log:
+        assert view_job_log(job_id=9) == "ok\n"
+    mock_log.assert_called_once_with("owner/repo", 9)
+
+
+def test_view_job_log_keeps_only_the_tail_of_a_long_log():
+    log = "a" * server._JOB_LOG_LIMIT + "tail"
+    with patch("server.gh.job_log", return_value=log):
+        result = view_job_log(job_id=9)
+    assert result.endswith("tail")
+    assert result.startswith("[log truncated")
+    assert len(result) < len(log) + 100
+
+
+def test_view_pr_diff_surfaces_gh_failure_as_tool_error():
+    with patch("server.gh.pr_diff", side_effect=GhCommandError("no such PR")), pytest.raises(ToolError, match="no such PR"):
+        asyncio.run(build_server(["view_pr_diff"]).call_tool("view_pr_diff", {"pr_number": 99}))
 
 
 def _exposed(tool_names):
