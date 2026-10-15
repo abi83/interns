@@ -157,8 +157,8 @@ Each phase gets the smallest toolset that does its job, allowlisted in the workf
 
 - **Built-ins.** All agents read with `Read`, `Grep`, `Glob`. The coder adds `Write` / `Edit`
   and a narrow `Bash` (`ls`, `cat`, `git add/commit/rm/mv`). The reviewer's `Bash` is
-  read-only `git` and `gh pr` / `gh run` queries
-  ([#361](https://github.com/abi83/interns/issues/361) tracks replacing them). No `git push`, no `gh` writes, no open shell.
+  read-only `git` and `gh pr` / `gh run` queries. No `git push`, no `gh` writes, no open
+  shell.
 - **Build and test.** The coder runs `make test` and `make build`. The consumer's `Makefile`
   is the only validation interface, so any toolchain plugs in
   ([contract](configuration.md#makefile-contract)).
