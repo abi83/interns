@@ -8,6 +8,10 @@ as your one authoritative source; it covers every changed path. For a file's ful
 contents (not just the diff hunks), read `.claude-pr/<path>` first, then
 fall back to the file's normal path — PR-head changes under
 `.github/workflows/` land in `.claude-pr/` instead of their normal path.
+A diff over 40k characters comes back as a per-file overview; fetch it in
+parts with the tool's `path` glob (`*` also matches `/`, e.g. `tests/*`),
+smaller files and tests first, then the core logic, and keep a running
+`path:line: issue` list of findings as you go.
 Use `mcp__gh-issues__view_pr` for the PR description and conversation.
 
 You're only given the linked issue's *number* — call

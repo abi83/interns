@@ -311,10 +311,55 @@ def test_view_pr_keeps_only_the_last_five_comments():
     assert data["total_comments"] == 8
 
 
-def test_view_pr_diff_returns_raw_diff():
-    with patch("server.gh.pr_diff", return_value="diff --git a/x b/x\n") as mock_diff:
-        assert view_pr_diff(pr_number=3) == "diff --git a/x b/x\n"
+def _file_diff(path, added=1, removed=1, filler=""):
+    body = "".join(f"+new {i}{filler}\n" for i in range(added)) + "".join(f"-old {i}\n" for i in range(removed))
+    return f"diff --git a/{path} b/{path}\nindex 1..2 100644\n--- a/{path}\n+++ b/{path}\n@@ -1 +1 @@\n{body}"
+
+
+def test_view_pr_diff_returns_small_diff_whole():
+    diff = _file_diff("a.py") + _file_diff("tests/test_a.py")
+    with patch("server.gh.pr_diff", return_value=diff) as mock_diff:
+        assert view_pr_diff(pr_number=3) == diff
     mock_diff.assert_called_once_with("owner/repo", 3)
+
+
+def test_view_pr_diff_over_limit_returns_overview_with_counts():
+    big = _file_diff("src/big.py", added=3, removed=2, filler="x" * 20_000)
+    diff = big + _file_diff("tests/test_big.py", added=1, removed=0)
+    with patch("server.gh.pr_diff", return_value=diff):
+        result = view_pr_diff(pr_number=3)
+    assert "over the 40000 limit" in result
+    assert "src/big.py +3 -2" in result
+    assert "tests/test_big.py +1 -0" in result
+    assert "+new 0" not in result
+
+
+def test_view_pr_diff_path_glob_selects_a_subtree():
+    diff = _file_diff("src/components/a.tsx") + _file_diff("src/components/ui/b.tsx") + _file_diff("src/lib.ts")
+    with patch("server.gh.pr_diff", return_value=diff):
+        result = view_pr_diff(pr_number=3, path="src/components/*")
+    assert "src/components/a.tsx" in result
+    assert "src/components/ui/b.tsx" in result
+    assert "src/lib.ts" not in result
+
+
+def test_view_pr_diff_path_glob_selects_scattered_files():
+    diff = _file_diff("pkg/a.py") + _file_diff("pkg/test_a.py") + _file_diff("tests/test_b.py")
+    with patch("server.gh.pr_diff", return_value=diff):
+        result = view_pr_diff(pr_number=3, path="*test*")
+    assert "pkg/a.py" not in result.replace("pkg/test_a.py", "")
+    assert "pkg/test_a.py" in result and "tests/test_b.py" in result
+
+
+def test_view_pr_diff_path_without_a_match_is_a_tool_error():
+    with patch("server.gh.pr_diff", return_value=_file_diff("a.py")), pytest.raises(ToolError, match="nothing/\\*"):
+        asyncio.run(build_server(["view_pr_diff"]).call_tool("view_pr_diff", {"pr_number": 3, "path": "nothing/*"}))
+
+
+def test_view_pr_diff_path_match_over_limit_is_a_tool_error():
+    diff = _file_diff("big.py", added=2, filler="x" * 25_000)
+    with patch("server.gh.pr_diff", return_value=diff), pytest.raises(ToolError, match="narrow the pattern"):
+        asyncio.run(build_server(["view_pr_diff"]).call_tool("view_pr_diff", {"pr_number": 3, "path": "big.py"}))
 
 
 def test_pr_checks_returns_json_array():

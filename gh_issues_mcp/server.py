@@ -176,11 +176,18 @@ def view_pr(
 @_tool
 def view_pr_diff(
     pr_number: Annotated[int, Field(description="PR number whose diff to fetch.")],
+    path: Annotated[
+        str | None,
+        Field(description="Glob of changed paths to return, where * also matches /. Omit for the whole diff."),
+    ] = None,
 ) -> str:
-    """Get the PR's full unified diff as GitHub computes it, covering every changed path
+    """Get the PR's unified diff as GitHub computes it, covering every changed path
     (including files a working-tree diff may not show, such as .github/workflows/**).
+
+    A diff over 40k characters comes back as a per-file overview (path, added, removed)
+    instead; call again with `path` to fetch part of it, e.g. 'tests/*' or 'src/components/*'.
     """
-    return gh.pr_diff(_repo(), pr_number)
+    return pull_requests.fetch_diff(_repo(), pr_number, path)
 
 
 @_tool
