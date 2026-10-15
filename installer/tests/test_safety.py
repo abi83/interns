@@ -126,6 +126,22 @@ class CheckBranchProtectionTests(unittest.TestCase):
         with self.assertRaisesRegex(safety.SafetyCheckError, "protected but"):
             self._run("ok", {"required_pull_request_reviews": None})
 
+    def test_app_on_user_allowlist_raises(self):
+        body = {"required_pull_request_reviews": {}, "restrictions": {"users": [{"login": "interns-coder-acme[bot]"}]}}
+        with self.assertRaisesRegex(safety.SafetyCheckError, "interns-coder-acme"):
+            self._run("ok", body)
+
+    def test_app_on_app_allowlist_raises(self):
+        body = {"required_pull_request_reviews": {}, "restrictions": {"apps": [{"slug": "interns-triage-acme"}]}}
+        with self.assertRaisesRegex(safety.SafetyCheckError, "interns-triage-acme"):
+            self._run("ok", body)
+
+    def test_unrelated_allowlist_entries_pass(self):
+        body = {"required_pull_request_reviews": {}, "restrictions": {
+            "users": [{"login": "alice"}], "apps": [{"slug": "interns-coder-other"}]}}
+        _, put = self._run("ok", body)
+        put.assert_not_called()
+
     def test_missing_applies_baseline(self):
         _, put = self._run("missing")
         put.assert_called_once_with("acme/widgets", "main", safety.BASELINE_PROTECTION)

@@ -37,9 +37,8 @@ The PR in step 6 writes under `.github/workflows/`, so a classic `gh` token need
 
 ## Default-branch protection
 
-`github-actions[bot]` and `claude[bot]` must not be on the default branch's push allowlist.
-Keep the three interns Apps off it too; the installer doesn't check them yet
-([#366](https://github.com/abi83/interns/issues/366)).
+`github-actions[bot]`, `claude[bot]` and the three interns Apps must not be on the default
+branch's push allowlist.
 
 | Default branch | Result |
 |---|---|
@@ -47,7 +46,7 @@ Keep the three interns Apps off it too; the installer doesn't check them yet
 | protected, but no PR review required | **fails**: require pull request reviews, re-run |
 | unprotected | installer applies the baseline: PR + 1 approval, no force-push, no deletion |
 | protected, but your `gh` session lacks admin | **fails**: re-auth with admin, re-run |
-| `github-actions[bot]` or `claude[bot]` is on the allowlist | **fails**: remove it, re-run |
+| `github-actions[bot]`, `claude[bot]` or an interns App is on the allowlist | **fails**: remove it, re-run |
 
 If an org-wide ruleset (or similar) enforces protection where the check can't see it, pass
 `--branch-protection-handled-externally`; it applies only when the branch is unprotected.

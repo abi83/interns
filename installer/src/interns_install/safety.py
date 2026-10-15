@@ -16,9 +16,15 @@ from interns.steps.append_metrics import BRANCH as METRICS_BRANCH
 from interns.steps.append_metrics import FILE as METRICS_FILE
 
 from . import gh_admin
+from .apps import APPS
 from .console import Console
 
 DEFAULT_BOT_LOGINS = ["github-actions[bot]", "claude[bot]"]
+
+
+def guarded_logins(owner: str) -> list[str]:
+    return DEFAULT_BOT_LOGINS + [f"{spec.name_for(owner)}[bot]" for spec in APPS]
+
 
 BASELINE_PROTECTION = {
     "required_status_checks": None,
@@ -98,9 +104,8 @@ def _apply_branch_protection(con: Console, repo: gh_admin.Repo, branch: str, sta
 
 
 def check_branch_protection(con: Console, repo: gh_admin.Repo, default_branch: str,
-                             handled_externally: bool = False,
-                             bot_logins: list[str] | None = None) -> None:
-    bots = bot_logins if bot_logins is not None else DEFAULT_BOT_LOGINS
+                             handled_externally: bool = False) -> None:
+    bots = guarded_logins(repo.owner)
     con.step(f"Branch protection: {default_branch}")
 
     state, body = gh_admin.branch_protection_state(repo.slug, default_branch)
