@@ -57,9 +57,13 @@ def build_env(base: Mapping[str, str], gh_token: str) -> dict[str, str]:
     return env
 
 
-def evaluate(events: list[dict], max_turns: int) -> Outcome:
-    """Success only on a `result` event with subtype `success` and no error,
-    within the turn budget. Reports counts and names only, never agent text."""
+def evaluate(events: list[dict]) -> Outcome:
+    """Success only on a `result` event with subtype `success` and no error.
+    Reports counts and names only, never agent text.
+
+    `num_turns` is not compared with the limit: it includes sub-agent turns that
+    `--max-turns` does not count, so a finished run can legitimately exceed it.
+    A real overrun surfaces as subtype `error_max_turns`."""
     results = [event for event in events if event.get("type") == "result"]
     if not results:
         return Outcome(False, "no result event")
@@ -71,6 +75,4 @@ def evaluate(events: list[dict], max_turns: int) -> Outcome:
         return Outcome(False, f"subtype {result.get('subtype')}; {facts}")
     if result.get("is_error"):
         return Outcome(False, f"is_error; {facts}")
-    if turns > max_turns:
-        return Outcome(False, f"turns exceed max {max_turns}; {facts}")
     return Outcome(True, facts)

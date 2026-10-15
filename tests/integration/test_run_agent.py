@@ -155,14 +155,20 @@ def test_report_run_reads_the_launcher_stream(scenario):
     [{"type": "system"}],
     [{**RESULT, "subtype": "error_max_turns", "is_error": True}],
     [{**RESULT, "is_error": True}],
-    [{**RESULT, "num_turns": 31}],
-], ids=["no-result", "error-subtype", "is-error", "turns-over-max"])
+], ids=["no-result", "error-subtype", "is-error"])
 def test_fails_unless_the_result_event_is_a_clean_success(scenario, events):
     result = run_agent(scenario, events)
 
     assert result.returncode == 1
     assert "run-agent: failed" in result.stderr
     assert result.outputs["execution_file"] == str(scenario.dir / "execution.jsonl")
+
+
+def test_succeeds_when_sub_agent_turns_push_num_turns_over_max(scenario):
+    result = run_agent(scenario, [{**RESULT, "num_turns": 31}])
+
+    assert result.returncode == 0
+    assert "run-agent: success" in result.stderr
 
 
 def test_missing_github_token_fails_fast(scenario):
