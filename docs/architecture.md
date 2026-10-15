@@ -33,8 +33,8 @@ credentials and the repo's branch policy.
   made with `GITHUB_TOKEN` never start new workflow runs, so a label that must start the next job
   (`status:refined`, `status:ready` via `auto_proceed`) is set under a separate identity.
 - **Branch policy.** The installer requires a PR with one approval on the default branch,
-  and refuses to install if `github-actions[bot]` or `claude[bot]` can push to it directly
-  (the interns Apps are not checked yet, [#366](https://github.com/abi83/interns/issues/366)).
+  and refuses to install if `github-actions[bot]`, `claude[bot]` or an interns App can push to it
+  directly.
 - **Contained runs.** The agent's environment is scrubbed of OIDC tokens. Each phase gets only
   its own tools.
 
