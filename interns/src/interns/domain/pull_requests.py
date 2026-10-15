@@ -42,7 +42,7 @@ def fetch_pull_request(repo: str, number: int) -> PullRequest:
 def _split_by_file(diff: str) -> dict[str, str]:
     headers = list(_FILE_HEADER.finditer(diff))
     ends = [h.start() for h in headers[1:]] + [len(diff)]
-    return {h.group(1): diff[h.start():end] for h, end in zip(headers, ends)}
+    return {h.group(1): diff[h.start():end] for h, end in zip(headers, ends, strict=True)}
 
 
 def _changed_lines(section: str) -> tuple[int, int]:
