@@ -14,7 +14,7 @@ from typing import Annotated, Literal
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from interns import cli, gh
-from interns.domain import issues, labels, push
+from interns.domain import issues, labels, pull_requests, push
 from interns.domain.size import Estimation
 from interns.gh import GhCommandError, InvalidInputError, PushRefusedError
 from pydantic import BaseModel, Field
@@ -165,11 +165,12 @@ def set_issue_type(
 def view_pr(
     pr_number: Annotated[int, Field(description="PR number to fetch.")],
 ) -> str:
-    """Get a pull request's title, description (body) and conversation comments.
+    """Get a pull request's title, description (body) and its latest human comments.
 
-    Returns a JSON object with title, body and comments.
+    Returns a JSON object with number, title, body, total_comments (human comments in all)
+    and comments: only the last 5, as {author, created_at, body}. Pipeline comments are excluded.
     """
-    return json.dumps(gh.pr_view(_repo(), pr_number, ["title", "body", "comments"]))
+    return json.dumps(dataclasses.asdict(pull_requests.fetch_pull_request(_repo(), pr_number)))
 
 
 @_tool

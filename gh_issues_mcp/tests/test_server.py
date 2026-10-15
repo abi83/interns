@@ -279,11 +279,36 @@ def test_apply_estimation_outcome_missing_scores():
         apply_estimation_outcome(issue_number=7, outcome="estimated")
 
 
-def test_view_pr_returns_title_body_and_comments():
-    pr = {"title": "T", "body": "B", "comments": []}
-    with patch("server.gh.pr_view", return_value=pr) as mock_view:
-        assert json.loads(view_pr(pr_number=3)) == pr
-    mock_view.assert_called_once_with("owner/repo", 3, ["title", "body", "comments"])
+def _pr_comment(author, body, n=1):
+    return {"author": {"login": author}, "createdAt": f"2024-01-{n:02d}T00:00:00Z", "body": body}
+
+
+def test_view_pr_returns_title_body_and_human_comments():
+    raw = {"number": 3, "title": "T", "body": "B", "comments": [_pr_comment("alice", "Human")]}
+    with patch("server.gh.pr_view", return_value=raw) as mock_view:
+        data = json.loads(view_pr(pr_number=3))
+    mock_view.assert_called_once_with("owner/repo", 3, ["number", "title", "body", "comments"])
+    assert (data["title"], data["body"], data["total_comments"]) == ("T", "B", 1)
+    assert [c["body"] for c in data["comments"]] == ["Human"]
+
+
+def test_view_pr_excludes_pipeline_comments():
+    raw = {"number": 3, "title": "T", "body": "B", "comments": [
+        _pr_comment("alice", "Human", 1),
+        _pr_comment("github-actions", "Pipeline started", 2),
+    ]}
+    with patch("server.gh.pr_view", return_value=raw):
+        data = json.loads(view_pr(pr_number=3))
+    assert [c["body"] for c in data["comments"]] == ["Human"]
+    assert data["total_comments"] == 1
+
+
+def test_view_pr_keeps_only_the_last_five_comments():
+    raw = {"number": 3, "title": "T", "body": "B", "comments": [_pr_comment("alice", f"c{n}", n) for n in range(1, 9)]}
+    with patch("server.gh.pr_view", return_value=raw):
+        data = json.loads(view_pr(pr_number=3))
+    assert [c["body"] for c in data["comments"]] == ["c4", "c5", "c6", "c7", "c8"]
+    assert data["total_comments"] == 8
 
 
 def test_view_pr_diff_returns_raw_diff():
