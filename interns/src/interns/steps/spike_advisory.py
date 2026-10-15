@@ -1,10 +1,6 @@
-"""Posts the spike advisory on a `type:spike` issue after estimation. The
-estimate is the end of a spike's pipeline path -- no coder picks it up -- so
-the owner needs that spelled out. The notice comes from the workflow, not
-the agent: type:spike is known from the issue's labels before the agent
-runs, so there's nothing for the agent to decide.
-
-No-op on any other issue type, or a spike not yet estimated.
+"""Posts the spike advisory on an estimated `type:spike` issue: estimation is the end of a
+spike's path (no coder picks it up). Posted by the workflow, not the agent, since the type
+is known before the agent runs. No-op on any other type, or a spike not yet estimated.
 """
 
 from __future__ import annotations

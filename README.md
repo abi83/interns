@@ -23,7 +23,7 @@ Four agents pick issues up by label and hand them along a fixed track:
 | **Refiner** | `status:needs-refinement` on an issue                                 | picks the type, checks the draft against the codebase and wiki, rewrites the body into the type's template (and the title if it no longer fits), posts a blockers/dependencies comment | `status:refined` |
 | **Estimator** | `status:refined`                                                      | reads the code the Scope touches, scores blast radius / touch / human involvement / review overhead; the pipeline maps those four scores to a size | `status:estimated` + `size:*` |
 | **Coder** | `status:ready` (human-assigned) on a `type:coding-task` or `type:bug` | implements every Acceptance Criteria item, writes tests, opens a PR that `Closes #N` | `status:in-progress`, a PR labelled `pr:in-review` |
-| **Reviewer** | a PR opened/updated by the coder (or a human)                         | waits for the PR's checks to be green, reviews the diff against the linked issue, submits `APPROVE` or `REQUEST_CHANGES` | PR approved, or a coder fix round, or `pr:needs-attention` |
+| **Reviewer** | a PR opened/updated by the coder (or a human)                         | runs once the PR's checks are green, reviews the diff against the linked issue, submits `APPROVE` or `REQUEST_CHANGES` | PR approved, or a coder fix round, or `pr:needs-attention` |
 
 Interns work on rails. Agents write to GitHub only through an MCP server that checks every
 request first, so a confused intern can't wander off the track, and anything that needs no

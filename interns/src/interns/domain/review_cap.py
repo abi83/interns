@@ -1,10 +1,9 @@
-"""Hard ceiling on automatic reviewer runs for one PR, independent of the fix-loop
-cap in apply_verdict. After the loop escalates, every push still spawns a full
-reviewer run; without a ceiling a many-commit PR is unbounded spend.
+"""Hard ceiling on automatic reviewer runs per PR, independent of the fix-loop cap in
+apply_verdict: after the loop escalates every push would still spawn a review, so a
+many-commit PR would be unbounded spend.
 
-Counts the reviewer bot's prior reviews. At or over the cap the PR goes to
-pr:needs-attention with a one-line notice. workflow_dispatch (a human override)
-never calls this module.
+Counts the reviewer bot's prior reviews; at the cap the PR goes to pr:needs-attention.
+workflow_dispatch (a human override) never calls this module.
 """
 
 from __future__ import annotations

@@ -1,11 +1,7 @@
-"""Derives two deterministic hints for the initial coder run:
-  commit_type_hint  Conventional Commit prefix for the PR title (`fix:` / `feat:`)
-  branch            branch name `<prefix>/issue-<n>-<slug>` from the issue title
+"""Derives `commit_type_hint` (`fix:` / `feat:`) and `branch` (`<prefix>/issue-<n>-<slug>`)
+for the initial coder run, so the agent doesn't spend reasoning inventing them.
 
-Both are computable from the issue's type:* label and title before the agent
-starts, so the agent shouldn't spend reasoning inventing them. The push_branch
-MCP tool squashes the branch on push, so the branch name is near-cosmetic. Runs after
-the issue-type gate, which guarantees a type:coding-task or type:bug label.
+Runs after the issue-type gate, which guarantees a type:coding-task or type:bug label.
 """
 
 from __future__ import annotations

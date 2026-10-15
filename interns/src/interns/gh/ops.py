@@ -1,11 +1,7 @@
-"""Issue/PR/label/review/check operations over the `gh` CLI, shared by the
-pipeline scripts and the gh-issues MCP server. The raw transport layer lives
-in `interns.gh.transport`. Installer-only admin calls live in
-`interns_install.gh_admin`.
+"""Issue/PR/label/review/check operations over the `gh` CLI, shared by the pipeline
+steps and the gh-issues MCP server. The raw transport lives in `interns.gh.transport`.
 
-Error types are re-exported here so callers that catch `gh.GhCommandError`
-continue to work. Transport primitives (run/api/graphql/…) are only
-re-imported for use by this module's own ops functions — patch them at
+Transport primitives are re-imported here for this module's own use; patch them at
 `interns.gh.transport.*`, not `interns.gh.ops.*`."""
 
 from __future__ import annotations
