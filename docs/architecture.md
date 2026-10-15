@@ -50,17 +50,12 @@ interns ships its defaults in [`templates/config/defaults.yml`](../templates/con
 A consumer overrides them in `.github/interns.yml`, validated by
 [`interns.schema.json`](../.github/interns.schema.json). The split:
 
-- **Tunable:** models, turn and time limits, cost warnings, debug logging, the reviewer's
-  CI gate and loop caps, `auto_proceed` per size, the wiki, and extra agent tools
-  (`allowed_tools` / `disallowed_tools`, per agent or for all).
+- **Tunable:** models, turns and limits, etc. Keys and precedence: [configuration.md](configuration.md).
 - **Project-specific behavior comes from your repo.** The prompts are generic. Agents
   follow the consumer repo's own `CLAUDE.md` / `AGENTS.md` for stack, conventions and style,
   and the Makefile (`setup`, `test`, `build`) for how to build and verify.
 - **Fixed:** the label state machine, each phase's MCP tools, the prompts, protected paths
   and routing. Config can't change these. interns is MIT: to change them, fork it.
-
-Extra tools widen what an agent can do, and a deny always wins. Keep them narrow and per
-agent: E.g. `Bash(npm run *)` is arbitrary code execution (see Trust model).
 
 ## Layers
 
@@ -158,26 +153,21 @@ generated from it; regenerate with
 
 ## Agent tools
 
-Agents get Claude Code's built-in read tools (`Read`, `Grep`, `Glob`; the coder adds
-edit and shell tools) plus the `gh-issues` MCP tools, exposed per phase through
-`INTERNS_MCP_TOOLS`. Source of truth: `@_tool` functions in
-[`server.py`](../gh_issues_mcp/server.py).
+Each phase gets the smallest toolset that does its job, allowlisted in the workflows.
 
-The tools exist to make GitHub work focused, cheap and structured. Each does one job, takes
-validated typed input and returns compact JSON, so agents skip raw `gh` output and extra
-turns. Failures come back as readable messages that say what to fix, and tool descriptions
-carry the valid values (for example, the label names).
-
-| Category | Tools |
-|---|---|
-| Read issues | `list_issues`, `view_issue` |
-| Write issues | `comment_issue`, `edit_issue`, `set_issue_type` |
-| Pull requests | `open_pr`, `comment_pr`, `submit_pr_review` |
-| Git | `push_branch` (squashes to one commit, refuses protected paths) |
-| Phase outcomes | `apply_refinement_outcome`, `apply_estimation_outcome` |
-
-Users extend or narrow the built-in set with `allowed_tools` / `disallowed_tools` in
-`.github/interns.yml`.
+- **Built-ins.** All agents read with `Read`, `Grep`, `Glob`. The coder adds `Write` / `Edit`
+  and a narrow `Bash` (`ls`, `cat`, `git add/commit/rm/mv`). The reviewer's `Bash` is
+  read-only `git` and `gh pr` / `gh run` queries
+  ([#361](https://github.com/abi83/interns/issues/361) tracks replacing them). No `git push`, no `gh` writes, no open shell.
+- **Build and test.** The coder runs `make test` and `make build`. The consumer's `Makefile`
+  is the only validation interface, so any toolchain plugs in
+  ([contract](configuration.md#makefile-contract)).
+- **`gh-issues` MCP.** Every GitHub write goes through [`server.py`](../gh_issues_mcp/server.py),
+  exposed per phase via `INTERNS_MCP_TOOLS`. Typed input, compact JSON, errors that say what
+  to fix, valid values (like label names) in the tool descriptions.
+- **Overrides.** `allowed_tools` / `disallowed_tools` in `.github/interns.yml`. Deny wins,
+  including over interns' own tools. Keep additions narrow: `Bash(npm run *)` is arbitrary
+  code execution ([Trust model](#trust-model)).
 
 ## How to change things
 
