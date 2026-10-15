@@ -11,6 +11,16 @@ something stalls. How the labels move is in [architecture.md](architecture.md#la
    L and XL wait for you. Configure it in [`defaults.yml`](../templates/config/defaults.yml).
 2. **Review and merge the PR.** The reviewer approves or requests changes, but a human merges.
 
+Only `type:coding-task` and `type:bug` reach the coder:
+
+- **Spike.** The path ends at `status:estimated`: the estimate tells you whether the
+  investigation is worth your time, then you do it and close the issue. There is no spike
+  greenlight. `status:ready` is coder-only, so moving a spike there bounces it to
+  `status:needs-attention`.
+- **Epic.** Never refined or estimated. The refiner stops on an epic (or an epic-sized
+  issue) and comments, parking it on `status:needs-attention` for you to split into
+  sub-issues.
+
 Anything the automation can't finish parks on `status:needs-attention` (issue) or
 `pr:needs-attention` (PR). Find them with:
 

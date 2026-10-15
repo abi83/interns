@@ -25,10 +25,11 @@ Four agents pick issues up by label and hand them along a fixed track:
 | **Coder** | `status:ready` (human-assigned) on a `type:coding-task` or `type:bug` | implements every Acceptance Criteria item, writes tests, opens a PR that `Closes #N` | `status:in-progress`, a PR labelled `pr:in-review` |
 | **Reviewer** | a PR opened/updated by the coder (or a human)                         | waits for the PR's checks to be green, reviews the diff against the linked issue, submits `APPROVE` or `REQUEST_CHANGES` | PR approved, or a coder fix round, or `pr:needs-attention` |
 
-Interns work on rails. They never touch GitHub directly: every move goes through a
-MCP server gatekeeper that checks it first, so a confused intern can't wander off the track, and
-anything that needs no judgment (branches, test runs, sizing, metrics) is plain and strict code, not
-tokens. Per intern scoped `GITHUB_TOKEN` just adds some guards on top, rhough this is still LLMs and I suggest to keep eyes open, as "LLM can make mistakes"
+Interns work on rails. Agents write to GitHub only through an MCP server that checks every
+request first, so a confused intern can't wander off the track, and anything that needs no
+judgment (branches, test runs, sizing, metrics) is plain, strict code, not tokens. Each role
+runs under its own scoped GitHub App token, which adds guards on top. It's still LLMs, though:
+keep your eyes open, they can make mistakes.
 
 You stay the boss, and you're called in twice: to green-light a refined, estimated issue
 (one label flip, configurable with [`auto_proceed`](docs/configuration.md)), and to give the
