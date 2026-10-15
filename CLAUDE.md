@@ -11,8 +11,9 @@ exist.
 
 `interns` drives Claude Code over consumer repos' GitHub issues (refine →
 estimate → code → review), running as GitHub Actions workflows. See
-[README.md](README.md) for the pitch and
-[docs/architecture.md](docs/architecture.md) for how it works.
+[README.md](README.md) for the pitch. Read
+[docs/architecture.md](docs/architecture.md) before changing the pipeline: intent,
+layers, invariants, and checklists for adding a step, label, MCP tool or config key.
 
 ## Coding Guidelines
 
@@ -51,14 +52,6 @@ not just a description.
 
 ## Merging
 
-PRs are squash-merged. When planning several dependent PRs, don't stack
-branches on each other: a stacked branch conflicts once its base is
-squashed. Either wait for the base to merge and branch from `main`, or
-rebase the dependent branch with `git rebase --onto origin/main <old-base-tip>`
-after the base merges.
-
-## Architecture
-
-Read [docs/architecture.md](docs/architecture.md) before changing the pipeline:
-intent, layers, invariants, the label state machine, and checklists for adding a
-step, label, MCP tool or config key.
+PRs are squash-merged, so don't stack dependent branches: a stacked branch conflicts once
+its base is squashed. Wait for the base to merge and branch from `main`, or run
+`git rebase --onto origin/main <old-base-tip>` on the dependent branch.
