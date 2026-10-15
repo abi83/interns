@@ -34,6 +34,9 @@ from server import (
     set_issue_type,
     submit_pr_review,
     view_issue,
+    view_job_log,
+    view_pr,
+    view_pr_diff,
 )
 
 
@@ -274,6 +277,45 @@ def test_apply_estimation_outcome_dispatches_to_pipeline():
 def test_apply_estimation_outcome_missing_scores():
     with pytest.raises(InvalidInputError):
         apply_estimation_outcome(issue_number=7, outcome="estimated")
+
+
+def test_view_pr_returns_title_body_and_comments():
+    pr = {"title": "T", "body": "B", "comments": []}
+    with patch("server.gh.pr_view", return_value=pr) as mock_view:
+        assert json.loads(view_pr(pr_number=3)) == pr
+    mock_view.assert_called_once_with("owner/repo", 3, ["title", "body", "comments"])
+
+
+def test_view_pr_diff_returns_raw_diff():
+    with patch("server.gh.pr_diff", return_value="diff --git a/x b/x\n") as mock_diff:
+        assert view_pr_diff(pr_number=3) == "diff --git a/x b/x\n"
+    mock_diff.assert_called_once_with("owner/repo", 3)
+
+
+def test_pr_checks_returns_json_array():
+    checks = [{"name": "ci", "bucket": "pass", "link": "https://github.com/o/r/actions/runs/1/job/2"}]
+    with patch("server.gh.pr_checks", return_value=checks):
+        assert json.loads(server.pr_checks(pr_number=3)) == checks
+
+
+def test_view_job_log_returns_short_log_whole():
+    with patch("server.gh.job_log", return_value="ok\n") as mock_log:
+        assert view_job_log(job_id=9) == "ok\n"
+    mock_log.assert_called_once_with("owner/repo", 9)
+
+
+def test_view_job_log_keeps_only_the_tail_of_a_long_log():
+    log = "a" * server._JOB_LOG_LIMIT + "tail"
+    with patch("server.gh.job_log", return_value=log):
+        result = view_job_log(job_id=9)
+    assert result.endswith("tail")
+    assert result.startswith("[log truncated")
+    assert len(result) < len(log) + 100
+
+
+def test_view_pr_diff_surfaces_gh_failure_as_tool_error():
+    with patch("server.gh.pr_diff", side_effect=GhCommandError("no such PR")), pytest.raises(ToolError, match="no such PR"):
+        asyncio.run(build_server(["view_pr_diff"]).call_tool("view_pr_diff", {"pr_number": 99}))
 
 
 def _exposed(tool_names):

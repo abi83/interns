@@ -23,7 +23,7 @@ __all__ = [
     "GhCommandError", "GhError", "GhNotInstalledError",
     "InvalidInputError", "PushRefusedError",
     "issue_view", "issue_edit", "issue_edit_validated", "issue_list", "issue_comment",
-    "pr_view", "pr_rest", "pr_list", "pr_edit", "pr_comment", "pr_diff_names", "pr_checks", "pr_create",
+    "pr_view", "pr_rest", "pr_list", "pr_edit", "pr_comment", "pr_diff", "pr_diff_names", "pr_checks", "job_log", "pr_create",
     "pr_submit_review", "pr_for_head", "pr_ready", "pr_update",
     "issue_with_relations", "pr_reviews", "pr_review_comments", "issue_comments_all",
     "default_branch", "dispatch_workflow", "collaborator_permission",
@@ -185,6 +185,11 @@ def pr_comment(repo: str, number: int, body: str) -> str:
     return run(["pr", "comment", str(number), "--repo", repo, "--body", body]).stdout
 
 
+def pr_diff(repo: str, pr: int) -> str:
+    """The unified diff as the API returns it, covering every changed path."""
+    return run(["pr", "diff", str(pr), "--repo", repo]).stdout
+
+
 def pr_diff_names(repo: str, pr: int) -> list[str]:
     proc = run(["pr", "diff", str(pr), "--repo", repo, "--name-only"])
     return [name for name in proc.stdout.splitlines() if name]
@@ -206,6 +211,10 @@ def pr_checks(repo: str, pr: int) -> list[dict]:
     if not isinstance(data, list):
         raise GhCommandError("`gh pr checks` returned a non-list body")
     return data
+
+
+def job_log(repo: str, job_id: int) -> str:
+    return run(["run", "view", "--repo", repo, f"--job={job_id}", "--log"]).stdout
 
 
 def pr_create(repo: str, head: str, base: str, title: str, body: str, *, draft: bool = False) -> str:

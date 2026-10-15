@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 __all__ = ["GhCommandError", "InvalidInputError", "PushRefusedError", "build_server"]
 
 TOOLS_ENV = "INTERNS_MCP_TOOLS"
+_JOB_LOG_LIMIT = 30_000
 
 _TOOLS: dict[str, Callable[..., str]] = {}
 
@@ -158,6 +159,53 @@ def set_issue_type(
     Touches no other labels; lifecycle labels change only through the outcome tools.
     """
     return labels.set_issue_type(_repo(), issue_number, type_label)
+
+
+@_tool
+def view_pr(
+    pr_number: Annotated[int, Field(description="PR number to fetch.")],
+) -> str:
+    """Get a pull request's title, description (body) and conversation comments.
+
+    Returns a JSON object with title, body and comments.
+    """
+    return json.dumps(gh.pr_view(_repo(), pr_number, ["title", "body", "comments"]))
+
+
+@_tool
+def view_pr_diff(
+    pr_number: Annotated[int, Field(description="PR number whose diff to fetch.")],
+) -> str:
+    """Get the PR's full unified diff as GitHub computes it, covering every changed path
+    (including files a working-tree diff may not show, such as .github/workflows/**).
+    """
+    return gh.pr_diff(_repo(), pr_number)
+
+
+@_tool
+def pr_checks(
+    pr_number: Annotated[int, Field(description="PR number whose checks to list.")],
+) -> str:
+    """List the PR's checks.
+
+    Returns a JSON array of {name, bucket, link}; empty when none are reported yet.
+    The job ID for `view_job_log` is the number after `/job/` in link.
+    """
+    return json.dumps(gh.pr_checks(_repo(), pr_number))
+
+
+@_tool
+def view_job_log(
+    job_id: Annotated[int, Field(description="Job ID, from a check's link.")],
+) -> str:
+    """Get the log of one CI job, to judge its real output rather than just pass/fail.
+
+    Long logs are cut to their last characters, where failures and plan output usually sit.
+    """
+    log = gh.job_log(_repo(), job_id)
+    if len(log) <= _JOB_LOG_LIMIT:
+        return log
+    return f"[log truncated to its last {_JOB_LOG_LIMIT} characters]\n{log[-_JOB_LOG_LIMIT:]}"
 
 
 @_tool

@@ -3,12 +3,12 @@ You are reviewing a PR opened by the coder agent.
 Input: the PR number, the number of the linked issue it implements, and
 this repo's conventions.
 
-Get the diff with `gh pr diff <number>` — use this, not `git diff`, as your
-one authoritative source; it covers every changed path. For a file's full
+Get the diff with `mcp__gh-issues__view_pr_diff` — use this, not `git diff`,
+as your one authoritative source; it covers every changed path. For a file's full
 contents (not just the diff hunks), read `.claude-pr/<path>` first, then
 fall back to the file's normal path — PR-head changes under
 `.github/workflows/` land in `.claude-pr/` instead of their normal path.
-Use `gh pr view <number>` for the PR description and conversation.
+Use `mcp__gh-issues__view_pr` for the PR description and conversation.
 
 You're only given the linked issue's *number* — call
 `mcp__gh-issues__view_issue` yourself to read its Value/Scope/Acceptance
@@ -46,9 +46,9 @@ infrastructure plan, a visual-snapshot diff, an integration suite against
 real services. "Plan succeeded" only means the config is valid, not that
 the changes are what the issue asked for. For these:
 
-1. Run `gh pr checks` to see this PR's checks and find the relevant one.
-2. Run `gh run view --job=<job-id> --log` (the job ID is in the check's
-   URL) to read that job's actual output — the real diff or result, not
+1. Call `mcp__gh-issues__pr_checks` to see this PR's checks and find the relevant one.
+2. Call `mcp__gh-issues__view_job_log` with the job ID (the number after
+   `/job/` in the check's link) to read that job's actual output — the real diff or result, not
    just pass/fail.
 3. Judge that output against the Acceptance Criteria, the same way you'd
    judge a code diff. A passing check with the wrong effect is still wrong.

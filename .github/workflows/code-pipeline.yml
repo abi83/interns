@@ -54,6 +54,10 @@ env:
   ALLOWED_SUBMIT_REVIEW: "mcp__gh-issues__submit_pr_review"
   ALLOWED_PUSH_BRANCH: "mcp__gh-issues__push_branch"
   ALLOWED_VIEW_ISSUE: "mcp__gh-issues__view_issue"
+  ALLOWED_VIEW_PR: "mcp__gh-issues__view_pr"
+  ALLOWED_VIEW_PR_DIFF: "mcp__gh-issues__view_pr_diff"
+  ALLOWED_PR_CHECKS: "mcp__gh-issues__pr_checks"
+  ALLOWED_VIEW_JOB_LOG: "mcp__gh-issues__view_job_log"
   # git push is deliberately absent: the remote is reached via mcp__gh-issues__push_branch.
   ALLOWED_GIT_WRITE: "Bash(git add:*),Bash(git commit:*),Bash(git rm:*),Bash(git mv:*)"
   ALLOWED_GIT_READ: "Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git status:*)"
@@ -61,9 +65,6 @@ env:
   ALLOWED_FS_READ: "Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(wc:*)"
   # make targets keep this independent of the consumer repo's language.
   ALLOWED_BUILD_TEST: "Bash(make test:*),Bash(make build:*)"
-  ALLOWED_CI_READ: "Bash(gh pr checks:*),Bash(gh run view:*)"
-  # The API diff includes paths (e.g. .github/workflows/**) a working-tree diff may not show.
-  ALLOWED_PR_READ: "Bash(gh pr diff:*),Bash(gh pr view:*)"
 
 jobs:
   plan:
@@ -588,7 +589,7 @@ jobs:
         uses: ./.interns/.github/actions/setup-gh-issues-mcp
         with:
           gh_token: ${{ steps.reviewer_token.outputs.token }}
-          tools: view_issue,submit_pr_review,comment_pr
+          tools: view_issue,view_pr,view_pr_diff,pr_checks,view_job_log,submit_pr_review,comment_pr
 
       - name: Install Claude CLI
         uses: ./.interns/.github/actions/install-claude-cli
@@ -604,7 +605,7 @@ jobs:
           AGENT_MODEL: ${{ steps.cfg.outputs.model }}
           AGENT_MAX_TURNS: ${{ steps.cfg.outputs.max_turns }}
           AGENT_TOOLS: Read,Grep,Glob,Bash${{ steps.cfg.outputs.tools_suffix }}
-          AGENT_ALLOWED_TOOLS: Read,Grep,Glob,${{ env.ALLOWED_GIT_READ }},${{ env.ALLOWED_PR_READ }},${{ env.ALLOWED_CI_READ }},${{ env.ALLOWED_VIEW_ISSUE }},${{ env.ALLOWED_SUBMIT_REVIEW }},${{ env.ALLOWED_COMMENT_PR }}${{ steps.cfg.outputs.allowed_tools_suffix }}
+          AGENT_ALLOWED_TOOLS: Read,Grep,Glob,${{ env.ALLOWED_GIT_READ }},${{ env.ALLOWED_VIEW_PR }},${{ env.ALLOWED_VIEW_PR_DIFF }},${{ env.ALLOWED_PR_CHECKS }},${{ env.ALLOWED_VIEW_JOB_LOG }},${{ env.ALLOWED_VIEW_ISSUE }},${{ env.ALLOWED_SUBMIT_REVIEW }},${{ env.ALLOWED_COMMENT_PR }}${{ steps.cfg.outputs.allowed_tools_suffix }}
           AGENT_DISALLOWED_TOOLS: ${{ steps.cfg.outputs.disallowed_tools }}
           AGENT_ADD_DIR: ${{ steps.cfg.outputs.wiki_dir }}
           AGENT_DEBUG: ${{ (inputs.debug == true || steps.cfg.outputs.debug == 'true') && 'true' || 'false' }}
