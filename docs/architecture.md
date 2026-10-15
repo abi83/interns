@@ -8,11 +8,9 @@ change things. Read this before changing the pipeline.
 Agents do the judgment work (refine, estimate, code, review); everything
 deterministic is plain code around them. Three decisions follow:
 
-- **Agents reach GitHub through MCP.** All GitHub operations, reads and writes (issues,
-  comments, labels, PR diffs and checks, reviews, PRs, pushes), go through the server in
+- **Agents reach GitHub through MCP.** Every GitHub read and write goes through the server in
   [`gh_issues_mcp/server.py`](../gh_issues_mcp/server.py), which validates each request. No
-  tool writes an arbitrary label, so an agent stays inside the state machine. Agents have no
-  `git push` and no `gh` in Bash.
+  tool writes an arbitrary label, so an agent stays inside the state machine. Agents have no `git push`.
 - **Labels are the state machine.** An issue's or PR's labels say where it is; a label
   event is what starts the next job. No external database.
 - **Scripted logic around agents.** Branching, check gating, size roll-up, metrics and
