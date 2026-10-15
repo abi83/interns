@@ -56,7 +56,7 @@ flowchart TD
     H -->|owner merges| I([PR merged · issue closed])
 
     P1 -.->|agent can't proceed| J["status:needs-attention"]
-    P2 -.->|escalation| K["pr:needs-attention"]
+    F -.->|red checks/fix round failed| K["pr:needs-attention"]
     D -.->|auto_proceed| E
 
     classDef human fill:#fde68a,stroke:#b45309,color:#1f2937
