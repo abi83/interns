@@ -190,7 +190,6 @@ def pr_comment(repo: str, number: int, body: str) -> str:
 
 
 def pr_diff_names(repo: str, pr: int) -> list[str]:
-    """Names of the files changed by `pr`."""
     proc = run(["pr", "diff", str(pr), "--repo", repo, "--name-only"])
     return [name for name in proc.stdout.splitlines() if name]
 
@@ -235,7 +234,6 @@ def pr_update(repo: str, number: int, *, title: str, body: str) -> None:
 
 
 def pr_ready(repo: str, number: int) -> None:
-    """Take a draft PR out of draft."""
     run(["pr", "ready", str(number), "--repo", repo])
 
 

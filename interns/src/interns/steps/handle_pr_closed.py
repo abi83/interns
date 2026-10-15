@@ -1,13 +1,7 @@
-"""Runs when a coder/reviewer PR closes. Nothing else in the pipeline reacts
-to a close, so without this the linked issue keeps status:in-progress
-forever: on a merge GitHub's `Closes #N` shuts the issue but leaves the
-label, and an unmerged close leaves the issue open with no agent owning it.
-
-  merged            -> drop status:in-progress from the (already closed) issue
-  closed, unmerged  -> move the issue status:in-progress -> status:needs-attention
-                       and comment that a human needs to decide what happens next
-
-Either way, clear any stale pr:* label from the PR.
+"""Runs when a coder/reviewer PR closes. Nothing else reacts to a close, so without
+this the issue keeps status:in-progress forever: `Closes #N` shuts the issue but
+leaves the label, and an unmerged close leaves it open with no agent owning it.
+Also clears any stale pr:* label from the PR.
 """
 
 from __future__ import annotations

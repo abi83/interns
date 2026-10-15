@@ -1,13 +1,10 @@
-"""Hard ceiling on automatic reviewer runs for one PR, independent of the
-coder<->reviewer fix-loop cap in apply_verdict. After the fix loop escalates,
-every further push still spawns a full LLM reviewer run; without a ceiling
-that is unbounded spend on a PR that takes many commits to land.
+"""Hard ceiling on automatic reviewer runs for one PR, independent of the fix-loop
+cap in apply_verdict. After the loop escalates, every push still spawns a full
+reviewer run; without a ceiling a many-commit PR is unbounded spend.
 
-Counts the reviewer bot's own prior reviews on the PR. At or over the cap it
-escalates the PR to pr:needs-attention and posts a one-line notice so it
-stays discoverable.
-
-workflow_dispatch is an explicit human override and never calls this module.
+Counts the reviewer bot's prior reviews. At or over the cap the PR goes to
+pr:needs-attention with a one-line notice. workflow_dispatch (a human override)
+never calls this module.
 """
 
 from __future__ import annotations

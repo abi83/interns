@@ -20,7 +20,6 @@ from .console import Console
 
 DEFAULT_BOT_LOGINS = ["github-actions[bot]", "claude[bot]"]
 
-# Require a PR + 1 approval, no force pushes or deletions, no push restrictions.
 BASELINE_PROTECTION = {
     "required_status_checks": None,
     "enforce_admins": False,
@@ -30,8 +29,7 @@ BASELINE_PROTECTION = {
     "allow_deletions": False,
 }
 
-# interns.steps.append_metrics pushes straight to this branch, not via PR -- only
-# guard against deletion.
+# append_metrics pushes straight to this branch, so only deletion is guarded.
 METRICS_PROTECTION = {
     "required_status_checks": None,
     "enforce_admins": False,

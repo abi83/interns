@@ -42,11 +42,8 @@ class Console:
         if self.assume_yes:
             return True
         suffix = "Y/n" if default else "y/N"
-        # Write+flush explicitly rather than relying on input()'s own prompt
-        # handling: piped through `curl | sh`'s reattached /dev/tty stdin,
-        # input()'s implicit prompt write doesn't reliably reach the terminal
-        # before it blocks for a line, leaving the operator answering a
-        # question they can't see (confirmed hands-on).
+        # Not input(prompt): under `curl | sh`'s reattached /dev/tty the implicit
+        # prompt doesn't reliably reach the terminal before input() blocks.
         print(f"{question} [{suffix}] ", end="", flush=True)
         try:
             answer = input().strip().lower()

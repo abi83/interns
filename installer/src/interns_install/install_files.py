@@ -13,27 +13,22 @@ from . import gh_admin
 WORKFLOW = "install.yml"
 INTERNS_REPO = "abi83/interns"
 
-# Ref to copy the install wrapper from. install.sh exports INTERNS_REF; the
-# default matches the pin baked into the templates.
+# install.sh exports INTERNS_REF; the default matches the pin baked into the templates.
 INTERNS_REF = os.environ.get("INTERNS_REF") or "v0"
 
-# Templates leave the interns ref as this placeholder so the pin always tracks
-# the installer version -- both in the `uses:` line and in each wrapper's
-# `ref:` fallback (never the consumer's commit SHA).
+# Templates carry this placeholder so the pin tracks the installer version, in the
+# `uses:` line and each wrapper's `ref:` fallback.
 REF_PLACEHOLDER = "__INTERNS_REF__"
 
-# Caller stubs, source path in INTERNS_REPO -> destination path in the
-# consumer (GITHUB_TOKEN can't push .github/workflows/*). Meant to
-# stay identical to the template, so a drifted copy is re-synced, not just
-# added when absent.
+# Source path in INTERNS_REPO -> destination in the consumer. Kept identical to the
+# template: a drifted copy is re-synced, not just added when absent.
 WRAPPER_FILES = {
     f"templates/workflows/{WORKFLOW}": f".github/workflows/{WORKFLOW}",
     "templates/workflows/issue-pipeline.yml": ".github/workflows/issue-pipeline.yml",
     "templates/workflows/code-pipeline.yml": ".github/workflows/code-pipeline.yml",
 }
 
-# Seeded once, then expected to carry consumer-local edits -- added when
-# missing, never overwritten.
+# Seeded once, then consumer-owned: added when missing, never overwritten.
 CONFIG_FILES = {
     "templates/config/defaults.yml": ".github/interns.yml",
     "templates/config/Makefile": "Makefile",
