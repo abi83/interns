@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 
 WORKFLOW = Path(__file__).resolve().parents[2] / ".github/workflows/code-pipeline.yml"
-READ_ONLY_COMMANDS = {"git diff", "git log", "git show", "git status"}
+READ_ONLY_COMMANDS = {"git log", "git show", "git status"}
 REVIEWER_STEP = "Run Claude reviewer"
 
 

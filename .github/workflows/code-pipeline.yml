@@ -60,7 +60,7 @@ env:
   ALLOWED_VIEW_JOB_LOG: "mcp__gh-issues__view_job_log"
   # git push is deliberately absent: the remote is reached via mcp__gh-issues__push_branch.
   ALLOWED_GIT_WRITE: "Bash(git add:*),Bash(git commit:*),Bash(git rm:*),Bash(git mv:*)"
-  ALLOWED_GIT_READ: "Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git status:*)"
+  ALLOWED_GIT_READ: "Bash(git log:*),Bash(git show:*),Bash(git status:*)"
   # Write/Edit stay the only write path; no sed (no uniqueness check, easy to over-match).
   ALLOWED_FS_READ: "Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(wc:*)"
   # make targets keep this independent of the consumer repo's language.
