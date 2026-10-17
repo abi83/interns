@@ -48,6 +48,15 @@ def stage_unfinished_work(workspace: str, base: str) -> bool:
     return len(staged) > len(protected)
 
 
+def rebase_index_onto_remote_branch(workspace: str, branch: str) -> None:
+    """Point HEAD at the remote branch tip, keeping the staged tree, so the draft
+    commit is added on top of an earlier draft instead of rewriting it."""
+    if not push.git(workspace, "ls-remote", "--heads", "origin", branch):
+        return
+    push.git(workspace, "fetch", "origin", branch, "--quiet")
+    push.git(workspace, "reset", "--soft", "FETCH_HEAD")
+
+
 def save_draft_pr(repo: str, workspace: str, issue: int, title: str, run_url: str) -> str | None:
     branch = push.unprotected_branch(workspace)
     if gh.pr_for_head(repo, branch) is not None:
@@ -57,6 +66,9 @@ def save_draft_pr(repo: str, workspace: str, issue: int, title: str, run_url: st
     if not stage_unfinished_work(workspace, base):
         return None
 
+    rebase_index_onto_remote_branch(workspace, branch)
+    if not push.git(workspace, "diff", "--cached", "--name-only"):
+        return None
     push.git(workspace, "commit", "--quiet", "-m", title)
     push.push_branch(repo, workspace)
     return gh.pr_create(repo, branch, default, title, draft_body(issue, run_url), draft=True)
