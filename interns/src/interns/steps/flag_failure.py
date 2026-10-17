@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .. import cli, execution
 from ..ctx import ActionsCtx
-from ..domain import lifecycle, lifecycle_apply
+from ..domain import labels, lifecycle, lifecycle_apply
 from ..env_spec import EnvSpec
 
 ENV_SPEC = EnvSpec.of("GITHUB_RUN_ID")
@@ -73,12 +73,20 @@ def failure_details(exec_file: str) -> str:
     return "\n".join(lines)
 
 
+def _retry_hint() -> str:
+    return (
+        f"To ask interns to retry, remove the `{labels.STATUS_NEEDS_ATTENTION}` label from the issue and "
+        f"re-apply `{labels.STATUS_READY}`; the rerun resumes on the draft's branch. "
+        "Editing the issue title or type label first starts a fresh branch."
+    )
+
+
 def flag_failure(repo: str, noun: Noun, issue: int | None, pr: int | None, fix_round: bool, *,
                  run_url: str = "", exec_file: str = "", draft_pr_url: str = "") -> None:
     details = failure_details(exec_file)
     suffix = f"\n\n{details}" if details else ""
     if draft_pr_url:
-        suffix += f"\n\nDraft PR with the unfinished work: {draft_pr_url}"
+        suffix += f"\n\nDraft PR with the unfinished work: {draft_pr_url}\n\n{_retry_hint()}"
     if issue is None and pr is None:
         raise ValueError("one of --issue or --pr is required")
     event = lifecycle.Event.JOB_CRASHED_FIX_ROUND if fix_round else lifecycle.Event.JOB_CRASHED
