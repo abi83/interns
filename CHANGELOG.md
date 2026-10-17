@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.2](https://github.com/abi83/interns/compare/v0.3.1...v0.3.2) (2026-10-17)
+
+
+### Bug Fixes
+
+* add retry hint to the coder failure comment ([#383](https://github.com/abi83/interns/issues/383)) ([560cc47](https://github.com/abi83/interns/commit/560cc47be4250526b0692ced25b293f58ccd8e6e))
+* push_branch adds commits instead of squashing and force-pushing ([#384](https://github.com/abi83/interns/issues/384)) ([#385](https://github.com/abi83/interns/issues/385)) ([7cab7b8](https://github.com/abi83/interns/commit/7cab7b8de1a89d8efbb6dc330356c990057ce954))
+* remove git diff from the reviewer's allowed tools ([#378](https://github.com/abi83/interns/issues/378)) ([#386](https://github.com/abi83/interns/issues/386)) ([3d14e10](https://github.com/abi83/interns/commit/3d14e10123f4bb1dcf6404d95807baf304f52d63))
+* state the real failure reason in the coder failure comment ([#381](https://github.com/abi83/interns/issues/381)) ([e8a5edf](https://github.com/abi83/interns/commit/e8a5edfbd1b3aedb892892eadf26a5601b5ac3f7))
+
 ## [0.3.1](https://github.com/abi83/interns/compare/0.3.0...v0.3.1) (2026-10-15)
 
 
