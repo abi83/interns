@@ -30,13 +30,12 @@ def reviews_on_pr(scenario: Scenario, *reviews: dict) -> None:
     scenario.gh("pr", "view", "headRefOid", stdout={"headRefOid": HEAD})
 
 
-def test_coder_success_squashes_pushes_opens_pr_and_reports_cost(scenario):
+def test_coder_success_pushes_opens_pr_and_reports_cost(scenario):
     scenario.gh("api", f"repos/{REPO}", stdout={"default_branch": "main"})
     scenario.git("rev-parse", "--abbrev-ref", "HEAD", stdout="issue-7\n")
     scenario.git("rev-parse", "HEAD", stdout="tip-sha\n")
     scenario.git("merge-base", stdout="base-sha\n")
-    scenario.git("log", stdout="feat: add thing\n")
-    scenario.git("diff-tree", stdout="src/thing.py\n")
+    scenario.git("diff", stdout="src/thing.py\n")
     scenario.gh("pr", "list", stdout="[]")
     scenario.gh("pr", "create", stdout=f"https://github.example/{REPO}/pull/{PR}\n")
     scenario.gh("pr", "view", "labels", stdout=labels_payload("pr:coding"))
@@ -51,9 +50,9 @@ def test_coder_success_squashes_pushes_opens_pr_and_reports_cost(scenario):
     handed_off = scenario.run("interns.entrypoint", "handoff-to-review", "--issue", ISSUE, "--pr", PR)
 
     assert [r.returncode for r in (pushed, opened, reported, handed_off)] == [0, 0, 0, 0]
-    assert scenario.calls("git", "reset") == [["reset", "--soft", "base-sha"]]
-    assert scenario.calls("git", "commit") == [["commit", "--quiet", "-m", "feat: add thing"]]
-    assert scenario.calls("git", "push") == [["push", "--force-with-lease", "-u", "origin", "issue-7"]]
+    assert scenario.calls("git", "reset") == []
+    assert scenario.calls("git", "commit") == []
+    assert scenario.calls("git", "push") == [["push", "-u", "origin", "issue-7"]]
     (create,) = scenario.calls("gh", "pr", "create")
     assert create[create.index("--head") + 1] == "issue-7"
     assert create[create.index("--base") + 1] == "main"

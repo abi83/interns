@@ -44,8 +44,8 @@ derived from the issue and already checked out, no need to create or switch
 to it yourself. If it already has commits beyond the default branch, an
 earlier attempt ran out of turns and its unfinished work was saved there:
 finish it, don't start over. Commit your changes with a normal, clear commit message.
-`mcp__gh-issues__push_branch` collapses the branch to a single commit before
-pushing, so don't rely on your intermediate commit structure surviving.
+`mcp__gh-issues__push_branch` pushes your commits as they are, on top of any
+already on the branch; history is never rewritten.
 
 ## Open the PR
 

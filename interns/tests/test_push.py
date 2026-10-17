@@ -25,16 +25,13 @@ def _git_seq(*stdout_values: str) -> list[MagicMock]:
 
 
 @patch("interns.domain.push.default_branch", return_value="main")
-def test_push_branch_squashes_and_pushes(_):
+def test_push_branch_pushes_without_rewriting(_):
     seq = _git_seq(
         "feat/my-branch",   # rev-parse --abbrev-ref HEAD
         "",                 # fetch origin main
         "abc123",           # merge-base
         "def456",           # rev-parse HEAD
-        "commit message",   # log -1
-        "",                 # reset --soft
-        "",                 # commit
-        "file.py",          # diff-tree (no protected paths)
+        "file.py",          # diff base HEAD (no protected paths)
         "",                 # push
     )
     with patch("interns.domain.push.subprocess.run", side_effect=seq):
@@ -45,7 +42,7 @@ def test_push_branch_squashes_and_pushes(_):
 
 @patch("interns.domain.push.default_branch", return_value="develop")
 def test_push_branch_uses_repos_default_branch(_):
-    seq = _git_seq("feat/x", "", "abc123", "def456", "msg", "", "", "file.py", "")
+    seq = _git_seq("feat/x", "", "abc123", "def456", "file.py", "")
     with patch("interns.domain.push.subprocess.run", side_effect=seq) as run:
         push_branch(REPO, WORKSPACE)
     cmds = [c[0][0] for c in run.call_args_list]
@@ -74,17 +71,35 @@ def test_push_branch_rejects_no_commits(_):
 
 @patch("interns.domain.push.default_branch", return_value="main")
 def test_push_branch_rejects_protected_workflow_path(_):
-    # Sequence includes the rollback reset that undoes the squash before raising.
-    seq = _git_seq("my-branch", "", "abc123", "def456", "fix: update", "", "", ".github/workflows/ci.yml", "")
+    seq = _git_seq("my-branch", "", "abc123", "def456", ".github/workflows/ci.yml")
     with patch("interns.domain.push.subprocess.run", side_effect=seq), pytest.raises(PushRefusedError, match="protected paths"):
         push_branch(REPO, WORKSPACE)
 
 
 @patch("interns.domain.push.default_branch", return_value="main")
 def test_push_branch_rejects_protected_scripts_path(_):
-    seq = _git_seq("my-branch", "", "abc123", "def456", "chore: update", "", "", ".github/scripts/foo.py", "")
+    seq = _git_seq("my-branch", "", "abc123", "def456", ".github/scripts/foo.py")
     with patch("interns.domain.push.subprocess.run", side_effect=seq), pytest.raises(PushRefusedError, match="protected paths"):
         push_branch(REPO, WORKSPACE)
+
+
+@patch("interns.domain.push.default_branch", return_value="main")
+def test_push_branch_never_rewrites_history(_):
+    seq = _git_seq("feat/x", "", "abc123", "def456", "file.py", "")
+    with patch("interns.domain.push.subprocess.run", side_effect=seq) as run:
+        push_branch(REPO, WORKSPACE)
+    cmds = [c[0][0] for c in run.call_args_list]
+    assert ["git", "push", "-u", "origin", "feat/x"] in cmds
+    assert not any(c[1] in ("reset", "commit") or "--force-with-lease" in c for c in cmds)
+
+
+@patch("interns.domain.push.default_branch", return_value="main")
+def test_push_branch_checks_protected_paths_on_net_diff(_):
+    seq = _git_seq("feat/x", "", "abc123", "def456", "file.py", "")
+    with patch("interns.domain.push.subprocess.run", side_effect=seq) as run:
+        push_branch(REPO, WORKSPACE)
+    cmds = [c[0][0] for c in run.call_args_list]
+    assert ["git", "diff", "--name-only", "abc123", "HEAD"] in cmds
 
 
 @patch("interns.domain.push.default_branch", return_value="main")
@@ -99,7 +114,7 @@ def test_push_branch_surfaces_git_error(_):
 
 @patch("interns.domain.push.default_branch", return_value="main")
 def test_push_branch_passes_workspace_as_cwd(_):
-    seq = _git_seq("feat/x", "", "abc123", "def456", "msg", "", "", "file.py", "")
+    seq = _git_seq("feat/x", "", "abc123", "def456", "file.py", "")
     with patch("interns.domain.push.subprocess.run", side_effect=seq) as run:
         push_branch(REPO, WORKSPACE)
     for c in run.call_args_list:

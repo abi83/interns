@@ -26,16 +26,13 @@ def scenario(tmp_path, monkeypatch):
     s.assert_all_matched()
 
 
-def test_push_branch_squashes_and_pushes(scenario):
+def test_push_branch_pushes_without_rewriting(scenario):
     scenario.gh("api", f"repos/{REPO}", stdout=_API_REPO)
     scenario.git("rev-parse", "--abbrev-ref", "HEAD", stdout="feat/add-thing")
     scenario.git("fetch", stdout="")
     scenario.git("merge-base", stdout="abc123")
     scenario.git("rev-parse", "HEAD", stdout="def456")
-    scenario.git("log", stdout="feat: add thing\n")
-    scenario.git("reset", stdout="")
-    scenario.git("commit", stdout="")
-    scenario.git("diff-tree", stdout="src/pipeline/foo.py")
+    scenario.git("diff", stdout="src/pipeline/foo.py")
     scenario.git("push", stdout="")
 
     result = push.push_branch(REPO, "")
@@ -69,11 +66,7 @@ def test_push_branch_rejects_protected_path(scenario):
     scenario.git("fetch", stdout="")
     scenario.git("merge-base", stdout="abc123")
     scenario.git("rev-parse", "HEAD", stdout="def456")
-    scenario.git("log", stdout="chore: update workflow\n")
-    scenario.git("reset", stdout="")
-    scenario.git("commit", stdout="")
-    scenario.git("diff-tree", stdout=".github/workflows/ci.yml")
-    scenario.git("reset", stdout="")  # rollback squash before raising
+    scenario.git("diff", stdout=".github/workflows/ci.yml")
 
     with pytest.raises(PushRefusedError, match="protected paths"):
         push.push_branch(REPO, "")
