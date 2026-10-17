@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from collections import Counter
 from enum import StrEnum
+from pathlib import Path
 
 from .. import cli, execution
 from ..ctx import ActionsCtx
@@ -23,6 +24,8 @@ class Noun(StrEnum):
 
 MAX_LISTED_DENIALS = 5
 MAX_COMMAND_CHARS = 80
+# A SIGKILLed run (job timeout) leaves a log without a result entry.
+NO_RESULT_NOTE = "Agent stopped: no result was recorded (the run was likely killed, e.g. on timeout)."
 
 
 def _denial_label(denial: dict) -> str:
@@ -32,25 +35,41 @@ def _denial_label(denial: dict) -> str:
     return text if len(text) <= MAX_COMMAND_CHARS else text[: MAX_COMMAND_CHARS - 1] + "…"
 
 
+def _stop_reason(entry: dict) -> str | None:
+    if entry.get("subtype") != "success":
+        return "; ".join(entry.get("errors") or []) or entry.get("subtype") or "unknown"
+    if entry.get("is_error"):
+        return entry.get("result") or entry.get("api_error") or "the agent reported an error"
+    return None
+
+
+def _denial_lines(entry: dict) -> list[str]:
+    denials = execution.permission_denials(entry)
+    if not denials:
+        return []
+    lines = [f"{len(denials)} tool calls were denied:"]
+    ranked = Counter(_denial_label(d) for d in denials).most_common()
+    for label, count in ranked[:MAX_LISTED_DENIALS]:
+        lines.append(f"- `{label}`" + (f" (×{count})" if count > 1 else ""))
+    hidden = sum(count for _, count in ranked[MAX_LISTED_DENIALS:])
+    if hidden:
+        lines.append(f"- and {hidden} more")
+    return lines
+
+
 def failure_details(exec_file: str) -> str:
-    """Why the agent stopped and which tool calls were denied, from the
+    """Why the agent stopped, then which tool calls were denied, from the
     execution log. Empty when there is no usable log."""
     entry = execution.result_entry(exec_file)
     if entry is None:
-        return ""
+        return NO_RESULT_NOTE if Path(exec_file).is_file() else ""
     lines = []
-    if entry.get("subtype") != "success":
-        reason = "; ".join(entry.get("errors") or []) or entry.get("subtype") or "unknown"
-        lines.append(f"Agent stopped: {reason}.")
-    denials = execution.permission_denials(entry)
-    if denials:
-        lines.append(f"{len(denials)} tool calls were denied:")
-        ranked = Counter(_denial_label(d) for d in denials).most_common()
-        for label, count in ranked[:MAX_LISTED_DENIALS]:
-            lines.append(f"- `{label}`" + (f" (×{count})" if count > 1 else ""))
-        hidden = sum(count for _, count in ranked[MAX_LISTED_DENIALS:])
-        if hidden:
-            lines.append(f"- and {hidden} more")
+    reason = _stop_reason(entry)
+    if reason:
+        lines.append(f"Agent stopped: {reason.rstrip('.')}.")
+    # An API error (e.g. the session limit) ends the run no matter what was denied earlier.
+    if not entry.get("api_error"):
+        lines.extend(_denial_lines(entry))
     return "\n".join(lines)
 
 

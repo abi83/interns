@@ -201,6 +201,40 @@ def test_failure_comment_explains_max_turns_and_lists_top_denied_commands(scenar
     )
 
 
+def test_failure_comment_leads_with_the_session_limit_and_drops_incidental_denials(scenario):
+    scenario.gh("issue", "view", "labels", stdout=labels_payload("status:in-progress"))
+    path = scenario.dir / "execution.json"
+    path.write_text(jsonl([{
+        "type": "result", "subtype": "success", "is_error": True, "api_error": "usage_limit_reached",
+        "result": "You've hit your session limit \u00b7 resets 10:50pm (UTC)",
+        "permission_denials": [{"tool_name": "Bash", "tool_input": {"command": "npm ci"}}],
+    }]))
+
+    result = scenario.run("interns.entrypoint", "flag-failure", "--noun", "implementation",
+                          "--issue", ISSUE, "--exec-file", str(path))
+
+    assert result.returncode == 0
+    assert scenario.comments("issue") == [(ISSUE, (
+        f"Automated implementation failed. See the run: {RUN_URL}\n\n"
+        "Agent stopped: You've hit your session limit \u00b7 resets 10:50pm (UTC)."
+    ))]
+
+
+def test_failure_comment_says_the_run_was_killed_when_the_log_has_no_result(scenario):
+    scenario.gh("issue", "view", "labels", stdout=labels_payload("status:in-progress"))
+    path = scenario.dir / "execution.json"
+    path.write_text(jsonl([{"type": "system", "subtype": "init"}]))
+
+    result = scenario.run("interns.entrypoint", "flag-failure", "--noun", "implementation",
+                          "--issue", ISSUE, "--exec-file", str(path))
+
+    assert result.returncode == 0
+    assert scenario.comments("issue") == [(ISSUE, (
+        f"Automated implementation failed. See the run: {RUN_URL}\n\n"
+        "Agent stopped: no result was recorded (the run was likely killed, e.g. on timeout)."
+    ))]
+
+
 def test_failure_comment_links_the_draft_pr_with_the_unfinished_work(scenario):
     scenario.gh("issue", "view", "labels", stdout=labels_payload("status:in-progress"))
     exec_file = _write_exec_log(scenario, subtype="error_max_turns",
