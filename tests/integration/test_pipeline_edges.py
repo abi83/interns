@@ -248,7 +248,10 @@ def test_failure_comment_links_the_draft_pr_with_the_unfinished_work(scenario):
     assert scenario.comments("issue") == [(ISSUE, (
         f"Automated implementation failed. See the run: {RUN_URL}\n\n"
         "Agent stopped: Reached maximum number of turns (100).\n\n"
-        f"Draft PR with the unfinished work: {draft}"
+        f"Draft PR with the unfinished work: {draft}\n\n"
+        "To ask interns to retry, remove the `status:needs-attention` label from the issue and "
+        "re-apply `status:ready`; the rerun resumes on the draft's branch. "
+        "Editing the issue title or type label first starts a fresh branch."
     ))]
 
 
