@@ -56,8 +56,8 @@ substitute for writing the sentinel when you need the owner.
 Commit your changes normally and push to the **existing branch** — do not
 create a new branch or a new PR. Pushing to the branch updates the
 already-open PR directly and is what re-triggers the reviewer.
-`mcp__gh-issues__push_branch` squashes the branch to one commit and
-force-pushes it, so your earlier PR commits are replaced, not appended to.
+`mcp__gh-issues__push_branch` adds your commits on top of the PR's existing
+ones; nothing is rewritten or force-pushed.
 
 ```
 git add -A

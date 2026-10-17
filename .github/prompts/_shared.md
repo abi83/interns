@@ -21,7 +21,7 @@ agent's own instructions below.
 | `mcp__gh-issues__comment_pr` | Post a comment on a PR |
 | `mcp__gh-issues__open_pr` | Open a PR from the current branch |
 | `mcp__gh-issues__submit_pr_review` | Submit a formal PR review (APPROVE / REQUEST_CHANGES) |
-| `mcp__gh-issues__push_branch` | Squash the branch to one commit and push to origin |
+| `mcp__gh-issues__push_branch` | Push the branch to origin (adds commits, never rewrites) |
 
 All tools take explicit `issue_number` or `pr_number` parameters — the
 numbers are in your prompt. `open_pr` appends `Closes #N` automatically; do

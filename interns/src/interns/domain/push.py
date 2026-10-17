@@ -45,37 +45,31 @@ def fork_point(repo: str, workspace: str) -> tuple[str, str]:
 
 
 def push_branch(repo: str, workspace: str) -> str:
-    """Squash the current branch to one commit and push it to origin.
+    """Push the current branch to origin as a plain fast-forward.
 
     Refuses to push main/master, branches with no commits beyond the repo's
-    default branch, or commits that touch protected paths
-    (.github/workflows/ or .github/scripts/).  Squashing happens before the
-    protected-path check so an intermediate-only edit to a protected path is
-    collapsed and doesn't trigger a false positive.
+    default branch, or a net change against the fork point that touches
+    protected paths (.github/workflows/ or .github/scripts/).  The check runs
+    on the net diff, so an intermediate edit that was reverted is not a
+    violation.  Existing commits are never rewritten: a resumed run adds its
+    commits on top of the draft's.
     """
     branch = unprotected_branch(workspace)
     default, base = fork_point(repo, workspace)
-    head = git(workspace, "rev-parse", "HEAD")
 
-    if base == head:
+    if base == git(workspace, "rev-parse", "HEAD"):
         raise PushRefusedError(f"No commits beyond origin/{default} — nothing to push")
 
-    message = git(workspace, "log", "-1", "--format=%B")
-    git(workspace, "reset", "--soft", base)
-    git(workspace, "commit", "--quiet", "-m", message)
-
-    changed = git(workspace, "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD")
+    changed = git(workspace, "diff", "--name-only", base, "HEAD")
     protected = [p for p in changed.splitlines() if re.search(PROTECTED_PATHS_RE, p)]
     if protected:
-        # Undo the squash so the agent can drop the offending edits and retry.
-        git(workspace, "reset", "--soft", head)
         paths = "\n".join(f"  {p}" for p in protected)
         raise PushRefusedError(
             f"Cannot push: changes touch protected paths (drop these edits and push again):\n{paths}"
         )
 
-    git(workspace, "push", "--force-with-lease", "-u", "origin", branch)
-    return f"Branch {branch!r} squashed and pushed to origin"
+    git(workspace, "push", "-u", "origin", branch)
+    return f"Branch {branch!r} pushed to origin"
 
 
 def pr_open_for_issue(repo: str, workspace: str, issue_number: int, title: str, body: str) -> str:

@@ -231,7 +231,7 @@ def test_submit_pr_review_rejects_bad_event():
 
 
 def test_push_branch_dispatches_to_pipeline():
-    with patch("server.push.push_branch", return_value="Branch 'feat/x' squashed and pushed to origin") as mock:
+    with patch("server.push.push_branch", return_value="Branch 'feat/x' pushed to origin") as mock:
         result = push_branch()
     mock.assert_called_once_with("owner/repo", "/workspace")
     assert "feat/x" in result

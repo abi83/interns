@@ -256,12 +256,12 @@ def submit_pr_review(
 
 @_tool
 def push_branch() -> str:
-    """Squash the current branch to one commit and push it to origin.
+    """Push the current branch to origin, adding commits on top of any already there.
 
     Refuses to push main/master, branches with no commits beyond origin's default branch,
-    or commits that touch protected paths (.github/workflows/ or .github/scripts/).
-    Squashing happens before the protected-path check so an intermediate-only
-    edit to a protected path is collapsed and doesn't trigger a false positive.
+    or a net change against the fork point that touches protected paths
+    (.github/workflows/ or .github/scripts/). An intermediate edit that was
+    reverted does not count.
     """
     return push.push_branch(_repo(), _workspace())
 

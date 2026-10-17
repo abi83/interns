@@ -143,6 +143,7 @@ def test_refuses_to_save_the_default_branch(work):
 def test_resumed_branch_is_updated_not_duplicated(work, fake_gh):
     write(work, "src/a.py")
     save(work)
+    first_draft = git(work, "rev-parse", "HEAD")
     git(work, "fetch", "-q", "origin")
     write(work, "src/b.py")
     fake_gh.for_head.return_value = None
@@ -150,6 +151,7 @@ def test_resumed_branch_is_updated_not_duplicated(work, fake_gh):
     save(work)
 
     assert pushed_files(work) == ["src/a.py", "src/b.py"]
+    git(work, "merge-base", "--is-ancestor", first_draft, "origin/feat/issue-7-thing")
 
 
 class TestDraftTitle:
